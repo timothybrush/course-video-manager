@@ -37,18 +37,28 @@ const ALL_STATUSES: PitchStatus[] = ["idle", "scheduled", "cancelled"];
 
 function parseStatusParam(raw: string | null): PitchStatus[] {
   if (!raw) return ["idle"];
-  const values = raw
-    .split(",")
-    .filter((s): s is PitchStatus => ALL_STATUSES.includes(s as PitchStatus));
+  const values = [
+    ...new Set(
+      raw
+        .split(",")
+        .filter((s): s is PitchStatus =>
+          ALL_STATUSES.includes(s as PitchStatus)
+        )
+    ),
+  ];
   return values.length > 0 ? values : ["idle"];
 }
 
 function parsePriorityParam(raw: string | null): PitchPriority[] {
   if (!raw) return [];
-  return raw
-    .split(",")
-    .map(Number)
-    .filter((n): n is PitchPriority => n === 1 || n === 2 || n === 3);
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map(Number)
+        .filter((n): n is PitchPriority => n === 1 || n === 2 || n === 3)
+    ),
+  ];
 }
 
 export const loader = async (args: Route.LoaderArgs) => {

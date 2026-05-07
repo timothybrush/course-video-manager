@@ -50,26 +50,28 @@ describe("createPitch", () => {
 });
 
 describe("listPitches", () => {
-  it.effect("returns all non-archived pitches sorted by createdAt desc", () =>
-    Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
+  it.effect(
+    "returns all non-archived pitches sorted by priority asc then createdAt desc",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
 
-      const p1 = yield* db.createPitch();
-      yield* db.updatePitchField(p1.id, "title", "First");
+        const p1 = yield* db.createPitch();
+        yield* db.updatePitchField(p1.id, "title", "First");
 
-      const p2 = yield* db.createPitch();
-      yield* db.updatePitchField(p2.id, "title", "Second");
+        const p2 = yield* db.createPitch();
+        yield* db.updatePitchField(p2.id, "title", "Second");
 
-      const p3 = yield* db.createPitch();
-      yield* db.updatePitchField(p3.id, "title", "Archived");
-      yield* db.updatePitchField(p3.id, "archived", true);
+        const p3 = yield* db.createPitch();
+        yield* db.updatePitchField(p3.id, "title", "Archived");
+        yield* db.updatePitchField(p3.id, "archived", true);
 
-      const list = yield* db.listPitches();
+        const list = yield* db.listPitches();
 
-      expect(list).toHaveLength(2);
-      expect(list[0]!.title).toBe("Second");
-      expect(list[1]!.title).toBe("First");
-    }).pipe(Effect.provide(testLayer))
+        expect(list).toHaveLength(2);
+        expect(list[0]!.title).toBe("Second");
+        expect(list[1]!.title).toBe("First");
+      }).pipe(Effect.provide(testLayer))
   );
 });
 
@@ -274,6 +276,33 @@ describe("listPitches with filters", () => {
         const list = yield* db.listPitches();
         expect(list).toHaveLength(2);
       }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("treats empty status array as no status filter", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      yield* db.createPitch();
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "status", "scheduled");
+
+      const list = yield* db.listPitches({ status: [] });
+      expect(list).toHaveLength(2);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("treats empty priority array as no priority filter", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const p1 = yield* db.createPitch();
+      yield* db.updatePitchField(p1.id, "priority", 1);
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "priority", 3);
+
+      const list = yield* db.listPitches({ priority: [] });
+      expect(list).toHaveLength(2);
+    }).pipe(Effect.provide(testLayer))
   );
 });
 
