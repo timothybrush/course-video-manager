@@ -84,7 +84,7 @@ export function PostPage({
   const [title, setTitle] = useState(() => {
     if (typeof localStorage !== "undefined") {
       const stored = localStorage.getItem(POST_TITLE_STORAGE_KEY(videoId));
-      if (stored) return stored;
+      if (stored !== null) return stored;
     }
     return pitchYoutubeTitle ?? "";
   });
@@ -99,14 +99,14 @@ export function PostPage({
       const stored = localStorage.getItem(
         POST_NEWSLETTER_TITLE_STORAGE_KEY(videoId)
       );
-      if (stored) return stored;
+      if (stored !== null) return stored;
     }
     return pitchNewsletterTitle ?? "";
   });
   const [tweet, setTweet] = useState(() => {
     if (typeof localStorage !== "undefined") {
       const stored = localStorage.getItem(POST_TWEET_STORAGE_KEY(videoId));
-      if (stored) return stored;
+      if (stored !== null) return stored;
     }
     return pitchTweet ?? "";
   });

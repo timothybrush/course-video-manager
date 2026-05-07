@@ -33,4 +33,14 @@ describe("validateYoutubeTitle", () => {
   it("returns null for a single non-empty line among blank lines", () => {
     expect(validateYoutubeTitle("\n\nOnly one real line\n\n")).toBeNull();
   });
+
+  it("returns error for two lines separated by \\r\\n", () => {
+    expect(validateYoutubeTitle("Candidate 1\r\nCandidate 2")).toBe(
+      "YouTube title must be a single line"
+    );
+  });
+
+  it("returns null for a single line with trailing \\r\\n", () => {
+    expect(validateYoutubeTitle("Title here\r\n")).toBeNull();
+  });
 });
