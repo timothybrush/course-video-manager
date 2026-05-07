@@ -93,8 +93,8 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const featureFlags = yield* FeatureFlagService;
 
-    const [courses, standaloneVideos] = yield* Effect.all(
-      [db.getCourses(), db.getStandaloneVideosSidebar()],
+    const [courses, standaloneVideos, sidebarPitches] = yield* Effect.all(
+      [db.getCourses(), db.getStandaloneVideosSidebar(), db.listPitches()],
       { concurrency: "unbounded" }
     );
 
@@ -217,6 +217,10 @@ export const loader = async (args: Route.LoaderArgs) => {
     return {
       courses,
       standaloneVideos,
+      sidebarPitches: sidebarPitches.slice(0, 5).map((p) => ({
+        id: p.id,
+        title: p.title,
+      })),
       selectedCourse: slimCourse,
       versions,
       selectedVersion,
@@ -382,6 +386,7 @@ function ComponentInner(props: Route.ComponentProps) {
       <AppSidebar
         courses={courses}
         standaloneVideos={loaderData.standaloneVideos}
+        pitches={loaderData.sidebarPitches}
         selectedCourseId={selectedCourseId}
         isAddCourseModalOpen={isAddCourseModalOpen}
         setIsAddCourseModalOpen={(open) =>

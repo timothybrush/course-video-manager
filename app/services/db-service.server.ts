@@ -6,6 +6,7 @@ import { createVersionOperations } from "@/services/db-version-operations.server
 import { createLessonSectionOperations } from "@/services/db-lesson-section-operations.server";
 import { createLinkAuthOperations } from "@/services/db-link-auth-operations.server";
 import { createThumbnailOperations } from "@/services/db-thumbnail-operations.server";
+import { createPitchOperations } from "@/services/db-pitch-operations.server";
 import { Effect } from "effect";
 
 export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
@@ -134,6 +135,14 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deleteThumbnail,
       } = createThumbnailOperations(db);
 
+      const {
+        createPitch,
+        listPitches,
+        getPitch,
+        updatePitchField,
+        deletePitch,
+      } = createPitchOperations(db);
+
       return {
         getClipById,
         getClipsByIds,
@@ -231,6 +240,11 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         selectThumbnailForUpload,
         deselectAllThumbnails,
         deleteThumbnail,
+        createPitch,
+        listPitches,
+        getPitch,
+        updatePitchField,
+        deletePitch,
       };
     }),
   }

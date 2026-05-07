@@ -19,6 +19,7 @@ export function makeVideo(
     archived: false,
     createdAt: new Date(),
     lessonId: "lesson-1",
+    pitchId: null,
     originalFootagePath: "/footage/video-01",
     updatedAt: new Date(),
     clipCount: 0,

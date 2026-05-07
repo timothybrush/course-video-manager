@@ -131,6 +131,36 @@ export const lessons = createTable(
   ]
 );
 
+export const pitches = createTable("pitch", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  youtubeTitle: text("youtube_title").notNull().default(""),
+  youtubeThumbnailDescription: text("youtube_thumbnail_description")
+    .notNull()
+    .default(""),
+  newsletterTitle: text("newsletter_title").notNull().default(""),
+  tweet: text("tweet").notNull().default(""),
+  status: text("status").notNull().default("idle"),
+  priority: integer("priority").notNull().default(2),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const videos = createTable("video", {
   id: varchar("id", { length: 255 })
     .notNull()
@@ -138,6 +168,9 @@ export const videos = createTable("video", {
     .$defaultFn(() => crypto.randomUUID()),
   lessonId: varchar("lesson_id", { length: 255 }).references(() => lessons.id, {
     onDelete: "cascade",
+  }),
+  pitchId: varchar("pitch_id", { length: 255 }).references(() => pitches.id, {
+    onDelete: "set null",
   }),
   path: text("path").notNull(),
   originalFootagePath: text("original_footage_path").notNull(),
@@ -228,8 +261,13 @@ export const clipSectionsRelations = relations(clipSections, ({ one }) => ({
   }),
 }));
 
+export const pitchesRelations = relations(pitches, ({ many }) => ({
+  videos: many(videos),
+}));
+
 export const videosRelations = relations(videos, ({ one, many }) => ({
   lesson: one(lessons, { fields: [videos.lessonId], references: [lessons.id] }),
+  pitch: one(pitches, { fields: [videos.pitchId], references: [pitches.id] }),
   clips: many(clips),
   clipSections: many(clipSections),
   thumbnails: many(thumbnails),

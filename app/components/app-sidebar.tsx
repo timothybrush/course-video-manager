@@ -20,13 +20,14 @@ import {
   Eye,
   FolderGit2,
   FolderOpen,
+  Lightbulb,
   Menu,
   PencilIcon,
   Plus,
   VideoIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Link, useFetcher, useLocation } from "react-router";
+import { Link, useFetcher, useLocation, useNavigate } from "react-router";
 
 export interface AppSidebarProps {
   courses: Array<{
@@ -36,6 +37,10 @@ export interface AppSidebarProps {
   standaloneVideos: Array<{
     id: string;
     path: string;
+  }>;
+  pitches?: Array<{
+    id: string;
+    title: string;
   }>;
   selectedCourseId?: string | null;
   isAddCourseModalOpen?: boolean;
@@ -47,6 +52,7 @@ export interface AppSidebarProps {
 export function AppSidebar({
   courses,
   standaloneVideos,
+  pitches = [],
   selectedCourseId = null,
   isAddCourseModalOpen = false,
   setIsAddCourseModalOpen,
@@ -54,9 +60,11 @@ export function AppSidebar({
   setIsAddStandaloneVideoModalOpen,
 }: AppSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const archiveCourseFetcher = useFetcher();
   const archiveVideoFetcher = useFetcher();
   const revealVideoFetcher = useFetcher();
+  const createPitchFetcher = useFetcher<{ id: string }>();
 
   const [isInternalAddVideoModalOpen, setIsInternalAddVideoModalOpen] =
     useState(false);
@@ -70,6 +78,13 @@ export function AppSidebar({
   useEffect(() => {
     setSheetOpen(false);
   }, [location.pathname, location.search]);
+
+  // Navigate to new pitch after creation
+  useEffect(() => {
+    if (createPitchFetcher.state === "idle" && createPitchFetcher.data?.id) {
+      navigate(`/pitches/${createPitchFetcher.data.id}`);
+    }
+  }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
 
   const sidebarContent = (
     <>
@@ -214,6 +229,48 @@ export function AppSidebar({
         >
           <Eye className="w-3 h-3" />
           View All Videos
+        </Link>
+      </div>
+
+      {/* Pitches Card */}
+      <div className="rounded-lg border bg-card p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Pitches</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => {
+              createPitchFetcher.submit(
+                {},
+                { method: "post", action: "/api/pitches/create" }
+              );
+            }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        <div className="space-y-0.5">
+          {pitches.map((pitch) => (
+            <Link
+              key={pitch.id}
+              to={`/pitches/${pitch.id}`}
+              preventScrollReset
+              className="block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
+            >
+              {pitch.title || "Untitled Pitch"}
+            </Link>
+          ))}
+        </div>
+        <Link
+          to="/pitches"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
+        >
+          <Eye className="w-3 h-3" />
+          View All Pitches
         </Link>
       </div>
     </>
