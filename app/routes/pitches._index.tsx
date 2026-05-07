@@ -1,4 +1,14 @@
 import { AppSidebar } from "@/components/app-sidebar";
+import {
+  PrioritySelector,
+  PRIORITY_STYLES,
+  type Priority,
+} from "@/components/priority-selector";
+import {
+  StatusIconBadge,
+  STATUS_META,
+  type PitchStatus,
+} from "@/components/status-icon-badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -6,17 +16,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  PRIORITY_STYLES,
-  STATUS_META,
-  type PitchStatus,
-  type PitchPriority,
-} from "@/features/pitches-prototype/shared";
 import { cn } from "@/lib/utils";
+import { CoursePublishService } from "@/services/course-publish-service";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
+import { formatSecondsToTimeCode } from "@/services/utils";
 import { Console, Effect } from "effect";
-import { ChevronDown, Filter, Lightbulb, Plus } from "lucide-react";
+import { ChevronDown, FileVideo, Filter, Lightbulb, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   data,
@@ -26,12 +32,12 @@ import {
   useSearchParams,
 } from "react-router";
 import type { Route } from "./+types/pitches._index";
-import { PrioritySelector } from "@/components/priority-selector";
-import { StatusIconBadge } from "@/components/status-icon-badge";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Pitches" }];
 };
+
+type PitchPriority = 1 | 2 | 3;
 
 const ALL_STATUSES: PitchStatus[] = ["idle", "scheduled", "cancelled"];
 
@@ -61,6 +67,22 @@ function parsePriorityParam(raw: string | null): PitchPriority[] {
   ];
 }
 
+interface PitchVideo {
+  id: string;
+  path: string;
+  firstClipId: string | null;
+  totalDuration: number;
+}
+
+interface PitchWithVideos {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: number;
+  videos: PitchVideo[];
+}
+
 export const loader = async (args: Route.LoaderArgs) => {
   const url = new URL(args.request.url);
   const statusFilter = parseStatusParam(url.searchParams.get("status"));
@@ -68,12 +90,13 @@ export const loader = async (args: Route.LoaderArgs) => {
 
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
+    const publishService = yield* CoursePublishService;
 
-    const [courses, sidebarVideos, pitches] = yield* Effect.all(
+    const [courses, sidebarVideos, pitchesRaw] = yield* Effect.all(
       [
         db.getCourses(),
         db.getStandaloneVideosSidebar(),
-        db.listPitches({
+        db.listPitchesWithVideos({
           status: statusFilter,
           priority: priorityFilter.length > 0 ? priorityFilter : undefined,
         }),
@@ -81,10 +104,40 @@ export const loader = async (args: Route.LoaderArgs) => {
       { concurrency: "unbounded" }
     );
 
+    const hasExportedVideoMap: Record<string, boolean> = {};
+    const allVideos = pitchesRaw.flatMap((p) => p.videos);
+    yield* Effect.forEach(
+      allVideos,
+      (video) =>
+        Effect.gen(function* () {
+          hasExportedVideoMap[video.id] =
+            yield* publishService.isExported(video);
+        }),
+      { concurrency: "unbounded" }
+    );
+
+    const pitches: PitchWithVideos[] = pitchesRaw.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      status: p.status,
+      priority: p.priority,
+      videos: p.videos.map((v) => ({
+        id: v.id,
+        path: v.path,
+        firstClipId: v.clips[0]?.id ?? null,
+        totalDuration: v.clips.reduce(
+          (acc, c) => acc + (c.sourceEndTime - c.sourceStartTime),
+          0
+        ),
+      })),
+    }));
+
     return {
       courses,
       sidebarVideos,
       pitches,
+      hasExportedVideoMap,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -96,7 +149,8 @@ export const loader = async (args: Route.LoaderArgs) => {
 };
 
 export default function PitchesIndexRoute(props: Route.ComponentProps) {
-  const { courses, sidebarVideos, pitches } = props.loaderData;
+  const { courses, sidebarVideos, pitches, hasExportedVideoMap } =
+    props.loaderData;
   const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
   const navigate = useNavigate();
@@ -249,7 +303,11 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
           ) : (
             <div className="space-y-3">
               {pitches.map((pitch) => (
-                <PitchRow key={pitch.id} pitch={pitch} />
+                <PitchRow
+                  key={pitch.id}
+                  pitch={pitch}
+                  hasExportedVideoMap={hasExportedVideoMap}
+                />
               ))}
             </div>
           )}
@@ -324,15 +382,20 @@ function StatusFilterDropdown({
 
 function PitchRow({
   pitch,
+  hasExportedVideoMap,
 }: {
-  pitch: {
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    priority: number;
-  };
+  pitch: PitchWithVideos;
+  hasExportedVideoMap: Record<string, boolean>;
 }) {
+  const navigate = useNavigate();
+  const createVideoFetcher = useFetcher<{ id: string }>();
+
+  useEffect(() => {
+    if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
+      navigate(`/videos/${createVideoFetcher.data.id}/edit`);
+    }
+  }, [createVideoFetcher.state, createVideoFetcher.data, navigate]);
+
   return (
     <div className="border rounded-lg bg-card hover:bg-muted/30 transition-colors">
       <div className="flex items-center gap-2 px-4 py-3">
@@ -343,13 +406,70 @@ function PitchRow({
         >
           {pitch.title || "Untitled Pitch"}
         </Link>
-        <PrioritySelector priority={pitch.priority as 1 | 2 | 3} readOnly />
+        <PrioritySelector priority={pitch.priority as Priority} readOnly />
       </div>
       {pitch.description && (
         <p className="ml-12 mr-4 pb-3 text-xs text-muted-foreground line-clamp-2">
           {pitch.description}
         </p>
       )}
+      <div className="px-4 pb-3">
+        {pitch.videos.length === 0 ? (
+          <button
+            className="ml-5 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-dashed rounded px-2 py-1.5 transition-colors"
+            onClick={() => {
+              createVideoFetcher.submit(
+                {},
+                {
+                  method: "post",
+                  action: `/api/pitches/${pitch.id}/create-video`,
+                }
+              );
+            }}
+            disabled={createVideoFetcher.state !== "idle"}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Video
+          </button>
+        ) : (
+          <div className="ml-5 flex flex-wrap gap-4">
+            {pitch.videos.map((video) => (
+              <Link
+                key={video.id}
+                to={`/videos/${video.id}/edit`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
+              >
+                <div className="relative aspect-video w-32 bg-muted">
+                  {video.firstClipId ? (
+                    <img
+                      src={`/clips/${video.firstClipId}/first-frame`}
+                      alt={video.path}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center border-r">
+                      <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+                    </div>
+                  )}
+                  {!hasExportedVideoMap[video.id] && (
+                    <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+                  )}
+                </div>
+                <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
+                  <span className="text-xs truncate text-foreground transition-colors">
+                    {video.path || "Untitled"}
+                  </span>
+                  <span className="text-xs font-mono mt-0.5">
+                    {formatSecondsToTimeCode(video.totalDuration)}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -138,8 +138,11 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
       const {
         createPitch,
         listPitches,
+        listPitchesWithVideos,
         getPitch,
+        getPitchWithVideos,
         updatePitchField,
+        createVideoFromPitch,
         deletePitch,
       } = createPitchOperations(db);
 
@@ -242,8 +245,11 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deleteThumbnail,
         createPitch,
         listPitches,
+        listPitchesWithVideos,
         getPitch,
+        getPitchWithVideos,
         updatePitchField,
+        createVideoFromPitch,
         deletePitch,
       };
     }),

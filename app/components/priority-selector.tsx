@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export type Priority = 1 | 2 | 3;
 
-const PRIORITY_STYLES: Record<Priority, string> = {
+export const PRIORITY_STYLES: Record<Priority, string> = {
   1: "bg-red-500/20 text-red-600",
   2: "bg-yellow-500/20 text-yellow-600",
   3: "bg-sky-500/20 text-sky-500",

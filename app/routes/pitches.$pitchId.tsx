@@ -10,15 +10,19 @@ import {
   StatusIconBadge,
   type PitchStatus,
 } from "@/components/status-icon-badge";
+import { CoursePublishService } from "@/services/course-publish-service";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
+import { formatSecondsToTimeCode } from "@/services/utils";
 import { Console, Effect } from "effect";
 import {
   ArrowLeft,
   Check,
+  FileVideo,
   Loader2,
   Mail,
   MessageSquare,
+  Plus,
   Trash2,
   Video,
   Youtube,
@@ -32,13 +36,58 @@ export const meta: Route.MetaFunction = ({ data: loaderData }) => {
   return [{ title: `CVM - ${title}` }];
 };
 
+interface PitchVideo {
+  id: string;
+  path: string;
+  firstClipId: string | null;
+  totalDuration: number;
+}
+
 export const loader = async (args: Route.LoaderArgs) => {
   const { pitchId } = args.params;
 
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const pitch = yield* db.getPitch(pitchId);
-    return { pitch };
+    const publishService = yield* CoursePublishService;
+
+    const pitchRaw = yield* db.getPitchWithVideos(pitchId);
+
+    const hasExportedVideoMap: Record<string, boolean> = {};
+    yield* Effect.forEach(
+      pitchRaw.videos,
+      (video) =>
+        Effect.gen(function* () {
+          hasExportedVideoMap[video.id] =
+            yield* publishService.isExported(video);
+        }),
+      { concurrency: "unbounded" }
+    );
+
+    const videos: PitchVideo[] = pitchRaw.videos.map((v) => ({
+      id: v.id,
+      path: v.path,
+      firstClipId: v.clips[0]?.id ?? null,
+      totalDuration: v.clips.reduce(
+        (acc, c) => acc + (c.sourceEndTime - c.sourceStartTime),
+        0
+      ),
+    }));
+
+    return {
+      pitch: {
+        id: pitchRaw.id,
+        title: pitchRaw.title,
+        description: pitchRaw.description,
+        youtubeTitle: pitchRaw.youtubeTitle,
+        youtubeThumbnailDescription: pitchRaw.youtubeThumbnailDescription,
+        newsletterTitle: pitchRaw.newsletterTitle,
+        tweet: pitchRaw.tweet,
+        status: pitchRaw.status,
+        priority: pitchRaw.priority,
+      },
+      videos,
+      hasExportedVideoMap,
+    };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
     Effect.catchTag("NotFoundError", () =>
@@ -134,11 +183,12 @@ function ChannelSection({
 }
 
 export default function PitchDetailRoute(props: Route.ComponentProps) {
-  const { pitch: initialPitch } = props.loaderData;
+  const { pitch: initialPitch, videos, hasExportedVideoMap } = props.loaderData;
   const navigate = useNavigate();
   const deleteFetcher = useFetcher();
   const statusFetcher = useFetcher();
   const priorityFetcher = useFetcher();
+  const createVideoFetcher = useFetcher<{ id: string }>();
 
   const [title, setTitle] = useState(initialPitch.title);
   const [description, setDescription] = useState(initialPitch.description);
@@ -164,6 +214,12 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
     }
   }, [deleteFetcher.state, deleteFetcher.data, navigate]);
 
+  useEffect(() => {
+    if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
+      navigate(`/videos/${createVideoFetcher.data.id}/edit`);
+    }
+  }, [createVideoFetcher.state, createVideoFetcher.data, navigate]);
+
   const handleFieldChange = (field: string, value: string) => {
     save(field, value);
   };
@@ -181,6 +237,23 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
           </Link>
           <div className="flex items-center gap-3">
             <SaveIndicator state={saveState} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                createVideoFetcher.submit(
+                  {},
+                  {
+                    method: "post",
+                    action: `/api/pitches/${initialPitch.id}/create-video`,
+                  }
+                );
+              }}
+              disabled={createVideoFetcher.state !== "idle"}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Video
+            </Button>
             <Button
               variant="destructive"
               size="sm"
@@ -313,9 +386,47 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
           </ChannelSection>
 
           <ChannelSection icon={<Video className="size-4" />} title="Videos">
-            <p className="text-sm text-muted-foreground">
-              Video linking will be available in a future update.
-            </p>
+            {videos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No videos yet. Click "+ Video" above to create one.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                {videos.map((video) => (
+                  <Link
+                    key={video.id}
+                    to={`/videos/${video.id}/edit`}
+                    className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
+                  >
+                    <div className="relative aspect-video w-32 bg-muted">
+                      {video.firstClipId ? (
+                        <img
+                          src={`/clips/${video.firstClipId}/first-frame`}
+                          alt={video.path}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center border-r">
+                          <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+                        </div>
+                      )}
+                      {!hasExportedVideoMap[video.id] && (
+                        <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+                      )}
+                    </div>
+                    <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
+                      <span className="text-xs truncate text-foreground transition-colors">
+                        {video.path || "Untitled"}
+                      </span>
+                      <span className="text-xs font-mono mt-0.5">
+                        {formatSecondsToTimeCode(video.totalDuration)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </ChannelSection>
         </div>
       </div>

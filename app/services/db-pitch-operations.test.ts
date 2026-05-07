@@ -382,3 +382,86 @@ describe("deletePitch", () => {
     }).pipe(Effect.provide(testLayer))
   );
 });
+
+describe("listPitchesWithVideos", () => {
+  it.effect("returns pitches with their linked videos", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const pitch = yield* db.createPitch();
+      yield* db.updatePitchField(pitch.id, "title", "Has videos");
+      const video = yield* db.createVideoFromPitch(pitch.id);
+
+      const list = yield* db.listPitchesWithVideos({ status: ["idle"] });
+      expect(list).toHaveLength(1);
+      expect(list[0]!.videos).toHaveLength(1);
+      expect(list[0]!.videos[0]!.id).toBe(video.id);
+      expect(list[0]!.videos[0]!.pitchId).toBe(pitch.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "returns pitches with empty videos array when no videos linked",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+
+        yield* db.createPitch();
+
+        const list = yield* db.listPitchesWithVideos({ status: ["idle"] });
+        expect(list).toHaveLength(1);
+        expect(list[0]!.videos).toHaveLength(0);
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "includes clips relation for computing first frame thumbnails",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+
+        const pitch = yield* db.createPitch();
+        yield* db.createVideoFromPitch(pitch.id);
+
+        const list = yield* db.listPitchesWithVideos({ status: ["idle"] });
+        expect(list[0]!.videos[0]!.clips).toEqual([]);
+      }).pipe(Effect.provide(testLayer))
+  );
+});
+
+describe("createVideoFromPitch", () => {
+  it.effect("creates a standalone video with pitchId set", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const pitch = yield* db.createPitch();
+      const video = yield* db.createVideoFromPitch(pitch.id);
+
+      expect(video.id).toEqual(expect.any(String));
+      expect(video.pitchId).toBe(pitch.id);
+      expect(video.lessonId).toBeNull();
+      expect(video.path).toBe("");
+      expect(video.originalFootagePath).toBe("");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("creates a video with no clips", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const pitch = yield* db.createPitch();
+      const video = yield* db.createVideoFromPitch(pitch.id);
+
+      const fullVideo = yield* db.getVideoWithClipsById(video.id);
+      expect(fullVideo.clips).toHaveLength(0);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails with NotFoundError for non-existent pitch", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const result = yield* db
+        .createVideoFromPitch("nonexistent-pitch-id")
+        .pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+});
