@@ -15,6 +15,21 @@ const makeDbCall = <T>(fn: () => Promise<T>) => {
 };
 
 export const createPitchOperations = (db: DrizzleDB) => {
+  const buildPitchFilters = (filters?: {
+    status?: string[];
+    priority?: number[];
+    archived?: boolean;
+  }) => {
+    const conditions = [eq(pitches.archived, filters?.archived ?? false)];
+    if (filters?.status && filters.status.length > 0) {
+      conditions.push(inArray(pitches.status, filters.status));
+    }
+    if (filters?.priority && filters.priority.length > 0) {
+      conditions.push(inArray(pitches.priority, filters.priority));
+    }
+    return and(...conditions);
+  };
+
   const createPitch = Effect.fn("createPitch")(function* () {
     const results = yield* makeDbCall(() =>
       db.insert(pitches).values({}).returning()
@@ -36,18 +51,9 @@ export const createPitchOperations = (db: DrizzleDB) => {
     priority?: number[];
     archived?: boolean;
   }) {
-    const conditions = [eq(pitches.archived, filters?.archived ?? false)];
-
-    if (filters?.status && filters.status.length > 0) {
-      conditions.push(inArray(pitches.status, filters.status));
-    }
-    if (filters?.priority && filters.priority.length > 0) {
-      conditions.push(inArray(pitches.priority, filters.priority));
-    }
-
     return yield* makeDbCall(() =>
       db.query.pitches.findMany({
-        where: and(...conditions),
+        where: buildPitchFilters(filters),
         orderBy: [asc(pitches.priority), desc(pitches.createdAt)],
       })
     );
@@ -59,18 +65,9 @@ export const createPitchOperations = (db: DrizzleDB) => {
       priority?: number[];
       archived?: boolean;
     }) {
-      const conditions = [eq(pitches.archived, filters?.archived ?? false)];
-
-      if (filters?.status && filters.status.length > 0) {
-        conditions.push(inArray(pitches.status, filters.status));
-      }
-      if (filters?.priority && filters.priority.length > 0) {
-        conditions.push(inArray(pitches.priority, filters.priority));
-      }
-
       return yield* makeDbCall(() =>
         db.query.pitches.findMany({
-          where: and(...conditions),
+          where: buildPitchFilters(filters),
           orderBy: [asc(pitches.priority), desc(pitches.createdAt)],
           with: {
             videos: {
