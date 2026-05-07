@@ -71,6 +71,14 @@ describe("listPitches", () => {
       expect(list[1]!.title).toBe("First");
     }).pipe(Effect.provide(testLayer))
   );
+
+  it.effect("returns empty array when no pitches exist", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const list = yield* db.listPitches();
+      expect(list).toEqual([]);
+    }).pipe(Effect.provide(testLayer))
+  );
 });
 
 describe("getPitch", () => {
@@ -125,19 +133,7 @@ describe("updatePitchField", () => {
       expect(updated.priority).toBe(1);
     }).pipe(Effect.provide(testLayer))
   );
-});
 
-describe("listPitches", () => {
-  it.effect("returns empty array when no pitches exist", () =>
-    Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      const list = yield* db.listPitches();
-      expect(list).toEqual([]);
-    }).pipe(Effect.provide(testLayer))
-  );
-});
-
-describe("updatePitchField", () => {
   it.effect("fails with NotFoundError for non-existent pitch", () =>
     Effect.gen(function* () {
       const db = yield* DBFunctionsService;
@@ -145,6 +141,43 @@ describe("updatePitchField", () => {
         .updatePitchField("nonexistent-id", "title", "Nope")
         .pipe(Effect.flip);
       expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("updates status field", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createPitch();
+
+      const updated = yield* db.updatePitchField(
+        created.id,
+        "status",
+        "scheduled"
+      );
+      expect(updated.status).toBe("scheduled");
+
+      const updated2 = yield* db.updatePitchField(
+        created.id,
+        "status",
+        "cancelled"
+      );
+      expect(updated2.status).toBe("cancelled");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("updating one field does not clobber another", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createPitch();
+
+      yield* db.updatePitchField(created.id, "title", "My Pitch");
+      yield* db.updatePitchField(created.id, "description", "A description");
+      yield* db.updatePitchField(created.id, "youtubeTitle", "YT Title");
+
+      const fetched = yield* db.getPitch(created.id);
+      expect(fetched.title).toBe("My Pitch");
+      expect(fetched.description).toBe("A description");
+      expect(fetched.youtubeTitle).toBe("YT Title");
     }).pipe(Effect.provide(testLayer))
   );
 });

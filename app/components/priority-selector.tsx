@@ -39,6 +39,7 @@ export function PrioritySelector({
 }: PrioritySelectorProps) {
   const trigger = (
     <button
+      type="button"
       className={cn(
         "flex-shrink-0 text-xs px-2 py-0.5 rounded-sm font-medium",
         PRIORITY_STYLES[priority]
