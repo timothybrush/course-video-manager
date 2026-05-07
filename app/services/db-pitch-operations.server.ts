@@ -4,7 +4,7 @@ import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
-import { desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { Effect } from "effect";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
@@ -31,11 +31,24 @@ export const createPitchOperations = (db: DrizzleDB) => {
     return pitch;
   });
 
-  const listPitches = Effect.fn("listPitches")(function* () {
+  const listPitches = Effect.fn("listPitches")(function* (filters?: {
+    status?: string[];
+    priority?: number[];
+    archived?: boolean;
+  }) {
+    const conditions = [eq(pitches.archived, filters?.archived ?? false)];
+
+    if (filters?.status && filters.status.length > 0) {
+      conditions.push(inArray(pitches.status, filters.status));
+    }
+    if (filters?.priority && filters.priority.length > 0) {
+      conditions.push(inArray(pitches.priority, filters.priority));
+    }
+
     return yield* makeDbCall(() =>
       db.query.pitches.findMany({
-        where: eq(pitches.archived, false),
-        orderBy: [desc(pitches.createdAt)],
+        where: and(...conditions),
+        orderBy: [asc(pitches.priority), desc(pitches.createdAt)],
       })
     );
   });
