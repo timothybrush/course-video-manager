@@ -149,6 +149,134 @@ describe("updatePitchField", () => {
   );
 });
 
+describe("listPitches with filters", () => {
+  it.effect("filters by status", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const p1 = yield* db.createPitch();
+      yield* db.updatePitchField(p1.id, "title", "Idle one");
+
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "title", "Scheduled one");
+      yield* db.updatePitchField(p2.id, "status", "scheduled");
+
+      const p3 = yield* db.createPitch();
+      yield* db.updatePitchField(p3.id, "title", "Cancelled one");
+      yield* db.updatePitchField(p3.id, "status", "cancelled");
+
+      const idleOnly = yield* db.listPitches({ status: ["idle"] });
+      expect(idleOnly).toHaveLength(1);
+      expect(idleOnly[0]!.title).toBe("Idle one");
+
+      const multiStatus = yield* db.listPitches({
+        status: ["idle", "scheduled"],
+      });
+      expect(multiStatus).toHaveLength(2);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("filters by priority", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const p1 = yield* db.createPitch();
+      yield* db.updatePitchField(p1.id, "priority", 1);
+
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "priority", 2);
+
+      const p3 = yield* db.createPitch();
+      yield* db.updatePitchField(p3.id, "priority", 3);
+
+      const highOnly = yield* db.listPitches({ priority: [1] });
+      expect(highOnly).toHaveLength(1);
+
+      const highAndMed = yield* db.listPitches({ priority: [1, 2] });
+      expect(highAndMed).toHaveLength(2);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("filters by archived flag", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      yield* db.createPitch();
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "archived", true);
+
+      const nonArchived = yield* db.listPitches({ archived: false });
+      expect(nonArchived).toHaveLength(1);
+
+      const archivedOnly = yield* db.listPitches({ archived: true });
+      expect(archivedOnly).toHaveLength(1);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("sorts by priority asc then createdAt desc", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const p1 = yield* db.createPitch();
+      yield* db.updatePitchField(p1.id, "title", "P2 older");
+      yield* db.updatePitchField(p1.id, "priority", 2);
+
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "title", "P1");
+      yield* db.updatePitchField(p2.id, "priority", 1);
+
+      const p3 = yield* db.createPitch();
+      yield* db.updatePitchField(p3.id, "title", "P2 newer");
+      yield* db.updatePitchField(p3.id, "priority", 2);
+
+      const list = yield* db.listPitches();
+      expect(list[0]!.title).toBe("P1");
+      expect(list[1]!.title).toBe("P2 newer");
+      expect(list[2]!.title).toBe("P2 older");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("combines status and priority filters", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+
+      const p1 = yield* db.createPitch();
+      yield* db.updatePitchField(p1.id, "priority", 1);
+
+      const p2 = yield* db.createPitch();
+      yield* db.updatePitchField(p2.id, "priority", 2);
+      yield* db.updatePitchField(p2.id, "status", "scheduled");
+
+      const p3 = yield* db.createPitch();
+      yield* db.updatePitchField(p3.id, "priority", 1);
+      yield* db.updatePitchField(p3.id, "status", "scheduled");
+
+      const result = yield* db.listPitches({
+        status: ["scheduled"],
+        priority: [1],
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]!.id).toBe(p3.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "returns all non-archived when called with no filters (backward compat)",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+
+        yield* db.createPitch();
+        yield* db.createPitch();
+        const p3 = yield* db.createPitch();
+        yield* db.updatePitchField(p3.id, "archived", true);
+
+        const list = yield* db.listPitches();
+        expect(list).toHaveLength(2);
+      }).pipe(Effect.provide(testLayer))
+  );
+});
+
 describe("deletePitch", () => {
   it.effect("removes the pitch row", () =>
     Effect.gen(function* () {
