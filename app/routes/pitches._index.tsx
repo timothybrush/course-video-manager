@@ -11,6 +11,12 @@ import {
 } from "@/components/status-icon-badge";
 import { Button } from "@/components/ui/button";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,7 +28,14 @@ import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { Console, Effect } from "effect";
-import { ChevronDown, FileVideo, Filter, Lightbulb, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  FileVideo,
+  Filter,
+  Lightbulb,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   data,
@@ -311,6 +324,21 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
               ))}
             </div>
           )}
+
+          <div className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                createPitchFetcher.submit(
+                  {},
+                  { method: "post", action: "/api/pitches/create" }
+                );
+              }}
+              disabled={createPitchFetcher.state !== "idle"}
+            >
+              <Plus className="size-4 mr-1" /> New Pitch
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -389,6 +417,26 @@ function PitchRow({
 }) {
   const navigate = useNavigate();
   const createVideoFetcher = useFetcher<{ id: string }>();
+  const statusFetcher = useFetcher();
+  const priorityFetcher = useFetcher();
+  const deleteFetcher = useFetcher();
+  const isDeleting =
+    deleteFetcher.state !== "idle" ||
+    deleteFetcher.formAction === `/api/pitches/${pitch.id}/delete`;
+
+  const [optimisticStatus, setOptimisticStatus] = useState<PitchStatus>(
+    pitch.status as PitchStatus
+  );
+  const [optimisticPriority, setOptimisticPriority] = useState<Priority>(
+    pitch.priority as Priority
+  );
+
+  useEffect(() => {
+    setOptimisticStatus(pitch.status as PitchStatus);
+  }, [pitch.status]);
+  useEffect(() => {
+    setOptimisticPriority(pitch.priority as Priority);
+  }, [pitch.priority]);
 
   useEffect(() => {
     if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
@@ -396,80 +444,127 @@ function PitchRow({
     }
   }, [createVideoFetcher.state, createVideoFetcher.data, navigate]);
 
+  if (isDeleting) return null;
+
   return (
-    <div className="border rounded-lg bg-card hover:bg-muted/30 transition-colors">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <StatusIconBadge status={pitch.status as PitchStatus} readOnly />
-        <Link
-          to={`/pitches/${pitch.id}`}
-          className="flex-1 min-w-0 font-medium truncate"
-        >
-          {pitch.title || "Untitled Pitch"}
-        </Link>
-        <PrioritySelector priority={pitch.priority as Priority} readOnly />
-      </div>
-      {pitch.description && (
-        <p className="ml-12 mr-4 pb-3 text-xs text-muted-foreground line-clamp-2">
-          {pitch.description}
-        </p>
-      )}
-      <div className="px-4 pb-3">
-        {pitch.videos.length === 0 ? (
-          <button
-            className="ml-5 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-dashed rounded px-2 py-1.5 transition-colors"
-            onClick={() => {
-              createVideoFetcher.submit(
-                {},
-                {
-                  method: "post",
-                  action: `/api/pitches/${pitch.id}/create-video`,
-                }
-              );
-            }}
-            disabled={createVideoFetcher.state !== "idle"}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Video
-          </button>
-        ) : (
-          <div className="ml-5 flex flex-wrap gap-4">
-            {pitch.videos.map((video) => (
-              <Link
-                key={video.id}
-                to={`/videos/${video.id}/edit`}
-                onClick={(e) => e.stopPropagation()}
-                className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
-              >
-                <div className="relative aspect-video w-32 bg-muted">
-                  {video.firstClipId ? (
-                    <img
-                      src={`/clips/${video.firstClipId}/first-frame`}
-                      alt={video.path}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center border-r">
-                      <FileVideo className="w-6 h-6 text-muted-foreground/40" />
-                    </div>
-                  )}
-                  {!hasExportedVideoMap[video.id] && (
-                    <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
-                  )}
-                </div>
-                <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
-                  <span className="text-xs truncate text-foreground transition-colors">
-                    {video.path || "Untitled"}
-                  </span>
-                  <span className="text-xs font-mono mt-0.5">
-                    {formatSecondsToTimeCode(video.totalDuration)}
-                  </span>
-                </div>
-              </Link>
-            ))}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="border rounded-lg bg-card hover:bg-muted/30 transition-colors">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <StatusIconBadge
+              status={optimisticStatus}
+              onSelect={(s) => {
+                setOptimisticStatus(s);
+                statusFetcher.submit(
+                  { field: "status", value: s },
+                  {
+                    method: "post",
+                    action: `/api/pitches/${pitch.id}/update`,
+                  }
+                );
+              }}
+            />
+            <Link
+              to={`/pitches/${pitch.id}`}
+              className="flex-1 min-w-0 font-medium truncate"
+            >
+              {pitch.title || "Untitled Pitch"}
+            </Link>
+            <PrioritySelector
+              priority={optimisticPriority}
+              onSelect={(p) => {
+                setOptimisticPriority(p);
+                priorityFetcher.submit(
+                  { field: "priority", value: String(p) },
+                  {
+                    method: "post",
+                    action: `/api/pitches/${pitch.id}/update`,
+                  }
+                );
+              }}
+            />
           </div>
-        )}
-      </div>
-    </div>
+          {pitch.description && (
+            <p className="ml-12 mr-4 pb-3 text-xs text-muted-foreground line-clamp-2">
+              {pitch.description}
+            </p>
+          )}
+          <div className="px-4 pb-3">
+            {pitch.videos.length === 0 ? (
+              <button
+                className="ml-5 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-dashed rounded px-2 py-1.5 transition-colors"
+                onClick={() => {
+                  createVideoFetcher.submit(
+                    {},
+                    {
+                      method: "post",
+                      action: `/api/pitches/${pitch.id}/create-video`,
+                    }
+                  );
+                }}
+                disabled={createVideoFetcher.state !== "idle"}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Video
+              </button>
+            ) : (
+              <div className="ml-5 flex flex-wrap gap-4">
+                {pitch.videos.map((video) => (
+                  <Link
+                    key={video.id}
+                    to={`/videos/${video.id}/edit`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
+                  >
+                    <div className="relative aspect-video w-32 bg-muted">
+                      {video.firstClipId ? (
+                        <img
+                          src={`/clips/${video.firstClipId}/first-frame`}
+                          alt={video.path}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center border-r">
+                          <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+                        </div>
+                      )}
+                      {!hasExportedVideoMap[video.id] && (
+                        <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+                      )}
+                    </div>
+                    <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
+                      <span className="text-xs truncate text-foreground transition-colors">
+                        {video.path || "Untitled"}
+                      </span>
+                      <span className="text-xs font-mono mt-0.5">
+                        {formatSecondsToTimeCode(video.totalDuration)}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => {
+            deleteFetcher.submit(
+              {},
+              {
+                method: "post",
+                action: `/api/pitches/${pitch.id}/delete`,
+              }
+            );
+          }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete pitch
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

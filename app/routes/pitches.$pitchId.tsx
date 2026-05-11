@@ -1,4 +1,10 @@
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,12 +28,14 @@ import {
   Loader2,
   Mail,
   MessageSquare,
+  MoreHorizontal,
   Plus,
   Trash2,
   Video,
   Youtube,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MarkdownMonacoEditor } from "@/components/markdown-monaco-editor";
 import { data, Link, useFetcher, useNavigate } from "react-router";
 import type { Route } from "./+types/pitches.$pitchId";
 
@@ -78,6 +86,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         id: pitchRaw.id,
         title: pitchRaw.title,
         description: pitchRaw.description,
+        contentPlan: pitchRaw.contentPlan,
         youtubeTitle: pitchRaw.youtubeTitle,
         youtubeThumbnailDescription: pitchRaw.youtubeThumbnailDescription,
         newsletterTitle: pitchRaw.newsletterTitle,
@@ -110,6 +119,19 @@ function usePitchAutoSave(pitchId: string) {
   );
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const submit = useCallback(
+    (field: string, value: string) => {
+      fetcher.submit(
+        { field, value },
+        {
+          method: "post",
+          action: `/api/pitches/${pitchId}/update`,
+        }
+      );
+    },
+    [fetcher, pitchId]
+  );
+
   const save = useCallback(
     (field: string, value: string) => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -117,16 +139,22 @@ function usePitchAutoSave(pitchId: string) {
 
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
-        fetcher.submit(
-          { field, value },
-          {
-            method: "post",
-            action: `/api/pitches/${pitchId}/update`,
-          }
-        );
+        submit(field, value);
       }, SAVE_THROTTLE_MS);
     },
-    [fetcher, pitchId]
+    [submit]
+  );
+
+  const saveImmediate = useCallback(
+    (field: string, value: string) => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setSaveState("pending");
+      submit(field, value);
+    },
+    [submit]
   );
 
   useEffect(() => {
@@ -141,7 +169,7 @@ function usePitchAutoSave(pitchId: string) {
     }
   }, [fetcher.state, saveState]);
 
-  return { save, saveState };
+  return { save, saveImmediate, saveState };
 }
 
 function SaveIndicator({ state }: { state: "idle" | "pending" | "saved" }) {
@@ -192,6 +220,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
 
   const [title, setTitle] = useState(initialPitch.title);
   const [description, setDescription] = useState(initialPitch.description);
+  const [contentPlan, setContentPlan] = useState(initialPitch.contentPlan);
   const [youtubeTitle, setYoutubeTitle] = useState(initialPitch.youtubeTitle);
   const [youtubeThumbnailDescription, setYoutubeThumbnailDescription] =
     useState(initialPitch.youtubeThumbnailDescription);
@@ -206,7 +235,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
     initialPitch.priority as Priority
   );
 
-  const { save, saveState } = usePitchAutoSave(initialPitch.id);
+  const { save, saveImmediate, saveState } = usePitchAutoSave(initialPitch.id);
 
   useEffect(() => {
     if (deleteFetcher.state === "idle" && deleteFetcher.data) {
@@ -235,59 +264,67 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
             <ArrowLeft className="w-4 h-4" />
             Back to Pitches
           </Link>
-          <div className="flex items-center gap-3">
-            <SaveIndicator state={saveState} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                createVideoFetcher.submit(
-                  {},
-                  {
-                    method: "post",
-                    action: `/api/pitches/${initialPitch.id}/create-video`,
-                  }
-                );
-              }}
-              disabled={createVideoFetcher.state !== "idle"}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Video
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                deleteFetcher.submit(
-                  {},
-                  {
-                    method: "post",
-                    action: `/api/pitches/${initialPitch.id}/delete`,
-                  }
-                );
-              }}
-              disabled={deleteFetcher.state !== "idle"}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-1" />
-              Delete
-            </Button>
-          </div>
+          <SaveIndicator state={saveState} />
         </div>
 
-        <Input
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            handleFieldChange("title", e.target.value);
-          }}
-          aria-label="Title"
-          placeholder="Untitled Pitch"
-          className="text-3xl font-bold h-auto px-0 py-1 mb-3 border-0 shadow-none focus-visible:ring-0 focus-visible:border-b focus-visible:rounded-none md:text-3xl"
-        />
+        <div className="flex items-center gap-2 mb-3">
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              handleFieldChange("title", e.target.value);
+            }}
+            aria-label="Title"
+            placeholder="Untitled Pitch"
+            className="flex-1 text-3xl font-bold h-auto px-0 py-1 border-0 shadow-none focus-visible:ring-0 focus-visible:border-b focus-visible:rounded-none md:text-3xl"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Actions">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  createVideoFetcher.submit(
+                    {},
+                    {
+                      method: "post",
+                      action: `/api/pitches/${initialPitch.id}/create-video`,
+                    }
+                  );
+                }}
+                disabled={createVideoFetcher.state !== "idle"}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New video
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => {
+                  deleteFetcher.submit(
+                    {},
+                    {
+                      method: "post",
+                      action: `/api/pitches/${initialPitch.id}/delete`,
+                    }
+                  );
+                }}
+                disabled={deleteFetcher.state !== "idle"}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete pitch
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <div className="flex items-center gap-2 mb-8">
           <StatusIconBadge
             status={status}
+            showLabel
             onSelect={(s) => {
               setStatus(s);
               statusFetcher.submit(
@@ -327,6 +364,24 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
             />
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Content Plan</Label>
+            <div className="border rounded-md overflow-hidden">
+              <MarkdownMonacoEditor
+                height="300px"
+                value={contentPlan}
+                onChange={(next) => {
+                  setContentPlan(next);
+                  handleFieldChange("contentPlan", next);
+                }}
+                onSave={(formatted) => {
+                  setContentPlan(formatted);
+                  saveImmediate("contentPlan", formatted);
+                }}
+              />
+            </div>
+          </div>
+
           <ChannelSection icon={<Youtube className="size-4" />} title="YouTube">
             <div className="space-y-1.5">
               <Label>Title</Label>
@@ -337,10 +392,11 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                   handleFieldChange("youtubeTitle", e.target.value);
                 }}
                 rows={3}
+                placeholder="The title of the YouTube video"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Thumbnail concept</Label>
+              <Label>Thumbnail</Label>
               <Textarea
                 value={youtubeThumbnailDescription}
                 onChange={(e) => {
@@ -351,29 +407,28 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                   );
                 }}
                 rows={2}
+                placeholder="Description of the YouTube thumbnail, with arrow text"
               />
             </div>
           </ChannelSection>
 
           <ChannelSection icon={<Mail className="size-4" />} title="Newsletter">
             <div className="space-y-1.5">
-              <Label>Title</Label>
+              <Label>Subject</Label>
               <Input
                 value={newsletterTitle}
                 onChange={(e) => {
                   setNewsletterTitle(e.target.value);
                   handleFieldChange("newsletterTitle", e.target.value);
                 }}
+                placeholder="The subject line of the newsletter"
               />
             </div>
           </ChannelSection>
 
-          <ChannelSection
-            icon={<MessageSquare className="size-4" />}
-            title="Twitter"
-          >
+          <ChannelSection icon={<MessageSquare className="size-4" />} title="X">
             <div className="space-y-1.5">
-              <Label>Tweet</Label>
+              <Label>Post</Label>
               <Textarea
                 value={tweet}
                 onChange={(e) => {
@@ -381,6 +436,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                   handleFieldChange("tweet", e.target.value);
                 }}
                 rows={2}
+                placeholder="The post above the video on X."
               />
             </div>
           </ChannelSection>
@@ -388,7 +444,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
           <ChannelSection icon={<Video className="size-4" />} title="Videos">
             {videos.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No videos yet. Click "+ Video" above to create one.
+                No videos yet. Click "Add video" below to create one.
               </p>
             ) : (
               <div className="flex flex-wrap gap-4">
@@ -427,6 +483,25 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 ))}
               </div>
             )}
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  createVideoFetcher.submit(
+                    {},
+                    {
+                      method: "post",
+                      action: `/api/pitches/${initialPitch.id}/create-video`,
+                    }
+                  );
+                }}
+                disabled={createVideoFetcher.state !== "idle"}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add video
+              </Button>
+            </div>
           </ChannelSection>
         </div>
       </div>

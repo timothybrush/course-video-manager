@@ -1,14 +1,7 @@
-import {
-  lazy,
-  memo,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { AIResponse } from "components/ui/kibo-ui/ai/response";
 import { Button } from "@/components/ui/button";
+import { MarkdownMonacoEditor } from "@/components/markdown-monaco-editor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,8 +33,6 @@ import type { LintViolation } from "./lint-rules";
 import type { Options } from "react-markdown";
 import type { OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-
-const MonacoEditor = lazy(() => import("@monaco-editor/react"));
 
 export interface DocumentPanelProps {
   document: string | undefined;
@@ -133,9 +124,7 @@ export const DocumentPanel = memo(function DocumentPanel({
     }
   }, [isEditing]);
 
-  const handleEditorMount = useCallback<OnMount>((editor, monaco) => {
-    editorRef.current = editor;
-
+  const handleEditorMount = useCallback<OnMount>((editor) => {
     // Apply saved scroll fraction after Monaco lays out
     requestAnimationFrame(() => {
       const scrollHeight = editor.getScrollHeight();
@@ -143,43 +132,6 @@ export const DocumentPanel = memo(function DocumentPanel({
       const maxScroll = scrollHeight - clientHeight;
       if (maxScroll > 0) {
         editor.setScrollTop(maxScroll * scrollFractionRef.current);
-      }
-    });
-
-    // Register Prettier as Monaco's native document formatter for Markdown
-    monaco.languages.registerDocumentFormattingEditProvider("markdown", {
-      provideDocumentFormattingEdits: async (
-        model: Monaco.editor.ITextModel
-      ) => {
-        try {
-          const [prettier, markdownPlugin] = await Promise.all([
-            import("prettier/standalone"),
-            import("prettier/plugins/markdown"),
-          ]);
-          const formatted = await prettier.format(model.getValue(), {
-            parser: "markdown",
-            plugins: [markdownPlugin.default],
-            proseWrap: "preserve",
-            tabWidth: 2,
-          });
-          return [
-            {
-              text: formatted,
-              range: model.getFullModelRange(),
-            },
-          ];
-        } catch {
-          return [];
-        }
-      },
-    });
-
-    // Ctrl+S / Cmd+S: format with Prettier then notify parent
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
-      const formatAction = editor.getAction("editor.action.formatDocument");
-      if (formatAction) {
-        await formatAction.run();
-        onDocumentChangeRef.current?.(editor.getValue());
       }
     });
   }, []);
@@ -391,30 +343,22 @@ export const DocumentPanel = memo(function DocumentPanel({
         </Button>
       </div>
       {isEditing ? (
-        <Suspense
+        <MarkdownMonacoEditor
+          value={document}
+          onChange={(value) => onDocumentChange?.(value)}
+          onSave={(value) => onDocumentChangeRef.current?.(value)}
+          editorRef={editorRef}
+          onMount={handleEditorMount}
+          options={{
+            padding: { top: 16, bottom: 16 },
+            scrollBeyondLastLine: true,
+          }}
           fallback={
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               Loading editor…
             </div>
           }
-        >
-          <MonacoEditor
-            height="100%"
-            defaultLanguage="markdown"
-            value={document}
-            onChange={(value) => onDocumentChange?.(value ?? "")}
-            onMount={handleEditorMount}
-            theme="vs-dark"
-            options={{
-              minimap: { enabled: false },
-              wordWrap: "on",
-              lineNumbers: "off",
-              fontSize: 14,
-              padding: { top: 16, bottom: 16 },
-              scrollBeyondLastLine: true,
-            }}
-          />
-        </Suspense>
+        />
       ) : (
         <div
           ref={previewRef}

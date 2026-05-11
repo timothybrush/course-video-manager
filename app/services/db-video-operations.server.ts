@@ -58,7 +58,11 @@ export const createVideoOperations = (
   const getStandaloneVideos = Effect.fn("getStandaloneVideos")(function* () {
     const standaloneVideos = yield* makeDbCall(() =>
       db.query.videos.findMany({
-        where: and(isNull(videos.lessonId), eq(videos.archived, false)),
+        where: and(
+          isNull(videos.lessonId),
+          isNull(videos.pitchId),
+          eq(videos.archived, false)
+        ),
         orderBy: desc(videos.updatedAt),
         limit: 5,
         with: {
@@ -78,7 +82,11 @@ export const createVideoOperations = (
       const standaloneVideos = yield* makeDbCall(() =>
         db.query.videos.findMany({
           columns: { id: true, path: true },
-          where: and(isNull(videos.lessonId), eq(videos.archived, false)),
+          where: and(
+            isNull(videos.lessonId),
+            isNull(videos.pitchId),
+            eq(videos.archived, false)
+          ),
           orderBy: desc(videos.updatedAt),
           limit: 5,
         })
@@ -92,7 +100,11 @@ export const createVideoOperations = (
     function* () {
       const standaloneVideos = yield* makeDbCall(() =>
         db.query.videos.findMany({
-          where: and(isNull(videos.lessonId), eq(videos.archived, false)),
+          where: and(
+            isNull(videos.lessonId),
+            isNull(videos.pitchId),
+            eq(videos.archived, false)
+          ),
           orderBy: desc(videos.updatedAt),
           with: {
             clips: {
@@ -111,7 +123,11 @@ export const createVideoOperations = (
     function* () {
       const archivedVideos = yield* makeDbCall(() =>
         db.query.videos.findMany({
-          where: and(isNull(videos.lessonId), eq(videos.archived, true)),
+          where: and(
+            isNull(videos.lessonId),
+            isNull(videos.pitchId),
+            eq(videos.archived, true)
+          ),
           orderBy: desc(videos.createdAt),
           with: {
             clips: {

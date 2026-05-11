@@ -177,7 +177,7 @@ export const createPitchOperations = (db: DrizzleDB) => {
       db
         .insert(videos)
         .values({
-          path: "",
+          path: pitch.title,
           originalFootagePath: "",
           lessonId: null,
           pitchId,

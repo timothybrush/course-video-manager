@@ -36,6 +36,7 @@ describe("createPitch", () => {
       expect(pitch.id).toEqual(expect.any(String));
       expect(pitch.title).toBe("");
       expect(pitch.description).toBe("");
+      expect(pitch.contentPlan).toBe("");
       expect(pitch.youtubeTitle).toBe("");
       expect(pitch.youtubeThumbnailDescription).toBe("");
       expect(pitch.newsletterTitle).toBe("");

@@ -38,14 +38,31 @@ export function StatusIconBadge({
   status,
   onSelect,
   readOnly,
+  showLabel,
 }: {
   status: PitchStatus;
   onSelect?: (s: PitchStatus) => void;
   readOnly?: boolean;
+  showLabel?: boolean;
 }) {
   const m = STATUS_META[status];
   const Icon = m.icon;
-  const trigger = (
+  const trigger = showLabel ? (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex items-center gap-1.5 h-6 pl-1 pr-2.5 rounded-full text-xs font-medium",
+        m.iconWrap
+      )}
+      title={readOnly ? m.label : `${m.label} — click to change`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full">
+        <Icon className="w-3 h-3" />
+      </span>
+      {m.label}
+    </button>
+  ) : (
     <button
       type="button"
       className={cn(

@@ -41,7 +41,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     const lesson = video.lesson;
 
     if (!lesson) {
-      // Standalone video
+      // Standalone video (or pitch-attached)
       return {
         videoId,
         videoPath: video.path,
@@ -49,6 +49,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         sectionPath: null,
         repoId: null,
         lessonId: null,
+        pitchId: video.pitchId,
         isStandalone: true,
         nextVideoId,
         previousVideoId,
@@ -69,6 +70,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       sectionPath: lesson.section.path,
       repoId: lesson.section.repoVersion.repoId,
       lessonId: lesson.id,
+      pitchId: video.pitchId,
       isStandalone: false,
       nextVideoId,
       previousVideoId,
@@ -126,6 +128,7 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
     sectionPath,
     repoId,
     lessonId,
+    pitchId,
     isStandalone,
     nextVideoId,
     previousVideoId,
@@ -150,8 +153,11 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
             : "edit";
 
   // Build back button URL
-  const backButtonUrl =
-    repoId && lessonId ? `/?courseId=${repoId}#${lessonId}` : "/videos";
+  const backButtonUrl = pitchId
+    ? `/pitches/${pitchId}`
+    : repoId && lessonId
+      ? `/?courseId=${repoId}#${lessonId}`
+      : "/videos";
 
   // Build breadcrumb text
   const breadcrumb = isStandalone

@@ -8,6 +8,7 @@ import { data } from "react-router";
 const updatableFields = [
   "title",
   "description",
+  "contentPlan",
   "youtubeTitle",
   "youtubeThumbnailDescription",
   "newsletterTitle",

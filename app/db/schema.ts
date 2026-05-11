@@ -138,6 +138,7 @@ export const pitches = createTable("pitch", {
     .$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull().default(""),
   description: text("description").notNull().default(""),
+  contentPlan: text("content_plan").notNull().default(""),
   youtubeTitle: text("youtube_title").notNull().default(""),
   youtubeThumbnailDescription: text("youtube_thumbnail_description")
     .notNull()
