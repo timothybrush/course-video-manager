@@ -154,6 +154,13 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const video = yield* db.getVideoWithClipsById(videoId);
 
+    const referenceCandidates = video.lesson
+      ? yield* db.getReferenceVideoCandidates({
+          lessonId: video.lesson.id,
+          excludeVideoId: video.id,
+        })
+      : [];
+
     // Combine clips and clipSections into a unified items array, sorted by order
     const clipItems: Array<{ type: "clip"; order: string; data: DB.Clip }> = (
       video.clips as DB.Clip[]
@@ -198,6 +205,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       videoCount: lesson?.videos.length ?? 1,
       whiteNoiseAssetPath,
       fsData,
+      referenceCandidates,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -450,6 +458,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
       clipIdsBeingTranscribed={clipState.clipIdsBeingTranscribed}
       fsData={props.loaderData.fsData}
       videoCount={props.loaderData.videoCount}
+      referenceCandidates={props.loaderData.referenceCandidates}
       error={clipState.error}
       onCreateVideoFromSelection={(
         frontendClipIds,

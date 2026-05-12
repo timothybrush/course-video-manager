@@ -4,6 +4,11 @@ import { CreateVideoFromSelectionModal } from "./components/create-video-from-se
 import { VideoPlayerPanel } from "./components/video-player-panel";
 import { ClipTimeline } from "./components/clip-timeline";
 import { ErrorOverlay } from "./components/error-overlay";
+import {
+  ReferencePanel,
+  type ReferenceCandidate,
+} from "./components/reference-panel";
+import { useReferenceVideoId } from "./hooks/use-reference-video-id";
 import { RenameVideoModal } from "@/components/rename-video-modal";
 import { useKeyboardShortcuts } from "./hooks/use-keyboard-shortcuts";
 import { useWebSocket } from "./hooks/use-websocket";
@@ -13,6 +18,7 @@ import {
   use,
   useCallback,
   useEffect,
+  type ReactNode,
   useMemo,
   useState,
 } from "react";
@@ -185,6 +191,7 @@ export const VideoEditor = (props: {
     files: Array<{ path: string; size: number; defaultEnabled: boolean }>;
   }>;
   videoCount: number;
+  referenceCandidates: ReferenceCandidate[];
   insertionPoint: FrontendInsertionPoint;
   onSetInsertionPoint: (mode: "after" | "before", clipId: FrontendId) => void;
   onDeleteLatestInsertedClip: () => void;
@@ -432,6 +439,10 @@ export const VideoEditor = (props: {
     [dispatch]
   );
 
+  const [referenceVideoId, setReferenceVideoId] = useReferenceVideoId(
+    props.videoId
+  );
+
   // Build context value with all state and callbacks
   const contextValue = useMemo(
     () => ({
@@ -474,6 +485,9 @@ export const VideoEditor = (props: {
       lessonId: props.lessonId,
       fsData: props.fsData,
       videoCount: props.videoCount,
+      referenceCandidates: props.referenceCandidates,
+      referenceVideoId,
+      setReferenceVideoId,
       insertionPoint: props.insertionPoint,
       obsConnectorState: props.obsConnectorState,
       liveMediaStream: props.liveMediaStream,
@@ -572,6 +586,9 @@ export const VideoEditor = (props: {
       props.lessonId,
       props.fsData,
       props.videoCount,
+      props.referenceCandidates,
+      referenceVideoId,
+      setReferenceVideoId,
       props.insertionPoint,
       props.obsConnectorState,
       props.liveMediaStream,
@@ -617,50 +634,73 @@ export const VideoEditor = (props: {
     return <ErrorOverlay error={props.error} />;
   }
 
+  const activeReference =
+    referenceVideoId &&
+    props.referenceCandidates.some((c) => c.id === referenceVideoId)
+      ? referenceVideoId
+      : null;
+
+  const modals = (
+    <>
+      <ClipSectionNamingModalComponent
+        modalState={clipSectionNamingModal}
+        onClose={() => setClipSectionNamingModal(null)}
+        onAddClipSection={props.onAddClipSection}
+        onUpdateClipSection={props.onUpdateClipSection}
+        onAddClipSectionAt={props.onAddClipSectionAt}
+      />
+      <Suspense>
+        <FilePasteModalWithFsData
+          fsData={props.fsData}
+          lessonId={props.lessonId}
+          videoId={props.videoId}
+          isPasteModalOpen={isPasteModalOpen}
+          handlePasteModalClose={handlePasteModalClose}
+          handleFileCreated={handleFileCreated}
+        />
+      </Suspense>
+      <RenameVideoModal
+        videoId={props.videoId}
+        currentName={props.videoPath}
+        open={isRenameVideoModalOpen}
+        onOpenChange={setIsRenameVideoModalOpen}
+      />
+      <CreateVideoFromSelectionModal
+        open={isCreateVideoModalOpen}
+        onOpenChange={setIsCreateVideoModalOpen}
+        onSubmit={handleCreateVideoFromSelection}
+      />
+    </>
+  );
+
+  const body: ReactNode = activeReference ? (
+    <>
+      <ClipTimeline />
+      <div className="order-3 lg:order-2 lg:w-80 shrink-0 h-full min-h-0">
+        <ReferencePanel
+          candidates={props.referenceCandidates}
+          selectedId={activeReference}
+          onSelect={setReferenceVideoId}
+          onRemove={() => setReferenceVideoId(null)}
+          className="h-full"
+        />
+      </div>
+      <div className="order-1 lg:order-3 lg:flex-1 h-full min-h-0 flex flex-col">
+        <VideoPlayerPanel />
+      </div>
+    </>
+  ) : (
+    <>
+      <VideoPlayerPanel />
+      <ClipTimeline />
+    </>
+  );
+
   return (
     <div className="flex flex-col lg:flex-row h-full p-6 gap-6">
-      {/* Video Player Section - Shows first on mobile, second on desktop */}
       <VideoEditorContext.Provider value={contextValue}>
-        <VideoPlayerPanel />
-
-        {/* Clip Section Naming Modal */}
-        <ClipSectionNamingModalComponent
-          modalState={clipSectionNamingModal}
-          onClose={() => setClipSectionNamingModal(null)}
-          onAddClipSection={props.onAddClipSection}
-          onUpdateClipSection={props.onUpdateClipSection}
-          onAddClipSectionAt={props.onAddClipSectionAt}
-        />
-
-        {/* File Paste Modal */}
-        <Suspense>
-          <FilePasteModalWithFsData
-            fsData={props.fsData}
-            lessonId={props.lessonId}
-            videoId={props.videoId}
-            isPasteModalOpen={isPasteModalOpen}
-            handlePasteModalClose={handlePasteModalClose}
-            handleFileCreated={handleFileCreated}
-          />
-        </Suspense>
-
-        {/* Rename Video Modal */}
-        <RenameVideoModal
-          videoId={props.videoId}
-          currentName={props.videoPath}
-          open={isRenameVideoModalOpen}
-          onOpenChange={setIsRenameVideoModalOpen}
-        />
-
-        {/* Create Video from Selection Modal */}
-        <CreateVideoFromSelectionModal
-          open={isCreateVideoModalOpen}
-          onOpenChange={setIsCreateVideoModalOpen}
-          onSubmit={handleCreateVideoFromSelection}
-        />
-
-        {/* Clips Section - Shows second on mobile, first on desktop */}
-        <ClipTimeline />
+        {body}
+        {modals}
       </VideoEditorContext.Provider>
     </div>
   );

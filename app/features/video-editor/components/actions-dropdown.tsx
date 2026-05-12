@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  BookOpenIcon,
   CheckIcon,
   ChevronDown,
   CodeIcon,
@@ -27,7 +28,9 @@ import {
   PencilLineIcon,
   Plus,
   ScrollTextIcon,
+  XIcon,
 } from "lucide-react";
+import type { ReferenceCandidate } from "./reference-panel";
 import { type FetcherWithComponents, useNavigate } from "react-router";
 
 /**
@@ -69,6 +72,12 @@ export const ActionsDropdown = (props: {
   isLogPathCopied: boolean;
   /** Callback to copy log path to clipboard */
   copyLogPathToClipboard: () => void;
+  /** Other Videos on this Lesson available as a Reference Video */
+  referenceCandidates: ReferenceCandidate[];
+  /** Currently-open Reference Video id, or null */
+  referenceVideoId: string | null;
+  /** Set or clear the Reference Video */
+  setReferenceVideoId: (id: string | null) => void;
 }) => {
   const navigate = useNavigate();
 
@@ -107,6 +116,44 @@ export const ActionsDropdown = (props: {
             </span>
           </div>
         </DropdownMenuItem>
+
+        {props.referenceVideoId !== null &&
+        props.referenceCandidates.some(
+          (c) => c.id === props.referenceVideoId
+        ) ? (
+          <DropdownMenuItem onSelect={() => props.setReferenceVideoId(null)}>
+            <XIcon className="w-4 h-4 mr-2" />
+            <div className="flex flex-col">
+              <span className="font-medium">Remove Reference</span>
+              <span className="text-xs text-muted-foreground">
+                Hide the reference video panel
+              </span>
+            </div>
+          </DropdownMenuItem>
+        ) : props.referenceCandidates.length > 0 ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <BookOpenIcon className="w-4 h-4 mr-2" />
+              <div className="flex flex-col">
+                <span className="font-medium">Add Reference</span>
+                <span className="text-xs text-muted-foreground">
+                  Open another video's transcript alongside
+                </span>
+              </div>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-72">
+              {props.referenceCandidates.map((c) => (
+                <DropdownMenuItem
+                  key={c.id}
+                  onSelect={() => props.setReferenceVideoId(c.id)}
+                >
+                  <BookOpenIcon className="w-4 h-4 mr-2" />
+                  <span className="truncate">{c.path}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : null}
 
         {props.onRevealInFileSystem && (
           <DropdownMenuItem onSelect={props.onRevealInFileSystem}>

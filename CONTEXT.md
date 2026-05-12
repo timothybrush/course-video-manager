@@ -155,6 +155,12 @@ A Pitch can have any status independent of how many Videos are linked to it.
 **Default Pitch Filter**:
 The pitches index defaults to showing `idle + scheduled + shipped-to-youtube` — the "still on my desk" set. `shipped` and `cancelled` are hidden by default. When the filter equals this default set, the `status` URL param is omitted (bookmarks of `/pitches` survive future default changes).
 
+### Reference video
+
+**Reference Video**:
+Another **Video** on the same **Lesson**, opened alongside the one being recorded so the author can read its **Clip** transcripts (grouped by **ClipSection**) while re-recording. Not a domain link — there's no FK; the candidate set is derived as "other non-archived Videos on this Lesson." Opt-in per editor session: hidden by default, added via the editor's actions menu ("Add Reference"), and removed the same way. The visible reference is whichever sibling the user picked; the panel never auto-selects. When the Lesson has no eligible siblings, the action is unavailable and the editor stays in its default two-column layout.
+_Avoid_: Previous Take (implies take-history we don't model), Reference Take, Source Video
+
 ### Video destinations
 
 **Skills Changelog**:
@@ -190,6 +196,7 @@ A special section directory whose name ends in `ARCHIVE`, filtered out of the de
 - A **Standalone Video** belongs directly to a **Course** with no **Lesson** parent
 - A **Recording Session** produces multiple **Optimistic Clips** that become **Clips** on persistence
 - A **Pitch** is independent of the **Course** hierarchy; one **Pitch** can produce zero or more **Standalone Videos** via a `pitchId` FK on Video. Pitches never attach to lesson-bound Videos.
+- A **Video** being edited can have at most one **Reference Video** open per editor session — another non-archived **Video** on the same **Lesson**, chosen manually via the editor's actions menu. Not persisted as a domain link.
 - A **Video** can be published to a **Skills Changelog** (AI Hero article + required Kit newsletter draft) as a third destination alongside the YouTube post page and the AI Hero article page
 - **Publishing** uploads to Dropbox, freezes the **Draft Version** into a **Published Version**, and creates a new **Draft Version** — all atomically (Dropbox upload must succeed first)
 

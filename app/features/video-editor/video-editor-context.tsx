@@ -14,6 +14,7 @@ import type { OBSConnectionOuterState } from "./obs-connector";
 import type { FrontendSpeechDetectorState } from "./use-speech-detector";
 import type { PauseLength } from "@/silence-detection-constants";
 import type { ClipComputedProps } from "./types";
+import type { ReferenceCandidate } from "./components/reference-panel";
 import type { FetcherWithComponents } from "react-router";
 
 export type FileMetadata = {
@@ -74,6 +75,9 @@ export type VideoEditorContextType = {
     files: FileMetadata[];
   }>;
   videoCount: number;
+  referenceCandidates: ReferenceCandidate[];
+  referenceVideoId: string | null;
+  setReferenceVideoId: (id: string | null) => void;
   insertionPoint: FrontendInsertionPoint;
   obsConnectorState: OBSConnectionOuterState;
   liveMediaStream: MediaStream | null;

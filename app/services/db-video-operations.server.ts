@@ -5,7 +5,7 @@ import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { Effect } from "effect";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
@@ -606,7 +606,37 @@ export const createVideoOperations = (
     }
   );
 
+  const getReferenceVideoCandidates = Effect.fn("getReferenceVideoCandidates")(
+    function* (opts: { lessonId: string; excludeVideoId: string }) {
+      const candidates = yield* makeDbCall(() =>
+        db.query.videos.findMany({
+          where: and(
+            eq(videos.lessonId, opts.lessonId),
+            eq(videos.archived, false),
+            ne(videos.id, opts.excludeVideoId)
+          ),
+          columns: { id: true, path: true },
+          with: {
+            clips: {
+              where: eq(clips.archived, false),
+              orderBy: asc(clips.order),
+              columns: { id: true, order: true, text: true },
+            },
+            clipSections: {
+              where: eq(clipSections.archived, false),
+              orderBy: asc(clipSections.order),
+              columns: { id: true, order: true, name: true },
+            },
+          },
+        })
+      );
+
+      return candidates;
+    }
+  );
+
   return {
+    getReferenceVideoCandidates,
     getVideoDeepById,
     getStandaloneVideos,
     getStandaloneVideosSidebar,

@@ -154,6 +154,18 @@ export const VideoPlayerPanel = () => {
     (ctx) => ctx.exportToDavinciResolveFetcher
   );
   const videoId = useContextSelector(VideoEditorContext, (ctx) => ctx.videoId);
+  const referenceCandidates = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.referenceCandidates
+  );
+  const referenceVideoId = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.referenceVideoId
+  );
+  const setReferenceVideoId = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.setReferenceVideoId
+  );
   const isCopied = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.isCopied
@@ -414,6 +426,9 @@ export const VideoPlayerPanel = () => {
               }
               isLogPathCopied={isLogPathCopied}
               copyLogPathToClipboard={copyLogPathToClipboard}
+              referenceCandidates={referenceCandidates}
+              referenceVideoId={referenceVideoId}
+              setReferenceVideoId={setReferenceVideoId}
             />
             <Button variant="secondary" onClick={onAddNoteFromClipboard}>
               <ClipboardIcon className="w-4 h-4 mr-1" />
