@@ -171,7 +171,7 @@ const program = Effect.gen(function* () {
   }
 });
 
-await runtimeLive.runPromise(program as any).catch((err) => {
+await runtimeLive.runPromise(program).catch((err) => {
   console.error("Prototype failed:", err);
   process.exit(1);
 });
