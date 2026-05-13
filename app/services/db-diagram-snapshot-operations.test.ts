@@ -342,4 +342,18 @@ describe("updateClipDiagramPin", () => {
         expect(second.diagramSnapshotId).toBe(snapshot.id);
       }).pipe(Effect.provide(testLayer))
   );
+
+  it.effect(
+    "rejects non-existent snapshot ID with a DB error (FK constraint)",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+        const { clip } = yield* createVideoWithClip;
+
+        const result = yield* db
+          .updateClipDiagramPin(clip.id, "nonexistent-snapshot-id")
+          .pipe(Effect.flip);
+        expect(result._tag).toBe("UnknownDBServiceError");
+      }).pipe(Effect.provide(testLayer))
+  );
 });

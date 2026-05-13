@@ -10,14 +10,14 @@ export const useSectionModal = (
   const [clipSectionNamingModal, setClipSectionNamingModal] =
     useState<ClipSectionNamingModal>(null);
 
-  const generateDefaultClipSectionName = () => {
+  const generateDefaultClipSectionName = useCallback(() => {
     const existingClipSectionCount = timelineItems.filter(
       (item) =>
         item.type === "clip-section-on-database" ||
         item.type === "clip-section-optimistically-added"
     ).length;
     return `Section ${existingClipSectionCount + 1}`;
-  };
+  }, [timelineItems]);
 
   const onEditSection = useCallback(
     (sectionId: FrontendId, currentName: string) => {
