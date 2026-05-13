@@ -87,7 +87,8 @@
       "WebFetch(domain:www.ajeetraina.com)",
       "Bash(./scripts/check-file-tokens.sh 2>&1)",
       "Bash(./scripts/check-file-tokens.sh)",
-      "Bash(gh label list *)"
+      "Bash(gh label list *)",
+      "Bash(mktemp *)"
     ],
     "deny": [],
     "ask": []

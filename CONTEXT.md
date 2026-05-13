@@ -161,6 +161,24 @@ The pitches index defaults to showing `idle + scheduled + shipped-to-youtube` �
 Another **Video** on the same **Lesson**, opened alongside the one being recorded so the author can read its **Clip** transcripts (grouped by **ClipSection**) while re-recording. Not a domain link — there's no FK; the candidate set is derived as "other non-archived Videos on this Lesson." Opt-in per editor session: hidden by default, added via the editor's actions menu ("Add Reference"), and removed the same way. The visible reference is whichever sibling the user picked; the panel never auto-selects. When the Lesson has no eligible siblings, the action is unavailable and the editor stays in its default two-column layout.
 _Avoid_: Previous Take (implies take-history we don't model), Reference Take, Source Video
 
+### Diagrams
+
+**Diagram**:
+A named, persistent identity in the diagrams sidebar — the "home" for a series of snapshots that evolve across the **Clips** it appears in. Conceptually a lineage, surfaced in the UI as a single item. Independent of the Course hierarchy; a Diagram can be referenced from Clips in any **Video** (lesson-bound or **Standalone Video**).
+_Avoid_: Drawing, Sketch, Canvas, Scene (Scene is TLDraw's term for its scene JSON — reserved for that)
+
+**DiagramSnapshot**:
+An immutable capture of a Diagram's TLDraw scene at the moment a specific **Clip** was filmed. Pinned to a Clip so that returning to that Clip later surfaces the diagram state it was filmed against, even after the Diagram has been edited for subsequent clips.
+_Avoid_: Frame, Revision, Checkpoint, Version (overloaded with **CourseVersion**)
+
+**Active Diagram**:
+The Diagram currently loaded into the playground's TLDraw canvas. May be `null` (empty playground). Set by clicking a Diagram in the sidebar (loads its `headScene` into the canvas) or by the "New Diagram" action; persists across **Clips** until changed.
+_Avoid_: Current diagram, Open diagram
+
+**Preserved Snapshot**:
+A **DiagramSnapshot** flagged to remain visible in its Diagram's timeline regardless of whether any non-archived **Clip** pins to it. Created via the "Preserve snapshot" action in the playground, which forks `headScene` into a new snapshot independent of any Clip. Non-preserved snapshots disappear from the timeline if all their pinning Clips become archived; Preserved Snapshots do not. A snapshot can be both Preserved _and_ pinned by Clips (the two are independent reasons to keep it visible). Surfaced in the UI via a pill on the timeline thumbnail.
+_Avoid_: Manual snapshot, Saved snapshot, Standalone snapshot, Bookmark
+
 ### Video destinations
 
 **Skills Changelog**:
@@ -197,6 +215,10 @@ A special section directory whose name ends in `ARCHIVE`, filtered out of the de
 - A **Recording Session** produces multiple **Optimistic Clips** that become **Clips** on persistence
 - A **Pitch** is independent of the **Course** hierarchy; one **Pitch** can produce zero or more **Standalone Videos** via a `pitchId` FK on Video. Pitches never attach to lesson-bound Videos.
 - A **Video** being edited can have at most one **Reference Video** open per editor session — another non-archived **Video** on the same **Lesson**, chosen manually via the editor's actions menu. Not persisted as a domain link.
+- A **Diagram** contains an ordered series of **DiagramSnapshots** — its lineage over time
+- A **DiagramSnapshot** is pinned to a **Clip** and captures the TLDraw scene at the moment that Clip was filmed; editing the Diagram later does not mutate prior snapshots
+- A **DiagramSnapshot** may have zero Clip pins if it is a **Preserved Snapshot** (created explicitly) or if all its pinning Clips have been archived (in which case it is filtered from the timeline view)
+- A **Diagram** is independent of the Course hierarchy and can be referenced from Clips in any Video, including a **Standalone Video**
 - A **Video** can be published to a **Skills Changelog** (AI Hero article + required Kit newsletter draft) as a third destination alongside the YouTube post page and the AI Hero article page
 - **Publishing** uploads to Dropbox, freezes the **Draft Version** into a **Published Version**, and creates a new **Draft Version** — all atomically (Dropbox upload must succeed first)
 
