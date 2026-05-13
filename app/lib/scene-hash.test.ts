@@ -52,6 +52,32 @@ describe("canonicalize", () => {
 
     expect(canonicalize(sceneA)).toBe(canonicalize(sceneB));
   });
+
+  it("preserves array element order — different order produces different output", () => {
+    const sceneA = {
+      store: { "shape:a": { points: [1, 2, 3] } },
+      schema: { schemaVersion: 1 },
+    };
+    const sceneB = {
+      store: { "shape:a": { points: [3, 2, 1] } },
+      schema: { schemaVersion: 1 },
+    };
+
+    expect(canonicalize(sceneA)).not.toBe(canonicalize(sceneB));
+  });
+
+  it("distinguishes null values from missing keys", () => {
+    const sceneA = {
+      store: { "shape:a": { color: null } },
+      schema: { schemaVersion: 1 },
+    };
+    const sceneB = {
+      store: { "shape:a": {} },
+      schema: { schemaVersion: 1 },
+    };
+
+    expect(canonicalize(sceneA)).not.toBe(canonicalize(sceneB));
+  });
 });
 
 describe("hashScene", () => {
