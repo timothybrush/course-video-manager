@@ -81,4 +81,26 @@ describe("shouldSnapshot", () => {
       })
     ).toBe(false);
   });
+
+  it("treats empty string activeDiagramId as non-null", () => {
+    expect(
+      shouldSnapshot({
+        activeDiagramId: "",
+        clipScene: "Screencast",
+        diagramFocusedDuringClip: true,
+      })
+    ).toBe(true);
+  });
+
+  it("uses exact match for Camera — other scene names pass", () => {
+    for (const scene of ["Screencast", "Desktop", "camera", "CAMERA", ""]) {
+      expect(
+        shouldSnapshot({
+          activeDiagramId: "diagram-1",
+          clipScene: scene,
+          diagramFocusedDuringClip: true,
+        })
+      ).toBe(true);
+    }
+  });
 });

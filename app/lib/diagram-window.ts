@@ -85,16 +85,17 @@ export function flushDiagramPlayground(): Promise<void> {
   if (!handle) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      unsub();
+      resolve();
+    }, 5000);
     const unsub = subscribeParent((msg) => {
       if (msg.type === "flushAck") {
+        clearTimeout(timer);
         unsub();
         resolve();
       }
     });
     sendToChild(handle, { type: "flush" });
-    setTimeout(() => {
-      unsub();
-      resolve();
-    }, 5000);
   });
 }
