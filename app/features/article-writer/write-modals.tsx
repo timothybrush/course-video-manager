@@ -1,6 +1,7 @@
 import { StandaloneFileManagementModal } from "@/components/standalone-file-management-modal";
 import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-modal";
 import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
+import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
 import { FilePreviewModal } from "@/components/file-preview-modal";
 import { BannedPhrasesModal } from "@/components/banned-phrases-modal";
@@ -132,14 +133,22 @@ export function WriteModals(props: WriteModalsProps) {
       )}
       {/* Lesson file modals */}
       {!isStandalone && (
-        <LessonFilePasteModal
-          videoId={videoId}
-          open={isLessonPasteModalOpen}
-          onOpenChange={onLessonPasteModalClose}
-          existingFiles={files}
-          onFileCreated={onLessonFileCreated}
-          defaultTextFilename={defaultTextFilename}
-        />
+        <>
+          <LessonFilePasteModal
+            videoId={videoId}
+            open={isLessonPasteModalOpen}
+            onOpenChange={onLessonPasteModalClose}
+            existingFiles={files}
+            onFileCreated={onLessonFileCreated}
+            defaultTextFilename={defaultTextFilename}
+          />
+          <DeleteLessonFileModal
+            videoId={videoId}
+            filename={fileToDelete}
+            open={isDeleteModalOpen}
+            onOpenChange={onDeleteModalClose}
+          />
+        </>
       )}
       {/* File preview modal */}
       <FilePreviewModal

@@ -1,9 +1,11 @@
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Trash2Icon } from "lucide-react";
 import { useState } from "react";
 
 type FileMetadata = {
@@ -100,6 +102,7 @@ type FileTreeNodeProps = {
   enabledFiles: Set<string>;
   onToggle: (paths: string[], enabled: boolean) => void;
   onFileClick?: (filePath: string) => void;
+  onDeleteFile?: (filePath: string) => void;
   depth: number;
   disabled?: boolean;
 };
@@ -109,6 +112,7 @@ const FileTreeNode = ({
   enabledFiles,
   onToggle,
   onFileClick,
+  onDeleteFile,
   depth,
   disabled,
 }: FileTreeNodeProps) => {
@@ -119,7 +123,7 @@ const FileTreeNode = ({
 
     return (
       <div
-        className="flex items-center gap-2 py-1 hover:bg-accent/50 rounded px-2"
+        className="flex items-center gap-2 py-1 hover:bg-accent/50 rounded px-2 group"
         style={{ paddingLeft: `${depth * 24 + 8}px` }}
       >
         <Checkbox
@@ -139,6 +143,16 @@ const FileTreeNode = ({
           <span className="text-xs text-muted-foreground flex-shrink-0">
             ({formatFileSize(node.size)})
           </span>
+        )}
+        {onDeleteFile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            onClick={() => onDeleteFile(node.path)}
+          >
+            <Trash2Icon className="h-3 w-3" />
+          </Button>
         )}
       </div>
     );
@@ -186,6 +200,7 @@ const FileTreeNode = ({
             enabledFiles={enabledFiles}
             onToggle={onToggle}
             onFileClick={onFileClick}
+            onDeleteFile={onDeleteFile}
             depth={depth + 1}
             disabled={disabled}
           />
@@ -200,6 +215,7 @@ type FileTreeProps = {
   enabledFiles: Set<string>;
   onEnabledFilesChange: (enabledFiles: Set<string>) => void;
   onFileClick?: (filePath: string) => void;
+  onDeleteFile?: (filePath: string) => void;
   disabled?: boolean;
 };
 
@@ -208,6 +224,7 @@ export const FileTree = ({
   enabledFiles,
   onEnabledFilesChange,
   onFileClick,
+  onDeleteFile,
   disabled,
 }: FileTreeProps) => {
   const tree = buildTree(files);
@@ -235,6 +252,7 @@ export const FileTree = ({
           enabledFiles={enabledFiles}
           onToggle={handleToggle}
           onFileClick={onFileClick}
+          onDeleteFile={onDeleteFile}
           depth={0}
           disabled={disabled}
         />

@@ -22,6 +22,7 @@ import { AddLinkModal } from "@/components/add-link-modal";
 import { StandaloneFileManagementModal } from "@/components/standalone-file-management-modal";
 import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-modal";
 import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
+import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
 import { toast } from "sonner";
 import type { Route } from "./+types/videos.$videoId.skills-changelog";
@@ -434,15 +435,23 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
       )}
 
       {!isStandalone && (
-        <LessonFilePasteModal
-          videoId={videoId}
-          open={isLessonPasteModalOpen}
-          onOpenChange={setIsLessonPasteModalOpen}
-          existingFiles={files}
-          onFileCreated={(filename) => {
-            setEnabledFiles((prev) => new Set([...prev, filename]));
-          }}
-        />
+        <>
+          <LessonFilePasteModal
+            videoId={videoId}
+            open={isLessonPasteModalOpen}
+            onOpenChange={setIsLessonPasteModalOpen}
+            existingFiles={files}
+            onFileCreated={(filename) => {
+              setEnabledFiles((prev) => new Set([...prev, filename]));
+            }}
+          />
+          <DeleteLessonFileModal
+            videoId={videoId}
+            filename={fileToDelete}
+            open={isDeleteModalOpen}
+            onOpenChange={setIsDeleteModalOpen}
+          />
+        </>
       )}
     </>
   );

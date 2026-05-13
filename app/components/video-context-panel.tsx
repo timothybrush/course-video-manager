@@ -65,7 +65,6 @@ export type VideoContextPanelProps = {
   onFileClick?: (filePath: string) => void;
   onAddFromClipboardClick?: () => void;
   onOpenFolderClick?: () => void;
-  // Standalone-only handlers
   onEditFile?: (filename: string) => void;
   onDeleteFile?: (filename: string) => void;
 
@@ -364,6 +363,7 @@ export const VideoContextPanel = memo(function VideoContextPanel({
                   enabledFiles={enabledFiles}
                   onEnabledFilesChange={onEnabledFilesChange}
                   onFileClick={onFileClick}
+                  onDeleteFile={onDeleteFile}
                 />
               </div>
             )}
