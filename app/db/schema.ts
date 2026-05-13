@@ -371,6 +371,28 @@ export const links = createTable("link", {
 });
 
 // Thumbnails table for layered thumbnail compositing
+export const diagrams = createTable("diagram", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().default("Untitled 1"),
+  headScene: jsonb("head_scene"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const thumbnails = createTable("thumbnail", {
   id: varchar("id", { length: 255 })
     .notNull()

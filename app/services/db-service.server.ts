@@ -7,6 +7,7 @@ import { createLessonSectionOperations } from "@/services/db-lesson-section-oper
 import { createLinkAuthOperations } from "@/services/db-link-auth-operations.server";
 import { createThumbnailOperations } from "@/services/db-thumbnail-operations.server";
 import { createPitchOperations } from "@/services/db-pitch-operations.server";
+import { createDiagramOperations } from "@/services/db-diagram-operations.server";
 import { Effect } from "effect";
 
 export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
@@ -147,6 +148,9 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deletePitch,
       } = createPitchOperations(db);
 
+      const { createDiagram, listDiagrams, getDiagram, updateDiagram } =
+        createDiagramOperations(db);
+
       return {
         getClipById,
         getClipsByIds,
@@ -253,6 +257,10 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         updatePitchField,
         createVideoFromPitch,
         deletePitch,
+        createDiagram,
+        listDiagrams,
+        getDiagram,
+        updateDiagram,
       };
     }),
   }
