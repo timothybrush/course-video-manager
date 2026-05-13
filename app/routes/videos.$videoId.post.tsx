@@ -265,7 +265,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       isYoutubeAuthenticated,
       thumbnails: videoThumbnails,
       pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
-      pitchNewsletterTitle: pitch?.newsletterTitle ?? null,
       pitchTweet: pitch?.tweet ?? null,
     };
   }).pipe(
