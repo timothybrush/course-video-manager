@@ -19,7 +19,12 @@ export const action = async (args: Route.ActionArgs) => {
     const parsed = yield* Schema.decodeUnknown(updateSchema)(formDataObject);
 
     const fields: { name?: string; archived?: boolean } = {};
-    if (parsed.name !== undefined) fields.name = parsed.name;
+    if (parsed.name !== undefined) {
+      const trimmed = parsed.name.trim();
+      if (!trimmed)
+        return yield* Effect.die(data("Name cannot be empty", { status: 400 }));
+      fields.name = trimmed;
+    }
     if (parsed.archived !== undefined)
       fields.archived = parsed.archived === "true";
 

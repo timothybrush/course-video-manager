@@ -80,6 +80,19 @@ describe("createDiagram", () => {
         expect(d2.name).toBe("Untitled 1");
       }).pipe(Effect.provide(testLayer))
   );
+
+  it.effect("does not count archived Untitled N names toward numbering", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const d1 = yield* db.createDiagram();
+      expect(d1.name).toBe("Untitled 1");
+
+      yield* db.updateDiagram(d1.id, { archived: true });
+
+      const d2 = yield* db.createDiagram();
+      expect(d2.name).toBe("Untitled 1");
+    }).pipe(Effect.provide(testLayer))
+  );
 });
 
 describe("listDiagrams", () => {
@@ -149,6 +162,49 @@ describe("listDiagrams", () => {
     Effect.gen(function* () {
       const db = yield* DBFunctionsService;
       const list = yield* db.listDiagrams();
+      expect(list).toEqual([]);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "filters by name among archived diagrams when includeArchived is true",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+
+        const d1 = yield* db.createDiagram();
+        yield* db.updateDiagram(d1.id, { name: "Architecture Overview" });
+
+        const d2 = yield* db.createDiagram();
+        yield* db.updateDiagram(d2.id, {
+          name: "Architecture Detail",
+          archived: true,
+        });
+
+        const d3 = yield* db.createDiagram();
+        yield* db.updateDiagram(d3.id, { name: "Data Flow" });
+
+        const withArchived = yield* db.listDiagrams({
+          nameFilter: "architecture",
+          includeArchived: true,
+        });
+        expect(withArchived).toHaveLength(2);
+
+        const withoutArchived = yield* db.listDiagrams({
+          nameFilter: "architecture",
+          includeArchived: false,
+        });
+        expect(withoutArchived).toHaveLength(1);
+        expect(withoutArchived[0]!.name).toBe("Architecture Overview");
+      }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("returns no results when filter matches nothing", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      yield* db.createDiagram();
+
+      const list = yield* db.listDiagrams({ nameFilter: "nonexistent" });
       expect(list).toEqual([]);
     }).pipe(Effect.provide(testLayer))
   );
@@ -235,6 +291,36 @@ describe("updateDiagram", () => {
       });
       expect(updated.name).toBe("New Name");
       expect(updated.archived).toBe(false);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("empty fields object still bumps updatedAt", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+
+      yield* Effect.promise(() => new Promise((r) => setTimeout(r, 50)));
+      const updated = yield* db.updateDiagram(created.id, {});
+
+      expect(updated.name).toBe(created.name);
+      expect(updated.archived).toBe(created.archived);
+      expect(updated.updatedAt.getTime()).toBeGreaterThan(
+        created.updatedAt.getTime()
+      );
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("allows setting name and archived in a single update", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+
+      const updated = yield* db.updateDiagram(created.id, {
+        name: "Archived Diagram",
+        archived: true,
+      });
+      expect(updated.name).toBe("Archived Diagram");
+      expect(updated.archived).toBe(true);
     }).pipe(Effect.provide(testLayer))
   );
 });

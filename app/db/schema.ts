@@ -370,7 +370,6 @@ export const links = createTable("link", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// Thumbnails table for layered thumbnail compositing
 export const diagrams = createTable("diagram", {
   id: varchar("id", { length: 255 })
     .notNull()
@@ -393,6 +392,7 @@ export const diagrams = createTable("diagram", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Thumbnails table for layered thumbnail compositing
 export const thumbnails = createTable("thumbnail", {
   id: varchar("id", { length: 255 })
     .notNull()

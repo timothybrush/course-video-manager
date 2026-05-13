@@ -80,15 +80,6 @@ export default function DiagramsIndexRoute(props: Route.ComponentProps) {
   const showArchived = searchParams.get("archived") === "true";
   const nameFilter = searchParams.get("q") || "";
 
-  useEffect(() => {
-    if (
-      createDiagramFetcher.state === "idle" &&
-      createDiagramFetcher.data?.id
-    ) {
-      // Diagram created — revalidation will show it in the list
-    }
-  }, [createDiagramFetcher.state, createDiagramFetcher.data]);
-
   const updateSearch = (q: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
