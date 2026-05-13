@@ -32,7 +32,7 @@ function TimelinePanel({
   refreshKey: number;
 }) {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   useEffect(() => {

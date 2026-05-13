@@ -23,4 +23,10 @@ describe("isVisibleInTimeline", () => {
     const clips = [{ archived: true }, { archived: true }];
     expect(isVisibleInTimeline(snapshot, clips)).toBe(false);
   });
+
+  it("returns false when snapshot is not preserved even with active pinning clips", () => {
+    const snapshot = { preserved: false };
+    const clips = [{ archived: false }];
+    expect(isVisibleInTimeline(snapshot, clips)).toBe(false);
+  });
 });

@@ -81,6 +81,23 @@ describe("listSnapshots", () => {
       expect(snapshots[0]!.diagramId).toBe(d1.id);
     }).pipe(Effect.provide(testLayer))
   );
+
+  it.effect("returns both preserved and non-preserved snapshots", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+
+      yield* db.updateDiagramHead(diagram.id, scene1);
+      yield* db.createSnapshot(diagram.id, { preserved: true });
+
+      yield* db.updateDiagramHead(diagram.id, scene2);
+      yield* db.createSnapshot(diagram.id, { preserved: false });
+
+      const snapshots = yield* db.listSnapshots(diagram.id);
+      expect(snapshots).toHaveLength(2);
+      expect(snapshots.map((s) => s.preserved)).toEqual([true, false]);
+    }).pipe(Effect.provide(testLayer))
+  );
 });
 
 describe("restoreSnapshotToHead", () => {
@@ -166,6 +183,26 @@ describe("restoreSnapshotToHead", () => {
         .restoreSnapshotToHead(diagram.id, "nonexistent-snapshot-id")
         .pipe(Effect.flip);
       expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("is idempotent when restoring the same snapshot twice", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+
+      yield* db.updateDiagramHead(diagram.id, scene1);
+      const snapshot = yield* db.createSnapshot(diagram.id, {
+        preserved: true,
+      });
+
+      yield* db.updateDiagramHead(diagram.id, scene2);
+
+      const first = yield* db.restoreSnapshotToHead(diagram.id, snapshot.id);
+      const second = yield* db.restoreSnapshotToHead(diagram.id, snapshot.id);
+
+      expect(first.headScene).toEqual(scene1);
+      expect(second.headScene).toEqual(scene1);
     }).pipe(Effect.provide(testLayer))
   );
 
