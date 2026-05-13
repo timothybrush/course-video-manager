@@ -34,6 +34,8 @@ export type ClipOnDatabase = {
   profile: string | null;
   insertionOrder: number | null;
   beatType: BeatType;
+  diagramSnapshotId: string | null;
+  diagramName: string | null;
   /**
    * If true, this clip has been archived by the user (deleted from session panel).
    * The clip stays in state so it can appear in the archived sub-section of the
@@ -282,6 +284,12 @@ export type ClipReducerAction =
       type: "effect-failed";
       effectType: string;
       message: string;
+    }
+  | {
+      type: "update-clip-diagram-pin";
+      clipId: FrontendId;
+      diagramSnapshotId: string | null;
+      diagramName: string | null;
     };
 
 export type ClipReducerEffect =

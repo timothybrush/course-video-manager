@@ -256,6 +256,8 @@ export const handleNewDatabaseClips = (
           profile: frontendClip.profile,
           insertionOrder: frontendClip.insertionOrder,
           beatType: frontendClip.beatType,
+          diagramSnapshotId: databaseClip.diagramSnapshotId ?? null,
+          diagramName: null,
           shouldArchive: true,
           sessionId: frontendClip.sessionId,
         };
@@ -278,6 +280,8 @@ export const handleNewDatabaseClips = (
           profile: frontendClip.profile,
           insertionOrder: frontendClip.insertionOrder,
           beatType: frontendClip.beatType,
+          diagramSnapshotId: databaseClip.diagramSnapshotId ?? null,
+          diagramName: null,
         };
         newClipsState[index] = newDatabaseClip;
         clipsToUpdateScene.set(databaseClip.id, {
@@ -298,6 +302,8 @@ export const handleNewDatabaseClips = (
         databaseId: databaseClip.id,
         insertionOrder: state.insertionOrder + 1,
         beatType: databaseClip.beatType as BeatType,
+        diagramSnapshotId: databaseClip.diagramSnapshotId ?? null,
+        diagramName: null,
       };
 
       const result = insertClip(

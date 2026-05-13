@@ -1,4 +1,3 @@
-import type { ClipSectionNamingModal } from "./types";
 import { ClipSectionNamingModal as ClipSectionNamingModalComponent } from "./components/clip-section-naming-modal";
 import { CreateVideoFromSelectionModal } from "./components/create-video-from-selection-modal";
 import { FilePasteModalWithFsData } from "./components/file-paste-modal-with-fs-data";
@@ -10,6 +9,12 @@ import {
   type ReferenceCandidate,
 } from "./components/reference-panel";
 import { useGenerateClipSectionsModal } from "./hooks/use-generate-clip-sections-modal";
+import { AttachDiagramDialog } from "./components/attach-diagram-dialog";
+import {
+  useDiagramPin,
+  type UpdateClipDiagramPinFn,
+} from "./hooks/use-diagram-pin";
+import { useSectionModal } from "./hooks/use-section-modal";
 import { useReferenceVideoId } from "./hooks/use-reference-video-id";
 import { RenameVideoModal } from "@/components/rename-video-modal";
 import { useKeyboardShortcuts } from "./hooks/use-keyboard-shortcuts";
@@ -18,7 +23,6 @@ import { useClipboardOperations } from "./hooks/use-clipboard-operations";
 import {
   Suspense,
   useCallback,
-  useEffect,
   type ReactNode,
   useMemo,
   useState,
@@ -198,6 +202,7 @@ export const VideoEditor = (props: {
     title: string,
     mode: "copy" | "move"
   ) => void;
+  onUpdateClipDiagramPin: UpdateClipDiagramPinFn;
 }) => {
   // Filter items for the main timeline (excludes optimistic clips and archived items)
   const timelineItems = useMemo(
@@ -213,16 +218,6 @@ export const VideoEditor = (props: {
     () => getSessionPanels(props.items, props.sessions),
     [props.items, props.sessions]
   );
-
-  // Generate default name for new clip sections based on existing count
-  const generateDefaultClipSectionName = () => {
-    const existingClipSectionCount = timelineItems.filter(
-      (item) =>
-        item.type === "clip-section-on-database" ||
-        item.type === "clip-section-optimistically-added"
-    ).length;
-    return `Section ${existingClipSectionCount + 1}`;
-  };
 
   const { state, dispatch } = useVideoEditor({
     items: timelineItems,
@@ -273,9 +268,28 @@ export const VideoEditor = (props: {
     triggerSuggestion: () => {},
   });
 
-  // State for clip section naming modal
-  const [clipSectionNamingModal, setClipSectionNamingModal] =
-    useState<ClipSectionNamingModal>(null);
+  const {
+    clipSectionNamingModal,
+    setClipSectionNamingModal,
+    generateDefaultClipSectionName,
+    onEditSection,
+    onAddSectionBefore,
+    onAddSectionAfter,
+    onAddIntroSection,
+    onOpenCreateSectionModal,
+  } = useSectionModal(
+    timelineItems,
+    state.selectedClipsSet,
+    props.onAddClipSection
+  );
+
+  const {
+    attachDiagramClipId,
+    onUnpinDiagram,
+    onAttachDiagram,
+    onAttachDiagramSelect,
+    closeAttachDialog,
+  } = useDiagramPin(props.items, props.onUpdateClipDiagramPin);
 
   // Setup keyboard shortcuts
   useKeyboardShortcuts(dispatch);
@@ -326,96 +340,12 @@ export const VideoEditor = (props: {
 
   const areAnyClipsDangerous = getAreAnyClipsDangerous(clips);
 
-  // Section modal management callbacks
-  const onEditSection = useCallback(
-    (sectionId: FrontendId, currentName: string) => {
-      setClipSectionNamingModal({
-        mode: "edit",
-        clipSectionId: sectionId,
-        currentName,
-      });
-    },
-    []
-  );
-
-  const onAddSectionBefore = useCallback(
-    (itemId: FrontendId, defaultName: string) => {
-      setClipSectionNamingModal({
-        mode: "add-at",
-        position: "before",
-        itemId,
-        defaultName,
-      });
-    },
-    []
-  );
-
-  const onAddSectionAfter = useCallback(
-    (itemId: FrontendId, defaultName: string) => {
-      setClipSectionNamingModal({
-        mode: "add-at",
-        position: "after",
-        itemId,
-        defaultName,
-      });
-    },
-    []
-  );
-
-  const onAddIntroSection = useCallback(() => {
-    props.onAddClipSection("Intro");
-  }, [props]);
-
-  const onOpenCreateSectionModal = useCallback(() => {
-    setClipSectionNamingModal({
-      mode: "create",
-      defaultName: generateDefaultClipSectionName(),
-    });
-  }, [generateDefaultClipSectionName]);
-
-  // F2 to rename selected section
-  const selectedClipsSet = state.selectedClipsSet;
-  useEffect(() => {
-    const handleF2 = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLButtonElement &&
-          !e.target.classList.contains("allow-keydown"))
-      ) {
-        return;
-      }
-      if (e.key === "F2") {
-        e.preventDefault();
-        if (selectedClipsSet.size !== 1) return;
-        const selectedId = Array.from(selectedClipsSet)[0]!;
-        const selectedItem = timelineItems.find(
-          (item) => item.frontendId === selectedId
-        );
-        if (
-          selectedItem &&
-          (selectedItem.type === "clip-section-on-database" ||
-            selectedItem.type === "clip-section-optimistically-added")
-        ) {
-          onEditSection(selectedId, selectedItem.name);
-        }
-      }
-    };
-    window.addEventListener("keydown", handleF2);
-    return () => window.removeEventListener("keydown", handleF2);
-  }, [selectedClipsSet, timelineItems, onEditSection]);
-
   const handlePasteModalClose = (open: boolean) => {
     setIsPasteModalOpen(open);
     if (!open) {
       // Revalidate to refresh the file list
       revalidator.revalidate();
     }
-  };
-
-  const handleFileCreated = () => {
-    // File creation is handled by the modal, no additional action needed
-    // Revalidation happens in handlePasteModalClose
   };
 
   const handleCreateVideoFromSelection = useCallback(
@@ -552,6 +482,10 @@ export const VideoEditor = (props: {
       setSuggestionState,
 
       onOpenGenerateClipSectionsModal,
+
+      // Diagram pin
+      onUnpinDiagram,
+      onAttachDiagram,
     }),
     [
       state,
@@ -618,6 +552,8 @@ export const VideoEditor = (props: {
       onAddSectionAfter,
       generateDefaultClipSectionName,
       onOpenGenerateClipSectionsModal,
+      onUnpinDiagram,
+      onAttachDiagram,
     ]
   );
 
@@ -648,7 +584,7 @@ export const VideoEditor = (props: {
           videoId={props.videoId}
           isPasteModalOpen={isPasteModalOpen}
           handlePasteModalClose={handlePasteModalClose}
-          handleFileCreated={handleFileCreated}
+          handleFileCreated={() => {}}
         />
       </Suspense>
       <RenameVideoModal
@@ -699,6 +635,11 @@ export const VideoEditor = (props: {
       <VideoEditorContext.Provider value={contextValue}>
         {body}
         {modals}
+        <AttachDiagramDialog
+          clipId={attachDiagramClipId}
+          onClose={closeAttachDialog}
+          onSelect={onAttachDiagramSelect}
+        />
       </VideoEditorContext.Provider>
     </div>
   );

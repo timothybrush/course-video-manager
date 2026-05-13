@@ -45,6 +45,8 @@ const makeClipOnDatabase = (
   profile: null,
   insertionOrder: null,
   beatType: "none",
+  diagramSnapshotId: null,
+  diagramName: null,
   ...overrides,
 });
 

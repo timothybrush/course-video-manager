@@ -172,6 +172,15 @@ export const createVideoOperations = (
           clips: {
             orderBy: asc(clips.order),
             ...(opts?.withArchived ? {} : { where: eq(clips.archived, false) }),
+            with: {
+              diagramSnapshot: {
+                with: {
+                  diagram: {
+                    columns: { name: true },
+                  },
+                },
+              },
+            },
           },
           clipSections: {
             orderBy: asc(clipSections.order),

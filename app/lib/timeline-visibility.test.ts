@@ -24,9 +24,15 @@ describe("isVisibleInTimeline", () => {
     expect(isVisibleInTimeline(snapshot, clips)).toBe(false);
   });
 
-  it("returns false when snapshot is not preserved even with active pinning clips", () => {
+  it("returns true when snapshot is not preserved but has non-archived pinning clips", () => {
     const snapshot = { preserved: false };
     const clips = [{ archived: false }];
-    expect(isVisibleInTimeline(snapshot, clips)).toBe(false);
+    expect(isVisibleInTimeline(snapshot, clips)).toBe(true);
+  });
+
+  it("returns true when snapshot is not preserved and has mix of archived and non-archived clips", () => {
+    const snapshot = { preserved: false };
+    const clips = [{ archived: true }, { archived: false }];
+    expect(isVisibleInTimeline(snapshot, clips)).toBe(true);
   });
 });

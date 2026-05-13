@@ -1,20 +1,14 @@
 import { Console, Effect } from "effect";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
-import type { Route } from "./+types/api.diagrams.$diagramId.snapshots.list";
+import type { Route } from "./+types/api.diagrams.list";
 import { data } from "react-router";
-import { isVisibleInTimeline } from "@/lib/timeline-visibility";
 
-export const loader = async (args: Route.LoaderArgs) => {
-  const { diagramId } = args.params;
-
+export const loader = async (_args: Route.LoaderArgs) => {
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const snapshots = yield* db.listSnapshotsWithClips(diagramId);
-    const visibleSnapshots = snapshots.filter((s) =>
-      isVisibleInTimeline(s, s.clips)
-    );
-    return data({ snapshots: visibleSnapshots });
+    const diagrams = yield* db.listDiagrams();
+    return data({ diagrams });
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
     Effect.catchAll(() => {

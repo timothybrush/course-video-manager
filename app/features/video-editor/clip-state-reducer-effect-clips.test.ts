@@ -35,6 +35,8 @@ const createClipOnDatabase = (
   profile: "main-camera",
   insertionOrder: 1,
   beatType: "none",
+  diagramSnapshotId: null,
+  diagramName: null,
   ...overrides,
 });
 

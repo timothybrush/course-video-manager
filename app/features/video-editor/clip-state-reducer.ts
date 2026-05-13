@@ -586,6 +586,8 @@ export const clipStateReducer: EffectReducer<
               profile: item.profile,
               insertionOrder: item.insertionOrder,
               beatType: item.beatType,
+              diagramSnapshotId: null,
+              diagramName: null,
             };
             return onDatabase;
           }
@@ -715,6 +717,24 @@ export const clipStateReducer: EffectReducer<
           effectType: action.effectType,
           timestamp: Date.now(),
         },
+      };
+    }
+    case "update-clip-diagram-pin": {
+      return {
+        ...state,
+        items: state.items.map((item) => {
+          if (
+            item.frontendId === action.clipId &&
+            item.type === "on-database"
+          ) {
+            return {
+              ...item,
+              diagramSnapshotId: action.diagramSnapshotId,
+              diagramName: action.diagramName,
+            };
+          }
+          return item;
+        }),
       };
     }
   }

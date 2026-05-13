@@ -215,6 +215,22 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     );
   });
 
+  const listSnapshotsWithClips = Effect.fn("listSnapshotsWithClips")(function* (
+    diagramId: string
+  ) {
+    return yield* makeDbCall(() =>
+      db.query.diagramSnapshots.findMany({
+        where: eq(diagramSnapshots.diagramId, diagramId),
+        orderBy: [asc(diagramSnapshots.createdAt)],
+        with: {
+          clips: {
+            columns: { id: true, archived: true },
+          },
+        },
+      })
+    );
+  });
+
   const restoreSnapshotToHead = Effect.fn("restoreSnapshotToHead")(function* (
     diagramId: string,
     snapshotId: string
@@ -269,6 +285,28 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     return snapshot;
   });
 
+  const updateClipDiagramPin = Effect.fn("updateClipDiagramPin")(function* (
+    clipId: string,
+    diagramSnapshotId: string | null
+  ) {
+    const results = yield* makeDbCall(() =>
+      db
+        .update(clips)
+        .set({ diagramSnapshotId })
+        .where(eq(clips.id, clipId))
+        .returning()
+    );
+
+    const clip = results[0];
+    if (!clip) {
+      return yield* new NotFoundError({
+        type: "updateClipDiagramPin",
+        params: { clipId },
+      });
+    }
+    return clip;
+  });
+
   return {
     createDiagram,
     listDiagrams,
@@ -277,7 +315,9 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     updateDiagramHead,
     createSnapshot,
     listSnapshots,
+    listSnapshotsWithClips,
     restoreSnapshotToHead,
     createSnapshotForClip,
+    updateClipDiagramPin,
   };
 };

@@ -100,6 +100,45 @@ describe("listSnapshots", () => {
   );
 });
 
+describe("listSnapshotsWithClips", () => {
+  it.effect("returns snapshots with their pinning clips", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene1);
+
+      const video = yield* db.createStandaloneVideo({ path: "test-video.mp4" });
+      const clips = yield* db.appendClips({
+        videoId: video.id,
+        insertionPoint: { type: "start" },
+        clips: [{ inputVideo: "test.mp4", startTime: 0, endTime: 10 }],
+      });
+      const clip = clips[0]!;
+
+      const snapshot = yield* db.createSnapshotForClip(diagram.id, clip.id);
+
+      const result = yield* db.listSnapshotsWithClips(diagram.id);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.id).toBe(snapshot.id);
+      expect(result[0]!.clips).toHaveLength(1);
+      expect(result[0]!.clips[0]!.id).toBe(clip.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("returns empty clips array for unpinned snapshot", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene1);
+      yield* db.createSnapshot(diagram.id, { preserved: true });
+
+      const result = yield* db.listSnapshotsWithClips(diagram.id);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.clips).toEqual([]);
+    }).pipe(Effect.provide(testLayer))
+  );
+});
+
 describe("restoreSnapshotToHead", () => {
   it.effect("copies snapshot scene into diagram headScene", () =>
     Effect.gen(function* () {
@@ -223,6 +262,84 @@ describe("restoreSnapshotToHead", () => {
           .restoreSnapshotToHead(d2.id, snapshot.id)
           .pipe(Effect.flip);
         expect(result._tag).toBe("NotFoundError");
+      }).pipe(Effect.provide(testLayer))
+  );
+});
+
+describe("updateClipDiagramPin", () => {
+  const scene = {
+    store: { "shape:abc": { id: "abc", x: 10 } },
+    schema: { schemaVersion: 2 },
+  };
+
+  const createVideoWithClip = Effect.gen(function* () {
+    const db = yield* DBFunctionsService;
+    const video = yield* db.createStandaloneVideo({ path: "test-video.mp4" });
+    const clips = yield* db.appendClips({
+      videoId: video.id,
+      insertionPoint: { type: "start" },
+      clips: [{ inputVideo: "test.mp4", startTime: 0, endTime: 10 }],
+    });
+    return { video, clip: clips[0]! };
+  });
+
+  it.effect("pins a snapshot to a clip", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const { clip } = yield* createVideoWithClip;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+      const snapshot = yield* db.createSnapshot(diagram.id, {});
+
+      const updated = yield* db.updateClipDiagramPin(clip.id, snapshot.id);
+
+      expect(updated.diagramSnapshotId).toBe(snapshot.id);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("unpins a snapshot from a clip by setting null", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const { clip } = yield* createVideoWithClip;
+      const diagram = yield* db.createDiagram();
+      yield* db.updateDiagramHead(diagram.id, scene);
+      const snapshot = yield* db.createSnapshotForClip(diagram.id, clip.id);
+
+      expect(snapshot.id).toEqual(expect.any(String));
+      const pinned = yield* db.getClipById(clip.id);
+      expect(pinned.diagramSnapshotId).toBe(snapshot.id);
+
+      const updated = yield* db.updateClipDiagramPin(clip.id, null);
+
+      expect(updated.diagramSnapshotId).toBeNull();
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails with NotFoundError for non-existent clip", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const result = yield* db
+        .updateClipDiagramPin("nonexistent-id", null)
+        .pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect(
+    "is idempotent — pinning same snapshot twice returns same result",
+    () =>
+      Effect.gen(function* () {
+        const db = yield* DBFunctionsService;
+        const { clip } = yield* createVideoWithClip;
+        const diagram = yield* db.createDiagram();
+        yield* db.updateDiagramHead(diagram.id, scene);
+        const snapshot = yield* db.createSnapshot(diagram.id, {});
+
+        const first = yield* db.updateClipDiagramPin(clip.id, snapshot.id);
+        const second = yield* db.updateClipDiagramPin(clip.id, snapshot.id);
+
+        expect(first.diagramSnapshotId).toBe(snapshot.id);
+        expect(second.diagramSnapshotId).toBe(snapshot.id);
       }).pipe(Effect.provide(testLayer))
   );
 });

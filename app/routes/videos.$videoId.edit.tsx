@@ -162,9 +162,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       : [];
 
     // Combine clips and clipSections into a unified items array, sorted by order
-    const clipItems: Array<{ type: "clip"; order: string; data: DB.Clip }> = (
-      video.clips as DB.Clip[]
-    ).map((clip) => ({
+    const clipItems = video.clips.map((clip) => ({
       type: "clip" as const,
       order: clip.order,
       data: clip,
@@ -267,9 +265,11 @@ export const ComponentInner = (props: Route.ComponentProps) => {
           ...clip,
           type: "on-database",
           frontendId: createFrontendId(),
-          databaseId: clip.id,
+          databaseId: clip.id as DatabaseId,
           insertionOrder: null,
           beatType: clip.beatType as BeatType,
+          diagramSnapshotId: clip.diagramSnapshotId ?? null,
+          diagramName: clip.diagramSnapshot?.diagram?.name ?? null,
         } satisfies ClipOnDatabase;
       } else {
         const clipSection = item.data;
@@ -516,6 +516,30 @@ export const ComponentInner = (props: Route.ComponentProps) => {
           console.error("Failed to regenerate clip sections", error);
           throw error;
         }
+      }}
+      onUpdateClipDiagramPin={(
+        clipFrontendId,
+        clipDatabaseId,
+        diagramSnapshotId,
+        diagramName
+      ) => {
+        fetch(`/api/clips/${clipDatabaseId}/diagram-pin`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ diagramSnapshotId }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            dispatch({
+              type: "update-clip-diagram-pin",
+              clipId: clipFrontendId,
+              diagramSnapshotId,
+              diagramName,
+            });
+          })
+          .catch((error) => {
+            console.error("Failed to update diagram pin", error);
+          });
       }}
       error={clipState.error}
       onCreateVideoFromSelection={(

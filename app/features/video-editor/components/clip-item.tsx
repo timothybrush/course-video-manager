@@ -16,11 +16,14 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   FilmIcon,
+  ImageIcon,
+  LinkIcon,
   Loader2,
   PauseIcon,
   PlusIcon,
   RefreshCwIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import type { Clip } from "../clip-state-reducer";
 import { VideoEditorContext } from "../video-editor-context";
@@ -101,6 +104,14 @@ export const ClipItem = (props: ClipItemProps) => {
   const setIsCreateVideoModalOpen = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.setIsCreateVideoModalOpen
+  );
+  const onUnpinDiagram = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.onUnpinDiagram
+  );
+  const onAttachDiagram = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.onAttachDiagram
   );
 
   const percentComplete = getClipPercentComplete(clip, currentTimeInClip);
@@ -215,6 +226,26 @@ export const ClipItem = (props: ClipItemProps) => {
                 </span>
               )}
             </div>
+
+            {/* Diagram pin indicator */}
+            {clip.type === "on-database" && clip.diagramSnapshotId && (
+              <div className="z-10 relative flex items-center gap-1.5 mt-1">
+                <ImageIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs text-muted-foreground truncate">
+                  {clip.diagramName ?? "Diagram"}
+                </span>
+                <button
+                  className="ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUnpinDiagram(clip.frontendId);
+                  }}
+                  title="Unpin Diagram"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
         </button>
       </ContextMenuTrigger>
@@ -315,6 +346,27 @@ export const ClipItem = (props: ClipItemProps) => {
           <RefreshCwIcon />
           Re-transcribe
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        {clip.type === "on-database" && clip.diagramSnapshotId ? (
+          <ContextMenuItem
+            onSelect={() => {
+              onUnpinDiagram(clip.frontendId);
+            }}
+          >
+            <XIcon />
+            Unpin Diagram
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem
+            disabled={clip.type !== "on-database"}
+            onSelect={() => {
+              onAttachDiagram(clip.frontendId);
+            }}
+          >
+            <LinkIcon />
+            Attach Diagram
+          </ContextMenuItem>
+        )}
         {selectedClipsSet.size > 0 && (
           <>
             <ContextMenuSeparator />

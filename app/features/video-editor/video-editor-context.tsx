@@ -138,6 +138,10 @@ export type VideoEditorContextType = {
 
   // AI ClipSection generation
   onOpenGenerateClipSectionsModal: () => void;
+
+  // Diagram pin
+  onUnpinDiagram: (clipId: FrontendId) => void;
+  onAttachDiagram: (clipId: FrontendId) => void;
 };
 
 export const VideoEditorContext = createContext<VideoEditorContextType>(null!);
