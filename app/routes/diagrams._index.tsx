@@ -8,10 +8,18 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
+import { openPlaygroundWithDiagram } from "@/lib/diagram-window";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
-import { Archive, ArchiveRestore, PenTool, Plus, Search } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ExternalLink,
+  PenTool,
+  Plus,
+  Search,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { data, useFetcher, useSearchParams } from "react-router";
 import type { Route } from "./+types/diagrams._index";
@@ -279,6 +287,18 @@ function DiagramRow({ diagram }: { diagram: DiagramItem }) {
               </button>
             )}
           </div>
+          {!isArchived && (
+            <button
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                openPlaygroundWithDiagram(diagram.id);
+              }}
+              title="Open in playground"
+            >
+              <ExternalLink className="size-4" />
+            </button>
+          )}
           {isArchived && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
               Archived
@@ -290,6 +310,16 @@ function DiagramRow({ diagram }: { diagram: DiagramItem }) {
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {!isArchived && (
+          <ContextMenuItem
+            onSelect={() => {
+              openPlaygroundWithDiagram(diagram.id);
+            }}
+          >
+            <ExternalLink className="size-4" />
+            Open in Playground
+          </ContextMenuItem>
+        )}
         {isArchived ? (
           <ContextMenuItem
             onSelect={() => {

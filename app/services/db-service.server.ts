@@ -148,8 +148,13 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deletePitch,
       } = createPitchOperations(db);
 
-      const { createDiagram, listDiagrams, getDiagram, updateDiagram } =
-        createDiagramOperations(db);
+      const {
+        createDiagram,
+        listDiagrams,
+        getDiagram,
+        updateDiagram,
+        updateDiagramHead,
+      } = createDiagramOperations(db);
 
       return {
         getClipById,
@@ -261,6 +266,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         listDiagrams,
         getDiagram,
         updateDiagram,
+        updateDiagramHead,
       };
     }),
   }

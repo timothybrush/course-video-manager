@@ -324,3 +324,67 @@ describe("updateDiagram", () => {
     }).pipe(Effect.provide(testLayer))
   );
 });
+
+describe("updateDiagramHead", () => {
+  it.effect("stores headScene and bumps updatedAt", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+      expect(created.headScene).toBeNull();
+
+      const scene = {
+        store: { "shape:abc": { id: "shape:abc" } },
+        schema: { schemaVersion: 2 },
+      };
+      const updated = yield* db.updateDiagramHead(created.id, scene);
+
+      expect(updated.headScene).toEqual(scene);
+      expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        created.updatedAt.getTime()
+      );
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("overwrites previous headScene", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+
+      const scene1 = { store: { "shape:a": {} }, schema: { schemaVersion: 2 } };
+      yield* db.updateDiagramHead(created.id, scene1);
+
+      const scene2 = { store: { "shape:b": {} }, schema: { schemaVersion: 2 } };
+      const updated = yield* db.updateDiagramHead(created.id, scene2);
+
+      expect(updated.headScene).toEqual(scene2);
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("fails with NotFoundError for non-existent diagram", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const result = yield* db
+        .updateDiagramHead("nonexistent-id", { store: {} })
+        .pipe(Effect.flip);
+      expect(result._tag).toBe("NotFoundError");
+    }).pipe(Effect.provide(testLayer))
+  );
+
+  it.effect("preserves name and archived when updating head", () =>
+    Effect.gen(function* () {
+      const db = yield* DBFunctionsService;
+      const created = yield* db.createDiagram();
+      yield* db.updateDiagram(created.id, {
+        name: "My Diagram",
+        archived: false,
+      });
+
+      const scene = { store: { "shape:x": {} } };
+      const updated = yield* db.updateDiagramHead(created.id, scene);
+
+      expect(updated.name).toBe("My Diagram");
+      expect(updated.archived).toBe(false);
+      expect(updated.headScene).toEqual(scene);
+    }).pipe(Effect.provide(testLayer))
+  );
+});

@@ -110,10 +110,33 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     return diagram;
   });
 
+  const updateDiagramHead = Effect.fn("updateDiagramHead")(function* (
+    id: string,
+    headScene: unknown
+  ) {
+    const results = yield* makeDbCall(() =>
+      db
+        .update(diagrams)
+        .set({ headScene, updatedAt: new Date() })
+        .where(eq(diagrams.id, id))
+        .returning()
+    );
+
+    const diagram = results[0];
+    if (!diagram) {
+      return yield* new NotFoundError({
+        type: "updateDiagramHead",
+        params: { id },
+      });
+    }
+    return diagram;
+  });
+
   return {
     createDiagram,
     listDiagrams,
     getDiagram,
     updateDiagram,
+    updateDiagramHead,
   };
 };
