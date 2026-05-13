@@ -8,7 +8,7 @@ import path from "path";
 
 const deleteFileSchema = Schema.Struct({
   videoId: Schema.String,
-  filename: Schema.String,
+  filename: Schema.String.pipe(Schema.minLength(1)),
 });
 
 export const action = async (args: Route.ActionArgs) => {
@@ -36,7 +36,11 @@ export const action = async (args: Route.ActionArgs) => {
     const section = lesson.section;
     const lessonPath = path.join(repo.filePath!, section.path, lesson.path);
 
-    const filePath = path.join(lessonPath, parsed.filename);
+    const filePath = path.resolve(lessonPath, parsed.filename);
+
+    if (!filePath.startsWith(lessonPath + path.sep)) {
+      return yield* Effect.die(data("Invalid filename", { status: 400 }));
+    }
 
     const fileExists = yield* fs.exists(filePath);
     if (!fileExists) {
