@@ -15,7 +15,7 @@ import {
 import { garbageCollect } from "./export-hash.server";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
 import { generateChangelog } from "./changelog-service";
-import { resolveSectionsWithVideos } from "./publish-to-dropbox";
+import { buildChapters, resolveSectionsWithVideos } from "./publish-to-dropbox";
 
 export class PublishValidationError extends Data.TaggedError(
   "PublishValidationError"
@@ -368,10 +368,18 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
         // Build a lookup of video ID -> clips for transcript export
         const videoClipsMap = new Map<string, { text: string | null }[]>();
+        const videoChaptersMap = new Map<
+          string,
+          ReturnType<typeof buildChapters>
+        >();
         for (const section of repoWithSections.sections) {
           for (const lesson of section.lessons) {
             for (const video of lesson.videos) {
               videoClipsMap.set(video.id, video.clips);
+              videoChaptersMap.set(
+                video.id,
+                buildChapters(video.clips, video.clipSections)
+              );
             }
           }
         }
@@ -403,6 +411,20 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
                 yield* effectFs.copyFile(video.absolutePath, destPath);
               }
               filesSupposedToBeInDropbox.add(destPath);
+
+              // Write chapters meta file
+              const chapters = videoChaptersMap.get(video.id);
+              if (chapters) {
+                const metaPath = path.join(
+                  dropboxLessonDir,
+                  `${video.name}.meta.json`
+                );
+                yield* effectFs.writeFileString(
+                  metaPath,
+                  JSON.stringify({ chapters }, null, 2)
+                );
+                filesSupposedToBeInDropbox.add(metaPath);
+              }
 
               // Write transcript
               const clips = videoClipsMap.get(video.id);

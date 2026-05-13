@@ -91,7 +91,7 @@ _Avoid_: Filler, Spacer
 
 **ClipSection**:
 A named marker/divider within a video's timeline that visually groups related clips.
-_Avoid_: Clip group, Divider, Marker
+_Avoid_: Clip group, Divider, Marker (in authoring); Chapter (outside the export context)
 
 **Optimistic Clip**:
 A clip added to the frontend state during recording before it is persisted to the database.

@@ -104,6 +104,10 @@ export const createVersionOperations = (db: DrizzleDB) => {
                     orderBy: asc(clips.order),
                     where: eq(clips.archived, false),
                   },
+                  clipSections: {
+                    orderBy: asc(clipSections.order),
+                    where: eq(clipSections.archived, false),
+                  },
                 },
               },
             },

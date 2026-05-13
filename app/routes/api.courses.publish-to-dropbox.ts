@@ -1,5 +1,8 @@
 import { CourseRepoParserService } from "@/services/course-repo-parser";
-import { resolveSectionsWithVideos } from "@/services/publish-to-dropbox";
+import {
+  buildChapters,
+  resolveSectionsWithVideos,
+} from "@/services/publish-to-dropbox";
 import type { Route } from "./+types/api.courses.publish-to-dropbox";
 import {
   Array,
@@ -195,10 +198,18 @@ export const action = async ({ request }: Route.ActionArgs) => {
 
     // Build a lookup of video ID -> clips for transcript export
     const videoClipsMap = new Map<string, { text: string | null }[]>();
+    const videoChaptersMap = new Map<
+      string,
+      ReturnType<typeof buildChapters>
+    >();
     for (const section of repoWithSections.sections) {
       for (const lesson of section.lessons) {
         for (const video of lesson.videos) {
           videoClipsMap.set(video.id, video.clips);
+          videoChaptersMap.set(
+            video.id,
+            buildChapters(video.clips, video.clipSections)
+          );
         }
       }
     }
@@ -228,6 +239,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
               `${video.name}${extName}`
             ),
           });
+
+          // Write chapters meta file for this video
+          const chapters = videoChaptersMap.get(video.id);
+          if (chapters) {
+            const metaPath = path.join(
+              dropboxLessonDirectory,
+              `${video.name}.meta.json`
+            );
+            yield* fs.writeFileString(
+              metaPath,
+              JSON.stringify({ chapters }, null, 2)
+            );
+            filesSupposedToBeInDropbox.add(metaPath);
+          }
 
           // Write transcript file for this video
           const clips = videoClipsMap.get(video.id);
