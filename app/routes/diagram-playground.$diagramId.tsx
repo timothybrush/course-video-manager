@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Tldraw, getSnapshot, loadSnapshot, type Editor } from "tldraw";
 import "tldraw/tldraw.css";
-import { Archive, Save } from "lucide-react";
+import { Archive, ArrowLeft, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
   subscribeChild,
@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
+import { useParams, useNavigate } from "react-router";
 
 const DEBOUNCE_MS = 500;
 
@@ -164,18 +165,17 @@ function TimelinePanel({
   );
 }
 
-export default function DiagramPlayground() {
+export default function DiagramPlaygroundActive() {
+  const { diagramId } = useParams<{ diagramId: string }>();
+  const navigate = useNavigate();
   const editorRef = useRef<Editor | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeDiagramId = useRef<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [activeDiagramIdState, setActiveDiagramIdState] = useState<
-    string | null
-  >(null);
+  const activeDiagramId = useRef<string | null>(diagramId ?? null);
   const [preserving, setPreserving] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
+  const initialLoadDone = useRef(false);
 
   const saveHead = useCallback(async () => {
     const ed = editorRef.current;
@@ -198,8 +198,8 @@ export default function DiagramPlayground() {
     saveTimer.current = setTimeout(() => saveHead(), DEBOUNCE_MS);
   }, [saveHead]);
 
-  const loadDiagram = useCallback(
-    async (diagramId: string) => {
+  const loadDiagramScene = useCallback(
+    async (id: string) => {
       const ed = editorRef.current;
       if (!ed) return;
 
@@ -207,16 +207,15 @@ export default function DiagramPlayground() {
         clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
-      if (activeDiagramId.current) {
+      if (activeDiagramId.current && activeDiagramId.current !== id) {
         await saveHead();
       }
 
-      activeDiagramId.current = diagramId;
-      setActiveDiagramIdState(diagramId);
+      activeDiagramId.current = id;
       setRefreshKey((k) => k + 1);
 
       try {
-        const res = await fetch(`/api/diagrams/${diagramId}/head`);
+        const res = await fetch(`/api/diagrams/${id}/head`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.headScene) {
@@ -329,10 +328,18 @@ export default function DiagramPlayground() {
     }
   }, [saveHead]);
 
+  // Emit activeDiagramChanged on mount
+  useEffect(() => {
+    if (diagramId) {
+      sendToParent({ type: "activeDiagramChanged", diagramId });
+    }
+  }, [diagramId]);
+
+  // Listen for parent messages (loadDiagram for switch, flush for save)
   useEffect(() => {
     const unsub = subscribeChild((msg: ParentToChildMessage) => {
       if (msg.type === "loadDiagram") {
-        loadDiagram(msg.diagramId);
+        navigate(`/diagram-playground/${msg.diagramId}`, { replace: true });
       } else if (msg.type === "flush") {
         if (saveTimer.current) {
           clearTimeout(saveTimer.current);
@@ -357,7 +364,7 @@ export default function DiagramPlayground() {
       }
     });
     return unsub;
-  }, [loadDiagram]);
+  }, [navigate]);
 
   useEffect(() => {
     function onFocus() {
@@ -367,16 +374,9 @@ export default function DiagramPlayground() {
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
-  useEffect(() => {
-    if (mounted) {
-      sendToParent({ type: "ready" });
-    }
-  }, [mounted]);
-
   const handleMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor;
-      setMounted(true);
       setIsFocusMode(editor.getInstanceState().isFocusMode);
 
       editor.sideEffects.registerBeforeCreateHandler("shape", (shape) => {
@@ -408,11 +408,27 @@ export default function DiagramPlayground() {
         },
         { scope: "session" }
       );
+
+      // Load initial diagram from URL param
+      if (diagramId && !initialLoadDone.current) {
+        initialLoadDone.current = true;
+        loadDiagramScene(diagramId);
+      }
     },
-    [scheduleSave]
+    [scheduleSave, diagramId, loadDiagramScene]
   );
 
-  const timelineVisible = activeDiagramIdState && !isFocusMode;
+  const handleNavigateHome = useCallback(async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    await saveHead();
+    sendToParent({ type: "activeDiagramChanged", diagramId: null });
+    navigate("/diagram-playground");
+  }, [saveHead, navigate]);
+
+  const timelineVisible = diagramId && !isFocusMode;
 
   return (
     <div className="flex h-screen w-screen">
@@ -424,7 +440,16 @@ export default function DiagramPlayground() {
           acceptedVideoMimeTypes={EMPTY_MIME_TYPES}
           embeds={EMPTY_EMBEDS}
         />
-        {activeDiagramIdState && (
+        {!isFocusMode && (
+          <button
+            onClick={handleNavigateHome}
+            className="absolute top-2 left-14 z-50 flex items-center gap-1 rounded bg-zinc-700/80 px-2 py-1 text-xs text-zinc-200 shadow hover:bg-zinc-600/80"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            All diagrams
+          </button>
+        )}
+        {diagramId && (
           <button
             onClick={preserveSnapshot}
             disabled={preserving}
@@ -443,7 +468,7 @@ export default function DiagramPlayground() {
           </div>
           <div className="flex-1 overflow-y-auto">
             <TimelinePanel
-              diagramId={activeDiagramIdState}
+              diagramId={diagramId}
               onRestoreRequest={handleRestoreRequest}
               refreshKey={refreshKey}
             />

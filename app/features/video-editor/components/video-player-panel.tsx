@@ -40,6 +40,15 @@ import {
   type ChangeEvent,
 } from "react";
 import { UploadContext } from "@/features/upload-manager/upload-context";
+import {
+  resolveForVideo,
+  type ResolverTimelineItem,
+} from "@/lib/diagram-action-resolver";
+import { fetchMeta } from "@/features/diagrams/use-diagram-snapshot-scene";
+import {
+  openPlayground,
+  openPlaygroundWithDiagram,
+} from "@/lib/diagram-window";
 
 /**
  * Video player panel component displaying video preview, controls, and metadata.
@@ -279,6 +288,50 @@ export const VideoPlayerPanel = () => {
   );
   const showCenterLine = getShowCenterLineSelector(obsConnectorState);
 
+  const handleOpenDiagramPlayground = useCallback(async () => {
+    const resolverItems: ResolverTimelineItem[] = items.map((item) => {
+      if ("databaseId" in item && "videoFilename" in item) {
+        return {
+          frontendId: item.frontendId as string,
+          kind: "clip" as const,
+          diagramSnapshotId:
+            item.type === "on-database"
+              ? (item.diagramSnapshotId ?? null)
+              : null,
+        };
+      }
+      return {
+        frontendId: item.frontendId as string,
+        kind: "clip-section" as const,
+        diagramSnapshotId: null,
+      };
+    });
+
+    const snapshotIds = new Set(
+      resolverItems
+        .filter((i) => i.diagramSnapshotId)
+        .map((i) => i.diagramSnapshotId!)
+    );
+    const snapshotMap = new Map<string, string>();
+    await Promise.all(
+      [...snapshotIds].map(async (sid) => {
+        const meta = await fetchMeta(sid);
+        if (meta.diagramId) snapshotMap.set(sid, meta.diagramId);
+      })
+    );
+
+    const result = resolveForVideo(
+      resolverItems,
+      insertionPoint,
+      (sid) => snapshotMap.get(sid) ?? null
+    );
+    if (result.kind === "diagram") {
+      openPlaygroundWithDiagram(result.diagramId);
+    } else {
+      openPlayground();
+    }
+  }, [items, insertionPoint]);
+
   return (
     <>
       <div className="lg:flex-1 relative order-1 lg:order-2 overflow-y-auto h-full">
@@ -434,6 +487,7 @@ export const VideoPlayerPanel = () => {
               referenceVideoId={referenceVideoId}
               setReferenceVideoId={setReferenceVideoId}
               onGenerateClipSectionsClick={onOpenGenerateClipSectionsModal}
+              onOpenDiagramPlayground={handleOpenDiagramPlayground}
             />
             <Button variant="secondary" onClick={onAddNoteFromClipboard}>
               <ClipboardIcon className="w-4 h-4 mr-1" />

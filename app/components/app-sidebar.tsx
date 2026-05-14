@@ -15,7 +15,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { openPlaygroundWithDiagram } from "@/lib/diagram-window";
+import {
+  openPlayground,
+  openPlaygroundWithDiagram,
+} from "@/lib/diagram-window";
 import {
   Archive,
   Eye,
@@ -329,13 +332,13 @@ export function AppSidebar({
             </button>
           ))}
         </div>
-        <Link
-          to="/diagrams"
+        <button
+          onClick={() => openPlayground()}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
         >
           <Eye className="w-3 h-3" />
           View All Diagrams
-        </Link>
+        </button>
       </div>
     </>
   );

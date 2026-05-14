@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { openPlayground } from "@/lib/diagram-window";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,6 +82,8 @@ export const ActionsDropdown = (props: {
   setReferenceVideoId: (id: string | null) => void;
   /** Open the AI-driven ClipSection generation modal */
   onGenerateClipSectionsClick: () => void;
+  /** Open diagram playground resolved for the current video context */
+  onOpenDiagramPlayground: () => void;
 }) => {
   const navigate = useNavigate();
 
@@ -282,7 +283,7 @@ export const ActionsDropdown = (props: {
           </div>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onSelect={() => openPlayground()}>
+        <DropdownMenuItem onSelect={props.onOpenDiagramPlayground}>
           <Workflow className="w-4 h-4 mr-2" />
           <div className="flex flex-col">
             <span className="font-medium">Open Diagram Playground</span>

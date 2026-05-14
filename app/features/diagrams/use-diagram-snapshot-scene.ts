@@ -11,7 +11,7 @@ const EMPTY: SnapshotMeta = { scene: null, diagramId: null, contentHash: null };
 const metaCache = new Map<string, SnapshotMeta>();
 const inflight = new Map<string, Promise<SnapshotMeta>>();
 
-const fetchMeta = (snapshotId: string): Promise<SnapshotMeta> => {
+export const fetchMeta = (snapshotId: string): Promise<SnapshotMeta> => {
   const cached = metaCache.get(snapshotId);
   if (cached !== undefined) return Promise.resolve(cached);
 

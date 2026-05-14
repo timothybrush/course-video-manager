@@ -10,7 +10,6 @@ const WINDOW_NAME = "cvm-diagrams";
 const POPUP_FEATURES = "popup,width=1100,height=800";
 
 let childHandle: Window | null = null;
-let pendingDiagramId: string | null = null;
 let unsubscribe: (() => void) | null = null;
 
 let _activeDiagramId: string | null = null;
@@ -18,15 +17,8 @@ let _activeDiagramId: string | null = null;
 function ensureSubscribed(): void {
   if (unsubscribe) return;
   unsubscribe = subscribeParent((msg: ChildToParentMessage) => {
-    if (msg.type === "ready" && pendingDiagramId) {
-      const handle = getPlaygroundHandle();
-      if (handle) {
-        sendToChild(handle, {
-          type: "loadDiagram",
-          diagramId: pendingDiagramId,
-        });
-      }
-      pendingDiagramId = null;
+    if (msg.type === "activeDiagramChanged") {
+      _activeDiagramId = msg.diagramId;
     }
     if (msg.type === "focus") {
       notifyDiagramFocus();
@@ -61,9 +53,12 @@ export function openPlaygroundWithDiagram(diagramId: string): void {
     return;
   }
 
-  pendingDiagramId = diagramId;
   _activeDiagramId = diagramId;
-  const w = window.open(PLAYGROUND_PATH, WINDOW_NAME, POPUP_FEATURES);
+  const w = window.open(
+    `${PLAYGROUND_PATH}/${diagramId}`,
+    WINDOW_NAME,
+    POPUP_FEATURES
+  );
   childHandle = w;
 }
 
