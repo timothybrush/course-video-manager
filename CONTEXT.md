@@ -176,7 +176,7 @@ The Diagram currently loaded into the playground's TLDraw canvas. May be `null` 
 _Avoid_: Current diagram, Open diagram
 
 **Playground Home**:
-The diagram-less mode of the Diagram Playground popup: a full-window picker/grid for browsing existing Diagrams and creating new ones. The popup is in this mode iff there is no **Active Diagram**. Distinct from the active canvas mode; switching between the two is an in-popup navigation, not a window-open event.
+The diagram-less mode of the Diagram Playground popup: a full-window picker/grid for browsing existing Diagrams and creating new ones. The popup is in this mode if there is no **Active Diagram**. Distinct from the active canvas mode; switching between the two is an in-popup navigation, not a window-open event.
 _Avoid_: Diagram picker, Diagrams page (overloaded with the deprecated parent route)
 
 **Preserved Snapshot**:
@@ -223,6 +223,7 @@ A special section directory whose name ends in `ARCHIVE`, filtered out of the de
 - A **DiagramSnapshot** is pinned to a **Clip** and captures the TLDraw scene at the moment that Clip was filmed; editing the Diagram later does not mutate prior snapshots
 - A **DiagramSnapshot** may have zero Clip pins if it is a **Preserved Snapshot** (created explicitly) or if all its pinning Clips have been archived (in which case it is filtered from the timeline view)
 - A **Diagram** is independent of the Course hierarchy and can be referenced from Clips in any Video, including a **Standalone Video**
+- The Diagram Playground popup is in **Playground Home** mode iff there is no **Active Diagram**; picking a tile or creating a new Diagram on Playground Home sets the **Active Diagram** and navigates the popup to its active-canvas mode
 - A **Video** can be published to a **Skills Changelog** (AI Hero article + required Kit newsletter draft) as a third destination alongside the YouTube post page and the AI Hero article page
 - **Publishing** uploads to Dropbox, freezes the **Draft Version** into a **Published Version**, and creates a new **Draft Version** — all atomically (Dropbox upload must succeed first)
 
