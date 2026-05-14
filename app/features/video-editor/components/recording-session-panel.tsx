@@ -6,7 +6,12 @@ import {
   Trash2Icon,
   ArchiveIcon,
   Undo2Icon,
+  PinIcon,
 } from "lucide-react";
+import {
+  getActiveDiagramId,
+  getDiagramFocusedDuringClip,
+} from "@/lib/diagram-window";
 import { useContextSelector } from "use-context-selector";
 import { VideoEditorContext } from "../video-editor-context";
 import type { SessionPanelData } from "../video-editor-selectors";
@@ -160,15 +165,23 @@ export const SessionPanel = ({ panel }: { panel: SessionPanelData }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(() =>
     Math.floor((Date.now() - panel.startedAt) / 1000)
   );
+  const [willPinDiagram, setWillPinDiagram] = useState(false);
 
   useEffect(() => {
-    if (!panel.isRecording) return;
+    if (!panel.isRecording) {
+      setWillPinDiagram(false);
+      return;
+    }
 
-    setElapsedSeconds(Math.floor((Date.now() - panel.startedAt) / 1000));
-
-    const interval = setInterval(() => {
+    const tick = () => {
       setElapsedSeconds(Math.floor((Date.now() - panel.startedAt) / 1000));
-    }, 1000);
+      setWillPinDiagram(
+        getActiveDiagramId() !== null && getDiagramFocusedDuringClip()
+      );
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
   }, [panel.isRecording, panel.startedAt]);
@@ -192,6 +205,15 @@ export const SessionPanel = ({ panel }: { panel: SessionPanelData }) => {
             <span className="font-mono tabular-nums">
               {formatSecondsToTimeCode(elapsedSeconds)}
             </span>
+          </span>
+        )}
+        {panel.isRecording && willPinDiagram && (
+          <span
+            className="ml-auto flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400"
+            title="A diagram snapshot will be pinned to the next clip"
+          >
+            <PinIcon className="size-3" />
+            Diagram Detected
           </span>
         )}
       </div>
