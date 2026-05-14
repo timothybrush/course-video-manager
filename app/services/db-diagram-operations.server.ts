@@ -283,6 +283,28 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     );
   });
 
+  const listAllSnapshotsWithClips = Effect.fn("listAllSnapshotsWithClips")(
+    function* () {
+      return yield* makeDbCall(() =>
+        db.query.diagramSnapshots.findMany({
+          where: eq(diagramSnapshots.archived, false),
+          columns: {
+            id: true,
+            diagramId: true,
+            contentHash: true,
+            preserved: true,
+            createdAt: true,
+          },
+          with: {
+            clips: {
+              columns: { id: true, archived: true },
+            },
+          },
+        })
+      );
+    }
+  );
+
   const setSnapshotArchived = Effect.fn("setSnapshotArchived")(function* (
     snapshotId: string,
     archived: boolean
@@ -391,6 +413,7 @@ export const createDiagramOperations = (db: DrizzleDB) => {
     getDiagramSnapshot,
     listSnapshots,
     listSnapshotsWithClips,
+    listAllSnapshotsWithClips,
     setSnapshotArchived,
     restoreSnapshotToHead,
     createSnapshotForClip,
