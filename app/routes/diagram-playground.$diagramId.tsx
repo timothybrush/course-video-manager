@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useParams, useNavigate, Link, useRevalidator } from "react-router";
 import type { Route } from "./+types/diagram-playground.$diagramId";
-import { loadDiagramPlaygroundActive } from "./diagram-playground.$diagramId.loader.server";
+import { loadDiagramPlaygroundActive } from "@/features/diagrams/diagram-playground-active.loader.server";
 
 export const loader = loadDiagramPlaygroundActive;
 
