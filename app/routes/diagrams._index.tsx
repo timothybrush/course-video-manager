@@ -118,6 +118,7 @@ export default function DiagramsIndexRoute(props: Route.ComponentProps) {
         courses={courses}
         standaloneVideos={sidebarVideos}
         pitches={sidebarPitches}
+        diagrams={diagrams.slice(0, 5).map((d) => ({ id: d.id, name: d.name }))}
         isAddCourseModalOpen={isAddCourseModalOpen}
         setIsAddCourseModalOpen={setIsAddCourseModalOpen}
         isAddStandaloneVideoModalOpen={isAddVideoOpen}

@@ -15,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { openPlaygroundWithDiagram } from "@/lib/diagram-window";
 import {
   Archive,
   Eye,
@@ -23,10 +24,11 @@ import {
   Lightbulb,
   Menu,
   PencilIcon,
+  PenTool,
   Plus,
   VideoIcon,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useFetcher, useLocation, useNavigate } from "react-router";
 
 export interface AppSidebarProps {
@@ -42,6 +44,10 @@ export interface AppSidebarProps {
     id: string;
     title: string;
   }>;
+  diagrams?: Array<{
+    id: string;
+    name: string;
+  }>;
   selectedCourseId?: string | null;
   isAddCourseModalOpen?: boolean;
   setIsAddCourseModalOpen?: (open: boolean) => void;
@@ -53,6 +59,7 @@ export function AppSidebar({
   courses,
   standaloneVideos,
   pitches = [],
+  diagrams = [],
   selectedCourseId = null,
   isAddCourseModalOpen = false,
   setIsAddCourseModalOpen,
@@ -65,6 +72,7 @@ export function AppSidebar({
   const archiveVideoFetcher = useFetcher();
   const revealVideoFetcher = useFetcher();
   const createPitchFetcher = useFetcher<{ id: string }>();
+  const createDiagramFetcher = useFetcher<{ id: string }>();
 
   const [isInternalAddVideoModalOpen, setIsInternalAddVideoModalOpen] =
     useState(false);
@@ -85,6 +93,20 @@ export function AppSidebar({
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
+
+  // Open playground for newly created diagram
+  const lastOpenedDiagramId = useRef<string | null>(null);
+  useEffect(() => {
+    const id = createDiagramFetcher.data?.id;
+    if (
+      createDiagramFetcher.state === "idle" &&
+      id &&
+      lastOpenedDiagramId.current !== id
+    ) {
+      lastOpenedDiagramId.current = id;
+      openPlaygroundWithDiagram(id);
+    }
+  }, [createDiagramFetcher.state, createDiagramFetcher.data]);
 
   const sidebarContent = (
     <>
@@ -271,6 +293,48 @@ export function AppSidebar({
         >
           <Eye className="w-3 h-3" />
           View All Pitches
+        </Link>
+      </div>
+
+      {/* Diagrams Card */}
+      <div className="rounded-lg border bg-card p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <PenTool className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Diagrams</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => {
+              createDiagramFetcher.submit(
+                {},
+                { method: "post", action: "/api/diagrams/create" }
+              );
+            }}
+            disabled={createDiagramFetcher.state !== "idle"}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        <div className="space-y-0.5">
+          {diagrams.map((diagram) => (
+            <button
+              key={diagram.id}
+              onClick={() => openPlaygroundWithDiagram(diagram.id)}
+              className="block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors truncate"
+            >
+              {diagram.name}
+            </button>
+          ))}
+        </div>
+        <Link
+          to="/diagrams"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
+        >
+          <Eye className="w-3 h-3" />
+          View All Diagrams
         </Link>
       </div>
     </>

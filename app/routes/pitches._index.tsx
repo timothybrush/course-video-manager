@@ -118,17 +118,19 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const publishService = yield* CoursePublishService;
 
-    const [courses, sidebarVideos, pitchesRaw] = yield* Effect.all(
-      [
-        db.getCourses(),
-        db.getStandaloneVideosSidebar(),
-        db.listPitchesWithVideos({
-          status: statusFilter,
-          priority: priorityFilter.length > 0 ? priorityFilter : undefined,
-        }),
-      ],
-      { concurrency: "unbounded" }
-    );
+    const [courses, sidebarVideos, pitchesRaw, sidebarDiagramsRaw] =
+      yield* Effect.all(
+        [
+          db.getCourses(),
+          db.getStandaloneVideosSidebar(),
+          db.listPitchesWithVideos({
+            status: statusFilter,
+            priority: priorityFilter.length > 0 ? priorityFilter : undefined,
+          }),
+          db.listDiagrams(),
+        ],
+        { concurrency: "unbounded" }
+      );
 
     const hasExportedVideoMap: Record<string, boolean> = {};
     const allVideos = pitchesRaw.flatMap((p) => p.videos);
@@ -159,11 +161,17 @@ export const loader = async (args: Route.LoaderArgs) => {
       })),
     }));
 
+    const sidebarDiagrams = sidebarDiagramsRaw.slice(0, 5).map((d) => ({
+      id: d.id,
+      name: d.name,
+    }));
+
     return {
       courses,
       sidebarVideos,
       pitches,
       hasExportedVideoMap,
+      sidebarDiagrams,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -175,8 +183,13 @@ export const loader = async (args: Route.LoaderArgs) => {
 };
 
 export default function PitchesIndexRoute(props: Route.ComponentProps) {
-  const { courses, sidebarVideos, pitches, hasExportedVideoMap } =
-    props.loaderData;
+  const {
+    courses,
+    sidebarVideos,
+    pitches,
+    hasExportedVideoMap,
+    sidebarDiagrams,
+  } = props.loaderData;
   const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
   const navigate = useNavigate();
@@ -240,6 +253,7 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
         courses={courses}
         standaloneVideos={sidebarVideos}
         pitches={sidebarPitches}
+        diagrams={sidebarDiagrams}
         isAddCourseModalOpen={isAddCourseModalOpen}
         setIsAddCourseModalOpen={setIsAddCourseModalOpen}
         isAddStandaloneVideoModalOpen={isAddVideoOpen}
