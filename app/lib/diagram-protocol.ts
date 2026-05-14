@@ -6,7 +6,6 @@ export const ParentToChild = z.discriminatedUnion("type", [
 ]);
 
 export const ChildToParent = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ready") }),
   z.object({ type: z.literal("focus") }),
   z.object({ type: z.literal("flushAck") }),
   z.object({

@@ -165,4 +165,24 @@ describe("resolveForVideo", () => {
       diagramId: "diagram-A",
     });
   });
+
+  it("returns home when after-clip-section target is not found in items", () => {
+    const items = [clip("c1", "snap-1"), section("s1")];
+    const ip: FrontendInsertionPoint = {
+      type: "after-clip-section",
+      frontendClipSectionId: "nonexistent" as any,
+    };
+    expect(resolveForVideo(items, ip, lookup)).toEqual({ kind: "home" });
+  });
+
+  it("returns home when all items are sections (no clips to resolve)", () => {
+    const items = [section("s1"), section("s2"), section("s3")];
+    const ip: FrontendInsertionPoint = { type: "end" };
+    expect(resolveForVideo(items, ip, lookup)).toEqual({ kind: "home" });
+  });
+
+  it("returns home when start insertion point is used with empty items", () => {
+    const ip: FrontendInsertionPoint = { type: "start" };
+    expect(resolveForVideo([], ip, lookup)).toEqual({ kind: "home" });
+  });
 });

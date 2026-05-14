@@ -290,7 +290,7 @@ export const VideoPlayerPanel = () => {
 
   const handleOpenDiagramPlayground = useCallback(async () => {
     const resolverItems: ResolverTimelineItem[] = items.map((item) => {
-      if ("databaseId" in item && "videoFilename" in item) {
+      if (item.type === "on-database" || item.type === "optimistically-added") {
         return {
           frontendId: item.frontendId as string,
           kind: "clip" as const,
