@@ -23,6 +23,12 @@ import { use } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
 import { useGenerateClipSectionsAction } from "./generate-clip-sections-context";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function VideoThumbnailItem({
   video,
@@ -88,13 +94,16 @@ function VideoThumbnailItem({
               {formatSecondsToTimeCode(totalDuration)}
             </span>
             {showWarning && (
-              <span
-                className="mt-1 inline-flex items-center gap-1 rounded-sm bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
-                title="Missing opening section — right-click to generate"
-              >
-                <AlertTriangle className="w-2.5 h-2.5" />
-                Missing opening section
-              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="mt-1 inline-flex items-center rounded-sm bg-amber-500/15 p-0.5 text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="w-3 h-3" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Missing opening section</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </Link>
