@@ -223,9 +223,17 @@ export const createCourseOperations = (db: DrizzleDB) => {
                                 sourceStartTime: true,
                                 sourceEndTime: true,
                                 order: true,
+                                archived: true,
                               },
                               orderBy: asc(clips.order),
                               where: eq(clips.archived, false),
+                            },
+                            clipSections: {
+                              columns: {
+                                order: true,
+                                archived: true,
+                              },
+                              where: eq(clipSections.archived, false),
                             },
                           },
                         },

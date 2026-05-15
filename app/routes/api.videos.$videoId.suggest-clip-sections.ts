@@ -57,7 +57,10 @@ export const action = async (args: Route.ActionArgs) => {
       validIds.has(s.beforeClipId)
     );
 
-    return Response.json({ sections });
+    return Response.json({
+      sections,
+      clips: clips.map((c) => ({ id: c.id, text: c.text })),
+    });
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
     Effect.catchAll(() => {

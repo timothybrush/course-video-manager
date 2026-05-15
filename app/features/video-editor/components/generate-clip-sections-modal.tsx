@@ -19,14 +19,18 @@ type ProposedSection = { beforeClipId: string; title: string };
 
 type FetchState =
   | { kind: "loading" }
-  | { kind: "ready"; sections: ProposedSection[] }
+  | {
+      kind: "ready";
+      sections: ProposedSection[];
+      clips: ClipForPreview[];
+    }
   | { kind: "error"; message: string };
 
 export const GenerateClipSectionsModal = (props: {
   open: boolean;
   videoId: string;
   videoLabel: string;
-  clips: ClipForPreview[];
+  clips?: ClipForPreview[];
   onClose: () => void;
   onConfirm: (sections: ProposedSection[]) => Promise<void>;
 }) => {
@@ -48,9 +52,16 @@ export const GenerateClipSectionsModal = (props: {
           { method: "POST" }
         );
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        const body = (await res.json()) as { sections: ProposedSection[] };
+        const body = (await res.json()) as {
+          sections: ProposedSection[];
+          clips?: ClipForPreview[];
+        };
         if (!cancelled) {
-          setState({ kind: "ready", sections: body.sections });
+          setState({
+            kind: "ready",
+            sections: body.sections,
+            clips: props.clips ?? body.clips ?? [],
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -66,7 +77,8 @@ export const GenerateClipSectionsModal = (props: {
     };
   }, [props.open, props.videoId]);
 
-  const sortedClips = props.clips;
+  const sortedClips =
+    state.kind === "ready" ? state.clips : (props.clips ?? []);
 
   const sectionsByBeforeClipId =
     state.kind === "ready"

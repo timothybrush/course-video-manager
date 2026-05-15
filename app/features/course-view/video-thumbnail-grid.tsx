@@ -7,6 +7,7 @@ import {
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import {
+  AlertTriangle,
   ArrowRightLeft,
   Combine,
   Download,
@@ -15,11 +16,13 @@ import {
   FolderOpen,
   PencilIcon,
   Play,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { use } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
+import { useGenerateClipSectionsAction } from "./generate-clip-sections-context";
 
 function VideoThumbnailItem({
   video,
@@ -47,6 +50,11 @@ function VideoThumbnailItem({
   const hasExportedVideoMap = use(data.hasExportedVideoMap);
   const isReadOnly = !data.isLatestVersion;
   const totalDuration = video.totalDuration;
+  const openGenerateClipSections = useGenerateClipSectionsAction();
+  const showWarning =
+    !isReadOnly &&
+    video.warnings.some((w) => w.kind === "missingOpeningSection");
+  const canGenerateClipSections = !isReadOnly && video.clipCount > 0;
 
   return (
     <ContextMenu>
@@ -70,6 +78,14 @@ function VideoThumbnailItem({
             )}
             {!hasExportedVideoMap[video.id] && (
               <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+            )}
+            {showWarning && (
+              <div
+                className="absolute top-1 right-1 rounded-full bg-amber-500/90 text-white p-0.5"
+                title="Missing opening section — right-click to generate"
+              >
+                <AlertTriangle className="w-3 h-3" />
+              </div>
             )}
           </div>
           <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
@@ -114,6 +130,19 @@ function VideoThumbnailItem({
           <Combine className="w-4 h-4" />
           Create Concatenated Video
         </ContextMenuItem>
+        {canGenerateClipSections && (
+          <ContextMenuItem
+            onSelect={() => {
+              openGenerateClipSections({
+                videoId: video.id,
+                videoLabel: `${section.path}/${lesson.path}/${video.path}`,
+              });
+            }}
+          >
+            <Sparkles className="w-4 h-4" />
+            Generate Clip Sections
+          </ContextMenuItem>
+        )}
         <ContextMenuItem
           onSelect={() => {
             revealVideoFetcher.submit(

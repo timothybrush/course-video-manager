@@ -23,6 +23,7 @@ export function makeVideo(
     originalFootagePath: "/footage/video-01",
     updatedAt: new Date(),
     clipCount: 0,
+    warnings: [],
     ...overrides,
   };
 }

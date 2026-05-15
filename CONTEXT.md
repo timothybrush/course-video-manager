@@ -105,6 +105,16 @@ _Avoid_: Clip group, Divider, Marker (in authoring); Chapter (outside the export
 A clip added to the frontend state during recording before it is persisted to the database.
 _Avoid_: Pending clip, Temporary clip
 
+### Video warnings
+
+**Video Warning**:
+A derived, non-blocking authoring problem surfaced on a **Video** in the UI. Computed live from the video's clips and clip sections — never stored. Each warning has a stable kind (e.g. `missingOpeningSection`). Generalizes the existing per-clip "danger" signal (Levenshtein text similarity) to the video level so course-tree views can flag videos at a glance.
+_Avoid_: Lint warning, Lint error, Danger (reserved for the per-clip text-similarity signal until it is renamed to a Video Warning kind), Authoring issue
+
+**Missing Opening Section**:
+The Video Warning kind raised when a **Video** has at least one **Clip** but no **ClipSection** positioned before its first clip in timeline order. Models the YouTube convention that every published video opens with a named chapter. Videos with zero clips do not raise this warning.
+_Avoid_: No intro section, Missing 0:00 chapter
+
 ### Video export and hashing
 
 **Export Hash**:

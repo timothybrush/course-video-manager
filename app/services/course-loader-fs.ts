@@ -5,6 +5,7 @@ import {
   resolveExportPath,
   type ExportClip,
 } from "./export-hash";
+import { computeVideoWarnings } from "./video-warnings";
 
 const listFilesRecursive = (
   dir: string,
@@ -102,10 +103,17 @@ export const loadLessonFsMaps = (opts: {
 
 export function toSlimVideo<
   T extends {
-    clips: { id: string; sourceStartTime: number; sourceEndTime: number }[];
+    clips: {
+      id: string;
+      sourceStartTime: number;
+      sourceEndTime: number;
+      order: string;
+      archived: boolean;
+    }[];
+    clipSections: { order: string; archived: boolean }[];
   },
 >(video: T) {
-  const { clips, ...rest } = video;
+  const { clips, clipSections, ...rest } = video;
   return {
     ...rest,
     clipCount: clips.length,
@@ -114,5 +122,6 @@ export function toSlimVideo<
       0
     ),
     firstClipId: clips[0]?.id ?? null,
+    warnings: computeVideoWarnings({ clips, clipSections }),
   };
 }

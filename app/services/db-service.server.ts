@@ -2,6 +2,7 @@ import { DrizzleService } from "@/services/drizzle-service.server";
 import { createClipOperations } from "@/services/db-clip-operations.server";
 import { createVideoOperations } from "@/services/db-video-operations.server";
 import { createCourseOperations } from "@/services/db-course-operations.server";
+import { createCourseWarningOperations } from "@/services/db-course-warnings.server";
 import { createVersionOperations } from "@/services/db-version-operations.server";
 import { createLessonSectionOperations } from "@/services/db-lesson-section-operations.server";
 import { createLinkAuthOperations } from "@/services/db-link-auth-operations.server";
@@ -52,6 +53,8 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deleteCourse,
         duplicateCourse,
       } = createCourseOperations(db);
+
+      const { getCourseWarningCounts } = createCourseWarningOperations(db);
 
       const {
         getReferenceVideoCandidates,
@@ -198,6 +201,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         getVideoTranscripts,
         getCourseWithSectionsByFilePath,
         getCourses,
+        getCourseWarningCounts,
         getArchivedCourses,
         getReferenceVideoCandidates,
         getVideoById: getVideoDeepById,

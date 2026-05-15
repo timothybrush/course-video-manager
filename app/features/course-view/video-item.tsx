@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import {
+  AlertTriangle,
   ArrowRightLeft,
   Combine,
   Download,
@@ -16,11 +17,13 @@ import {
   FolderOpen,
   PencilIcon,
   Play,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { use } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
+import { useGenerateClipSectionsAction } from "./generate-clip-sections-context";
 
 export function VideoItem({
   video,
@@ -45,8 +48,14 @@ export function VideoItem({
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
 }) {
+  const openGenerateClipSections = useGenerateClipSectionsAction();
   const hasExportedVideoMap = use(data.hasExportedVideoMap);
   const totalDuration = video.totalDuration;
+  const isLatestVersion = data.isLatestVersion;
+  const showWarning =
+    isLatestVersion &&
+    video.warnings.some((w) => w.kind === "missingOpeningSection");
+  const canGenerateClipSections = isLatestVersion && video.clipCount > 0;
 
   return (
     <ContextMenu>
@@ -66,9 +75,17 @@ export function VideoItem({
             />
             <span className="truncate text-muted-foreground">{video.path}</span>
           </div>
-          <span className="text-muted-foreground font-mono ml-2 shrink-0">
-            {formatSecondsToTimeCode(totalDuration)}
-          </span>
+          <div className="flex items-center gap-2 ml-2 shrink-0">
+            {showWarning && (
+              <AlertTriangle
+                className="w-3 h-3 text-amber-500"
+                aria-label="Missing opening section — right-click to generate"
+              />
+            )}
+            <span className="text-muted-foreground font-mono">
+              {formatSecondsToTimeCode(totalDuration)}
+            </span>
+          </div>
         </Link>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -103,6 +120,19 @@ export function VideoItem({
           <Combine className="w-4 h-4" />
           Create Concatenated Video
         </ContextMenuItem>
+        {canGenerateClipSections && (
+          <ContextMenuItem
+            onSelect={() => {
+              openGenerateClipSections({
+                videoId: video.id,
+                videoLabel: `${section.path}/${lesson.path}/${video.path}`,
+              });
+            }}
+          >
+            <Sparkles className="w-4 h-4" />
+            Generate Clip Sections
+          </ContextMenuItem>
+        )}
         <ContextMenuItem
           onSelect={() => {
             revealVideoFetcher.submit(
