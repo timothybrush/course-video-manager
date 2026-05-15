@@ -87,24 +87,26 @@ function VideoThumbnailItem({
             )}
           </div>
           <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
-            <span className="text-xs truncate text-foreground transition-colors">
-              {video.path}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs truncate text-foreground transition-colors">
+                {video.path}
+              </span>
+              {showWarning && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center rounded-sm bg-amber-500/15 p-0.5 text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="w-3 h-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Missing opening section</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <span className="text-xs font-mono mt-0.5">
               {formatSecondsToTimeCode(totalDuration)}
             </span>
-            {showWarning && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="mt-1 inline-flex items-center rounded-sm bg-amber-500/15 p-0.5 text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="w-3 h-3" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Missing opening section</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
         </Link>
       </ContextMenuTrigger>
