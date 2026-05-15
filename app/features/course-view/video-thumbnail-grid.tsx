@@ -79,14 +79,6 @@ function VideoThumbnailItem({
             {!hasExportedVideoMap[video.id] && (
               <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
             )}
-            {showWarning && (
-              <div
-                className="absolute top-1 right-1 rounded-full bg-amber-500/90 text-white p-0.5"
-                title="Missing opening section — right-click to generate"
-              >
-                <AlertTriangle className="w-3 h-3" />
-              </div>
-            )}
           </div>
           <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
             <span className="text-xs truncate text-foreground transition-colors">
@@ -95,6 +87,15 @@ function VideoThumbnailItem({
             <span className="text-xs font-mono mt-0.5">
               {formatSecondsToTimeCode(totalDuration)}
             </span>
+            {showWarning && (
+              <span
+                className="mt-1 inline-flex items-center gap-1 rounded-sm bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                title="Missing opening section — right-click to generate"
+              >
+                <AlertTriangle className="w-2.5 h-2.5" />
+                Missing opening
+              </span>
+            )}
           </div>
         </Link>
       </ContextMenuTrigger>

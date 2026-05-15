@@ -38,7 +38,6 @@ export interface AppSidebarProps {
   courses: Array<{
     id: string;
     name: string;
-    warningCount?: number;
   }>;
   standaloneVideos: Array<{
     id: string;
@@ -138,20 +137,12 @@ export function AppSidebar({
                   to={`/?courseId=${course.id}`}
                   preventScrollReset
                   className={cn(
-                    "flex w-full items-center justify-between gap-2 text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors",
+                    "block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors truncate",
                     selectedCourseId === course.id &&
                       "bg-muted text-foreground/90"
                   )}
                 >
-                  <span className="truncate">{course.name}</span>
-                  {course.warningCount && course.warningCount > 0 ? (
-                    <span
-                      title={`${course.warningCount} video${course.warningCount === 1 ? "" : "s"} missing an opening section`}
-                      className="shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-medium"
-                    >
-                      {course.warningCount}
-                    </span>
-                  ) : null}
+                  {course.name}
                 </Link>
               </ContextMenuTrigger>
               <ContextMenuContent>

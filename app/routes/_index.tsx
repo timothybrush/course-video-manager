@@ -28,7 +28,7 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { Console, Effect } from "effect";
 import { getGitStatusAsync } from "@/services/git-status-service.server";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import { Suspense, useCallback, useContext, useMemo, useState } from "react";
 import {
   data,
@@ -94,27 +94,16 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const featureFlags = yield* FeatureFlagService;
 
-    const [
-      courses,
-      standaloneVideos,
-      sidebarPitches,
-      sidebarDiagrams,
-      courseWarningCounts,
-    ] = yield* Effect.all(
-      [
-        db.getCourses(),
-        db.getStandaloneVideosSidebar(),
-        db.listPitches(),
-        db.listDiagrams(),
-        db.getCourseWarningCounts(),
-      ],
-      { concurrency: "unbounded" }
-    );
-
-    const coursesWithWarnings = courses.map((c) => ({
-      ...c,
-      warningCount: courseWarningCounts[c.id] ?? 0,
-    }));
+    const [courses, standaloneVideos, sidebarPitches, sidebarDiagrams] =
+      yield* Effect.all(
+        [
+          db.getCourses(),
+          db.getStandaloneVideosSidebar(),
+          db.listPitches(),
+          db.listDiagrams(),
+        ],
+        { concurrency: "unbounded" }
+      );
 
     let versions: Awaited<
       ReturnType<typeof db.getCourseVersions>
@@ -233,7 +222,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       : Promise.resolve(null);
 
     return {
-      courses: coursesWithWarnings,
+      courses,
       standaloneVideos,
       sidebarPitches: sidebarPitches.slice(0, 5).map((p) => ({
         id: p.id,
@@ -311,6 +300,21 @@ function ComponentInner(props: Route.ComponentProps) {
 
   const currentCourse = optimisticData.selectedCourse;
   const displaySections = currentCourse?.sections ?? [];
+
+  const courseWarningCount = useMemo(() => {
+    if (!loaderData.isLatestVersion) return 0;
+    let count = 0;
+    for (const section of displaySections) {
+      for (const lesson of section.lessons) {
+        for (const video of lesson.videos) {
+          if (video.warnings.some((w) => w.kind === "missingOpeningSection")) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  }, [displaySections, loaderData.isLatestVersion]);
 
   const {
     isAddCourseModalOpen,
@@ -454,6 +458,16 @@ function ComponentInner(props: Route.ComponentProps) {
                     gitPushFetcher={gitPushFetcher}
                     handleBatchExport={handleBatchExport}
                   />
+                  {courseWarningCount > 0 && (
+                    <span
+                      title={`${courseWarningCount} video${courseWarningCount === 1 ? "" : "s"} missing an opening section`}
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400"
+                    >
+                      <AlertTriangle className="w-3 h-3" />
+                      {courseWarningCount} missing opening
+                      {courseWarningCount === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
 
                 {loaderData.selectedVersion && !loaderData.isLatestVersion && (
