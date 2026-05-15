@@ -2,7 +2,7 @@ import { Console, Effect, Schema } from "effect";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import type { Route } from "./+types/api.lessons.$lessonId.add-video";
-import { data } from "react-router";
+import { data, redirect } from "react-router";
 import { withDatabaseDump } from "@/services/dump-service";
 
 const addVideoSchema = Schema.Struct({
@@ -26,11 +26,9 @@ export const action = async (args: Route.ActionArgs) => {
     });
 
     const url = new URL(args.request.url);
-    const redirectTo = url.searchParams.get("redirectTo");
-    return data({
-      id: video.id,
-      redirectTo: redirectTo === "write" ? "write" : "edit",
-    });
+    const redirectTo =
+      url.searchParams.get("redirectTo") === "write" ? "write" : "edit";
+    return redirect(`/videos/${video.id}/${redirectTo}`);
   }).pipe(
     withDatabaseDump,
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),

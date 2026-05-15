@@ -18,6 +18,10 @@ Filters must stay in sync with the shape of the data they filter. When a new fie
 
 ---
 
+When a fetcher action's sole job after success is to navigate, return `redirect(...)` from the action instead of returning data and navigating from a client-side `useEffect`. React Router handles fetcher redirects automatically. The `useEffect` pattern is fragile: if any dep (e.g. an inline `onOpenChange` prop) changes between renders, the effect re-fires and re-issues `navigate(...)`, cancelling and restarting the in-flight navigation in a loop.
+
+---
+
 ## Testing
 
 ### Core Principle

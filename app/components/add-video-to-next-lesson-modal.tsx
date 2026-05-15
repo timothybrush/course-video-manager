@@ -10,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getVideoPath } from "@/lib/video-helpers";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
-import { useFetcher, useNavigate } from "react-router";
+import { useFetcher } from "react-router";
 
 export function AddVideoToNextLessonModal(props: {
   lessonId: string;
@@ -21,25 +20,7 @@ export function AddVideoToNextLessonModal(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const addVideoFetcher = useFetcher<{
-    id: string;
-    redirectTo: "edit" | "write";
-  }>();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (addVideoFetcher.state === "idle" && addVideoFetcher.data?.id) {
-      props.onOpenChange(false);
-      navigate(
-        `/videos/${addVideoFetcher.data.id}/${addVideoFetcher.data.redirectTo}`
-      );
-    }
-  }, [
-    addVideoFetcher.state,
-    addVideoFetcher.data,
-    props.onOpenChange,
-    navigate,
-  ]);
+  const addVideoFetcher = useFetcher();
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
