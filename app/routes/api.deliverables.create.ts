@@ -15,6 +15,12 @@ const createSchema = Schema.Struct({
 export const action = async (args: Route.ActionArgs) => {
   const formData = await args.request.formData();
   const formDataObject = Object.fromEntries(formData);
+  const courseIds = formData
+    .getAll("courseIds")
+    .filter((v): v is string => typeof v === "string" && v !== "");
+  const pitchIds = formData
+    .getAll("pitchIds")
+    .filter((v): v is string => typeof v === "string" && v !== "");
 
   return Effect.gen(function* () {
     const input = yield* Schema.decodeUnknown(createSchema)(formDataObject);
@@ -24,6 +30,8 @@ export const action = async (args: Route.ActionArgs) => {
       title: input.title,
       date: input.date,
       notes: input.notes,
+      courseIds: courseIds.length > 0 ? courseIds : undefined,
+      pitchIds: pitchIds.length > 0 ? pitchIds : undefined,
     });
 
     return data({ id: deliverable.id });

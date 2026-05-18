@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -43,6 +44,9 @@ export const loader = async () => {
         { concurrency: "unbounded" }
       );
 
+    const courseMap = new Map(courses.map((c) => [c.id, c.name]));
+    const pitchMap = new Map(pitches.map((p) => [p.id, p.title]));
+
     return {
       deliverables: deliverables.map((d) => ({
         id: d.id,
@@ -52,6 +56,14 @@ export const loader = async () => {
         status: d.status as "planned" | "done" | "cancelled",
         archived: d.archived,
         createdAt: d.createdAt.toISOString(),
+        linkedCourses: d.deliverablesCourses.map((dc) => ({
+          id: dc.courseId,
+          name: courseMap.get(dc.courseId) ?? dc.courseId,
+        })),
+        linkedPitches: d.deliverablesPitches.map((dp) => ({
+          id: dp.pitchId,
+          title: pitchMap.get(dp.pitchId) ?? dp.pitchId,
+        })),
       })),
       courses: courses.map((c) => ({ id: c.id, name: c.name })),
       sidebarVideos: sidebarVideos.map((v) => ({ id: v.id, path: v.path })),
@@ -66,6 +78,21 @@ export const loader = async () => {
     runtimeLive.runPromise
   );
 };
+
+interface LinkedCourse {
+  id: string;
+  name: string;
+}
+
+interface LinkedPitch {
+  id: string;
+  title: string;
+}
+
+interface DeliverableWithLinks extends DeliverableForGrouping {
+  linkedCourses: LinkedCourse[];
+  linkedPitches: LinkedPitch[];
+}
 
 function parseDate(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
@@ -129,12 +156,70 @@ function ArchiveButton({ deliverableId }: { deliverableId: string }) {
   );
 }
 
+function LinkMultiSelect({
+  name,
+  label,
+  options,
+  defaultSelected,
+}: {
+  name: string;
+  label: string;
+  options: { id: string; label: string }[];
+  defaultSelected: string[];
+}) {
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(defaultSelected)
+  );
+
+  if (options.length === 0) return null;
+
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <div className="flex flex-wrap gap-1.5 mt-1">
+        {options.map((opt) => {
+          const isSelected = selected.has(opt.id);
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(opt.id)) next.delete(opt.id);
+                  else next.add(opt.id);
+                  return next;
+                });
+              }}
+              className={cn(
+                "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-colors",
+                isSelected
+                  ? "border-foreground/30 bg-foreground/10 text-foreground"
+                  : "border-border text-muted-foreground hover:border-foreground/20"
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      {Array.from(selected).map((id) => (
+        <input key={id} type="hidden" name={name} value={id} />
+      ))}
+    </div>
+  );
+}
+
 function EditDeliverableForm({
   d,
   onClose,
+  allCourses,
+  allPitches,
 }: {
-  d: DeliverableForGrouping;
+  d: DeliverableWithLinks;
   onClose: () => void;
+  allCourses: { id: string; name: string }[];
+  allPitches: { id: string; title: string }[];
 }) {
   const fetcher = useFetcher();
   const isSubmitting = fetcher.state !== "idle";
@@ -174,6 +259,18 @@ function EditDeliverableForm({
             className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
           />
           <input type="hidden" name="status" value={d.status} />
+          <LinkMultiSelect
+            name="courseIds"
+            label="Courses"
+            options={allCourses.map((c) => ({ id: c.id, label: c.name }))}
+            defaultSelected={d.linkedCourses.map((c) => c.id)}
+          />
+          <LinkMultiSelect
+            name="pitchIds"
+            label="Pitches"
+            options={allPitches.map((p) => ({ id: p.id, label: p.title }))}
+            defaultSelected={d.linkedPitches.map((p) => p.id)}
+          />
         </div>
         <div className="flex gap-2 justify-end">
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
@@ -191,18 +288,30 @@ function EditDeliverableForm({
 function DeliverableRow({
   d,
   todayStr,
+  allCourses,
+  allPitches,
 }: {
-  d: DeliverableForGrouping;
+  d: DeliverableWithLinks;
   todayStr: string;
+  allCourses: { id: string; name: string }[];
+  allPitches: { id: string; title: string }[];
 }) {
   const [editing, setEditing] = useState(false);
   const day = parseDate(d.date);
   const overdue = d.status === "planned" && d.date < todayStr;
   const cancelled = d.status === "cancelled";
   const done = d.status === "done";
+  const hasLinks = d.linkedCourses.length > 0 || d.linkedPitches.length > 0;
 
   if (editing) {
-    return <EditDeliverableForm d={d} onClose={() => setEditing(false)} />;
+    return (
+      <EditDeliverableForm
+        d={d}
+        onClose={() => setEditing(false)}
+        allCourses={allCourses}
+        allPitches={allPitches}
+      />
+    );
   }
 
   return (
@@ -251,6 +360,28 @@ function DeliverableRow({
         {d.notes && (
           <p className="text-xs text-muted-foreground mt-0.5">{d.notes}</p>
         )}
+        {hasLinks && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {d.linkedCourses.map((c) => (
+              <Badge
+                key={c.id}
+                variant="outline"
+                className="text-[10px] py-0 px-1.5"
+              >
+                {c.name}
+              </Badge>
+            ))}
+            {d.linkedPitches.map((p) => (
+              <Badge
+                key={p.id}
+                variant="outline"
+                className="text-[10px] py-0 px-1.5"
+              >
+                {p.title}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -290,7 +421,15 @@ function DeliverableRow({
   );
 }
 
-function CreateDeliverableForm({ onClose }: { onClose: () => void }) {
+function CreateDeliverableForm({
+  onClose,
+  allCourses,
+  allPitches,
+}: {
+  onClose: () => void;
+  allCourses: { id: string; name: string }[];
+  allPitches: { id: string; title: string }[];
+}) {
   const fetcher = useFetcher();
   const isSubmitting = fetcher.state !== "idle";
 
@@ -325,6 +464,18 @@ function CreateDeliverableForm({ onClose }: { onClose: () => void }) {
           rows={2}
           className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
         />
+        <LinkMultiSelect
+          name="courseIds"
+          label="Courses"
+          options={allCourses.map((c) => ({ id: c.id, label: c.name }))}
+          defaultSelected={[]}
+        />
+        <LinkMultiSelect
+          name="pitchIds"
+          label="Pitches"
+          options={allPitches.map((p) => ({ id: p.id, label: p.title }))}
+          defaultSelected={[]}
+        />
       </div>
       <div className="flex gap-2 justify-end">
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
@@ -341,9 +492,13 @@ function CreateDeliverableForm({ onClose }: { onClose: () => void }) {
 function HistoryDisclosure({
   items,
   todayStr,
+  allCourses,
+  allPitches,
 }: {
-  items: DeliverableForGrouping[];
+  items: DeliverableWithLinks[];
   todayStr: string;
+  allCourses: { id: string; name: string }[];
+  allPitches: { id: string; title: string }[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -365,7 +520,13 @@ function HistoryDisclosure({
       {open && (
         <ul className="space-y-1.5 mt-2">
           {items.map((d) => (
-            <DeliverableRow key={d.id} d={d} todayStr={todayStr} />
+            <DeliverableRow
+              key={d.id}
+              d={d}
+              todayStr={todayStr}
+              allCourses={allCourses}
+              allPitches={allPitches}
+            />
           ))}
         </ul>
       )}
@@ -382,7 +543,7 @@ export default function DeliverablesCalendarPage() {
   const todayWeek = isoWeek(today);
   const todayStr = formatDateStr(today);
 
-  const deliverablesForGrouping: DeliverableForGrouping[] = deliverables.map(
+  const deliverablesWithLinks: DeliverableWithLinks[] = deliverables.map(
     (d) => ({
       ...d,
       createdAt: new Date(d.createdAt),
@@ -390,7 +551,7 @@ export default function DeliverablesCalendarPage() {
   );
 
   const { pastHistory, weekGroups } = groupDeliverables(
-    deliverablesForGrouping,
+    deliverablesWithLinks,
     today
   );
 
@@ -419,11 +580,20 @@ export default function DeliverablesCalendarPage() {
         <div className="p-6 max-w-2xl mx-auto w-full">
           {showForm && (
             <div className="mb-5">
-              <CreateDeliverableForm onClose={() => setShowForm(false)} />
+              <CreateDeliverableForm
+                onClose={() => setShowForm(false)}
+                allCourses={courses}
+                allPitches={pitches}
+              />
             </div>
           )}
 
-          <HistoryDisclosure items={pastHistory} todayStr={todayStr} />
+          <HistoryDisclosure
+            items={pastHistory as DeliverableWithLinks[]}
+            todayStr={todayStr}
+            allCourses={courses}
+            allPitches={pitches}
+          />
 
           <div className="space-y-5">
             {weekGroups.map((g) => {
@@ -461,7 +631,13 @@ export default function DeliverablesCalendarPage() {
                   {g.items.length > 0 ? (
                     <ul className="space-y-1.5">
                       {g.items.map((d) => (
-                        <DeliverableRow key={d.id} d={d} todayStr={todayStr} />
+                        <DeliverableRow
+                          key={d.id}
+                          d={d as DeliverableWithLinks}
+                          todayStr={todayStr}
+                          allCourses={courses}
+                          allPitches={pitches}
+                        />
                       ))}
                     </ul>
                   ) : (

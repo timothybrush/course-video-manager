@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   pgTableCreator,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -274,6 +275,7 @@ export const clipSectionsRelations = relations(clipSections, ({ one }) => ({
 
 export const pitchesRelations = relations(pitches, ({ many }) => ({
   videos: many(videos),
+  deliverablesPitches: many(deliverablesPitches),
 }));
 
 export const videosRelations = relations(videos, ({ one, many }) => ({
@@ -313,6 +315,7 @@ export const courseVersionsRelations = relations(
 
 export const coursesRelations = relations(courses, ({ many }) => ({
   versions: many(courseVersions),
+  deliverablesCourses: many(deliverablesCourses),
 }));
 
 // YouTube OAuth tokens table (single-user, stores one token set)
@@ -492,6 +495,65 @@ export const deliverables = createTable("deliverable", {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const deliverablesCourses = createTable(
+  "deliverable_course",
+  {
+    deliverableId: varchar("deliverable_id", { length: 255 })
+      .notNull()
+      .references(() => deliverables.id, { onDelete: "cascade" }),
+    courseId: varchar("course_id", { length: 255 })
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.deliverableId, table.courseId] })]
+);
+
+export const deliverablesPitches = createTable(
+  "deliverable_pitch",
+  {
+    deliverableId: varchar("deliverable_id", { length: 255 })
+      .notNull()
+      .references(() => deliverables.id, { onDelete: "cascade" }),
+    pitchId: varchar("pitch_id", { length: 255 })
+      .notNull()
+      .references(() => pitches.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.deliverableId, table.pitchId] })]
+);
+
+export const deliverablesRelations = relations(deliverables, ({ many }) => ({
+  deliverablesCourses: many(deliverablesCourses),
+  deliverablesPitches: many(deliverablesPitches),
+}));
+
+export const deliverablesCoursesRelations = relations(
+  deliverablesCourses,
+  ({ one }) => ({
+    deliverable: one(deliverables, {
+      fields: [deliverablesCourses.deliverableId],
+      references: [deliverables.id],
+    }),
+    course: one(courses, {
+      fields: [deliverablesCourses.courseId],
+      references: [courses.id],
+    }),
+  })
+);
+
+export const deliverablesPitchesRelations = relations(
+  deliverablesPitches,
+  ({ one }) => ({
+    deliverable: one(deliverables, {
+      fields: [deliverablesPitches.deliverableId],
+      references: [deliverables.id],
+    }),
+    pitch: one(pitches, {
+      fields: [deliverablesPitches.pitchId],
+      references: [pitches.id],
+    }),
+  })
+);
 
 // export const chats = createTable("chat", {
 //   id: varchar("id", { length: 255 })

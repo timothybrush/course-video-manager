@@ -1,5 +1,9 @@
 import type { DrizzleDB } from "@/services/drizzle-service.server";
-import { deliverables } from "@/db/schema";
+import {
+  deliverables,
+  deliverablesCourses,
+  deliverablesPitches,
+} from "@/db/schema";
 import { UnknownDBServiceError } from "@/services/db-service-errors";
 import { asc, eq } from "drizzle-orm";
 import { Effect } from "effect";
@@ -17,6 +21,10 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
       db.query.deliverables.findMany({
         where: eq(deliverables.archived, false),
         orderBy: [asc(deliverables.date), asc(deliverables.createdAt)],
+        with: {
+          deliverablesCourses: { columns: { courseId: true } },
+          deliverablesPitches: { columns: { pitchId: true } },
+        },
       })
     );
   });
@@ -25,6 +33,8 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     title: string;
     date: string;
     notes?: string;
+    courseIds?: string[];
+    pitchIds?: string[];
   }) {
     const results = yield* makeDbCall(() =>
       db
@@ -43,6 +53,28 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
       return yield* new UnknownDBServiceError({
         cause: "No deliverable was returned from the database",
       });
+    }
+
+    if (input.courseIds && input.courseIds.length > 0) {
+      yield* makeDbCall(() =>
+        db.insert(deliverablesCourses).values(
+          input.courseIds!.map((courseId) => ({
+            deliverableId: deliverable.id,
+            courseId,
+          }))
+        )
+      );
+    }
+
+    if (input.pitchIds && input.pitchIds.length > 0) {
+      yield* makeDbCall(() =>
+        db.insert(deliverablesPitches).values(
+          input.pitchIds!.map((pitchId) => ({
+            deliverableId: deliverable.id,
+            pitchId,
+          }))
+        )
+      );
     }
 
     return deliverable;
@@ -79,6 +111,8 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     date: string;
     notes?: string;
     status: "planned" | "done" | "cancelled";
+    courseIds?: string[];
+    pitchIds?: string[];
   }) {
     const results = yield* makeDbCall(() =>
       db
@@ -100,6 +134,42 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
       return yield* new UnknownDBServiceError({
         cause: "Deliverable not found",
       });
+    }
+
+    if (input.courseIds !== undefined) {
+      yield* makeDbCall(() =>
+        db
+          .delete(deliverablesCourses)
+          .where(eq(deliverablesCourses.deliverableId, input.id))
+      );
+      if (input.courseIds.length > 0) {
+        yield* makeDbCall(() =>
+          db.insert(deliverablesCourses).values(
+            input.courseIds!.map((courseId) => ({
+              deliverableId: input.id,
+              courseId,
+            }))
+          )
+        );
+      }
+    }
+
+    if (input.pitchIds !== undefined) {
+      yield* makeDbCall(() =>
+        db
+          .delete(deliverablesPitches)
+          .where(eq(deliverablesPitches.deliverableId, input.id))
+      );
+      if (input.pitchIds.length > 0) {
+        yield* makeDbCall(() =>
+          db.insert(deliverablesPitches).values(
+            input.pitchIds!.map((pitchId) => ({
+              deliverableId: input.id,
+              pitchId,
+            }))
+          )
+        );
+      }
     }
 
     return deliverable;

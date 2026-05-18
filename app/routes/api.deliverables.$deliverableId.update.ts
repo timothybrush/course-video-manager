@@ -16,6 +16,12 @@ export const action = async (args: Route.ActionArgs) => {
   const { deliverableId } = args.params;
   const formData = await args.request.formData();
   const formDataObject = Object.fromEntries(formData);
+  const courseIds = formData
+    .getAll("courseIds")
+    .filter((v): v is string => typeof v === "string" && v !== "");
+  const pitchIds = formData
+    .getAll("pitchIds")
+    .filter((v): v is string => typeof v === "string" && v !== "");
 
   return Effect.gen(function* () {
     const input = yield* Schema.decodeUnknown(updateSchema)(formDataObject);
@@ -27,6 +33,8 @@ export const action = async (args: Route.ActionArgs) => {
       date: input.date,
       notes: input.notes,
       status: input.status,
+      courseIds,
+      pitchIds,
     });
 
     return data({ id: deliverable.id });
