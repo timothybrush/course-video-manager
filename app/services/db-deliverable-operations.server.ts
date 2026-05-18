@@ -73,9 +73,65 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     }
   );
 
+  const updateDeliverable = Effect.fn("updateDeliverable")(function* (input: {
+    id: string;
+    title: string;
+    date: string;
+    notes?: string;
+    status: "planned" | "done" | "cancelled";
+  }) {
+    const results = yield* makeDbCall(() =>
+      db
+        .update(deliverables)
+        .set({
+          title: input.title,
+          date: input.date,
+          notes: input.notes ?? null,
+          status: input.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(deliverables.id, input.id))
+        .returning()
+    );
+
+    const deliverable = results[0];
+
+    if (!deliverable) {
+      return yield* new UnknownDBServiceError({
+        cause: "Deliverable not found",
+      });
+    }
+
+    return deliverable;
+  });
+
+  const archiveDeliverable = Effect.fn("archiveDeliverable")(function* (
+    id: string
+  ) {
+    const results = yield* makeDbCall(() =>
+      db
+        .update(deliverables)
+        .set({ archived: true, updatedAt: new Date() })
+        .where(eq(deliverables.id, id))
+        .returning()
+    );
+
+    const deliverable = results[0];
+
+    if (!deliverable) {
+      return yield* new UnknownDBServiceError({
+        cause: "Deliverable not found",
+      });
+    }
+
+    return deliverable;
+  });
+
   return {
     listDeliverables,
     createDeliverable,
     updateDeliverableStatus,
+    updateDeliverable,
+    archiveDeliverable,
   };
 };

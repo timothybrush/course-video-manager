@@ -11,10 +11,12 @@ import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
 import {
   AlertTriangleIcon,
+  ArchiveIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CircleIcon,
+  PencilIcon,
   Plus,
   XIcon,
 } from "lucide-react";
@@ -108,6 +110,84 @@ function StatusFlipButton({
   );
 }
 
+function ArchiveButton({ deliverableId }: { deliverableId: string }) {
+  const fetcher = useFetcher();
+  return (
+    <fetcher.Form
+      method="post"
+      action={`/api/deliverables/${deliverableId}/archive`}
+      className="inline"
+    >
+      <button
+        type="submit"
+        className="p-0.5 rounded hover:bg-muted transition-colors"
+        title="Archive"
+      >
+        <ArchiveIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
+      </button>
+    </fetcher.Form>
+  );
+}
+
+function EditDeliverableForm({
+  d,
+  onClose,
+}: {
+  d: DeliverableForGrouping;
+  onClose: () => void;
+}) {
+  const fetcher = useFetcher();
+  const isSubmitting = fetcher.state !== "idle";
+
+  return (
+    <li>
+      <fetcher.Form
+        method="post"
+        action={`/api/deliverables/${d.id}/update`}
+        className="rounded-md border border-border p-3 bg-background space-y-3"
+        onSubmit={() => {
+          setTimeout(() => onClose(), 0);
+        }}
+      >
+        <div className="space-y-2">
+          <input
+            name="title"
+            type="text"
+            required
+            defaultValue={d.title}
+            placeholder="Title"
+            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            autoFocus
+          />
+          <input
+            name="date"
+            type="date"
+            required
+            defaultValue={d.date}
+            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <textarea
+            name="notes"
+            placeholder="Notes (optional)"
+            rows={2}
+            defaultValue={d.notes ?? ""}
+            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+          <input type="hidden" name="status" value={d.status} />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={isSubmitting}>
+            {isSubmitting ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </fetcher.Form>
+    </li>
+  );
+}
+
 function DeliverableRow({
   d,
   todayStr,
@@ -115,10 +195,15 @@ function DeliverableRow({
   d: DeliverableForGrouping;
   todayStr: string;
 }) {
+  const [editing, setEditing] = useState(false);
   const day = parseDate(d.date);
   const overdue = d.status === "planned" && d.date < todayStr;
   const cancelled = d.status === "cancelled";
   const done = d.status === "done";
+
+  if (editing) {
+    return <EditDeliverableForm d={d} onClose={() => setEditing(false)} />;
+  }
 
   return (
     <li
@@ -168,6 +253,14 @@ function DeliverableRow({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="p-0.5 rounded hover:bg-muted transition-colors"
+          title="Edit"
+        >
+          <PencilIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
+        </button>
         <StatusFlipButton
           deliverableId={d.id}
           currentStatus={d.status}
@@ -191,6 +284,7 @@ function DeliverableRow({
             <CircleIcon className="size-3 text-muted-foreground hover:text-foreground" />
           </StatusFlipButton>
         )}
+        <ArchiveButton deliverableId={d.id} />
       </div>
     </li>
   );
