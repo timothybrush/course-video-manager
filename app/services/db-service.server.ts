@@ -149,7 +149,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         deletePitch,
       } = createPitchOperations(db);
 
-      const { listDeliverables, createDeliverable } =
+      const { listDeliverables, createDeliverable, updateDeliverableStatus } =
         createDeliverableOperations(db);
 
       const {
@@ -291,6 +291,7 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         updateClipDiagramPin,
         listDeliverables,
         createDeliverable,
+        updateDeliverableStatus,
       };
     }),
   }

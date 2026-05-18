@@ -14,9 +14,11 @@ export interface WeekGroup {
   week: number;
   year: number;
   items: DeliverableForGrouping[];
+  overdueCount: number;
 }
 
 export interface GroupedDeliverables {
+  pastHistory: DeliverableForGrouping[];
   weekGroups: WeekGroup[];
 }
 
@@ -25,13 +27,35 @@ function parseDate(s: string): Date {
   return new Date(y!, m! - 1, d!);
 }
 
+function formatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function groupDeliverables(
   deliverables: DeliverableForGrouping[],
   today: Date
 ): GroupedDeliverables {
   const active = deliverables.filter((d) => !d.archived);
+  const todayStr = formatDate(today);
 
-  const sorted = [...active].sort((a, b) => {
+  const pastHistory: DeliverableForGrouping[] = [];
+  const inline: DeliverableForGrouping[] = [];
+
+  for (const d of active) {
+    const isPast = d.date < todayStr;
+    if (isPast && (d.status === "done" || d.status === "cancelled")) {
+      pastHistory.push(d);
+    } else {
+      inline.push(d);
+    }
+  }
+
+  pastHistory.sort((a, b) => b.date.localeCompare(a.date));
+
+  const sorted = [...inline].sort((a, b) => {
     const dateCmp = a.date.localeCompare(b.date);
     if (dateCmp !== 0) return dateCmp;
     return a.createdAt.getTime() - b.createdAt.getTime();
@@ -43,12 +67,12 @@ export function groupDeliverables(
 
   const byWeek = new Map<string, WeekGroup>();
 
-  // Ensure current week is always present
   const todayKey = weekKey(todayWeek.week, todayWeek.year);
   byWeek.set(todayKey, {
     week: todayWeek.week,
     year: todayWeek.year,
     items: [],
+    overdueCount: 0,
   });
 
   for (const d of sorted) {
@@ -56,15 +80,18 @@ export function groupDeliverables(
     const key = weekKey(week, year);
     let group = byWeek.get(key);
     if (!group) {
-      group = { week, year, items: [] };
+      group = { week, year, items: [], overdueCount: 0 };
       byWeek.set(key, group);
     }
     group.items.push(d);
+    if (d.status === "planned" && d.date < todayStr) {
+      group.overdueCount++;
+    }
   }
 
   const weekGroups = [...byWeek.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => group);
 
-  return { weekGroups };
+  return { pastHistory, weekGroups };
 }

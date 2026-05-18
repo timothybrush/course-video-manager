@@ -7,12 +7,34 @@ export interface DeliverableForDisplay {
   status: DeliverableStatus;
 }
 
-export type DeliverableBucket = "this-week" | "future-week";
+export type DeliverableBucket =
+  | "history"
+  | "overdue-in-week"
+  | "this-week"
+  | "future-week";
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export function deliverableDisplay(
   d: DeliverableForDisplay,
   today: Date
-): { bucket: DeliverableBucket } {
+): { bucket: DeliverableBucket; overdue: boolean } {
+  const todayStr = formatDate(today);
+  const isPast = d.date < todayStr;
+
+  if (d.status === "planned" && isPast) {
+    return { bucket: "overdue-in-week", overdue: true };
+  }
+
+  if ((d.status === "done" || d.status === "cancelled") && isPast) {
+    return { bucket: "history", overdue: false };
+  }
+
   const todayWeek = isoWeek(today);
   const [y, m, day] = d.date.split("-").map(Number);
   const itemWeek = isoWeek(new Date(y!, m! - 1, day!));
@@ -20,5 +42,5 @@ export function deliverableDisplay(
   const isThisWeek =
     itemWeek.week === todayWeek.week && itemWeek.year === todayWeek.year;
 
-  return { bucket: isThisWeek ? "this-week" : "future-week" };
+  return { bucket: isThisWeek ? "this-week" : "future-week", overdue: false };
 }

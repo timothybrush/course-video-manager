@@ -48,8 +48,34 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
     return deliverable;
   });
 
+  const updateDeliverableStatus = Effect.fn("updateDeliverableStatus")(
+    function* (input: {
+      id: string;
+      status: "planned" | "done" | "cancelled";
+    }) {
+      const results = yield* makeDbCall(() =>
+        db
+          .update(deliverables)
+          .set({ status: input.status, updatedAt: new Date() })
+          .where(eq(deliverables.id, input.id))
+          .returning()
+      );
+
+      const deliverable = results[0];
+
+      if (!deliverable) {
+        return yield* new UnknownDBServiceError({
+          cause: "Deliverable not found",
+        });
+      }
+
+      return deliverable;
+    }
+  );
+
   return {
     listDeliverables,
     createDeliverable,
+    updateDeliverableStatus,
   };
 };

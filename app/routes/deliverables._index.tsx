@@ -9,7 +9,15 @@ import { isoWeek } from "@/features/deliverables-calendar/iso-week";
 import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
-import { CircleIcon, Plus } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CircleIcon,
+  Plus,
+  XIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { data, useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/deliverables._index";
@@ -62,22 +70,127 @@ function parseDate(s: string): Date {
   return new Date(y!, m! - 1, d!);
 }
 
-function DeliverableRow({ d }: { d: DeliverableForGrouping }) {
-  const day = parseDate(d.date);
+function formatTodayStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function StatusFlipButton({
+  deliverableId,
+  currentStatus,
+  targetStatus,
+  children,
+}: {
+  deliverableId: string;
+  currentStatus: string;
+  targetStatus: string;
+  children: React.ReactNode;
+}) {
+  const fetcher = useFetcher();
+  if (currentStatus === targetStatus) return null;
   return (
-    <li className="flex items-start gap-3 rounded-md border border-border p-2.5 bg-background">
+    <fetcher.Form
+      method="post"
+      action={`/api/deliverables/${deliverableId}/update-status`}
+      className="inline"
+    >
+      <input type="hidden" name="status" value={targetStatus} />
+      <button
+        type="submit"
+        className="p-0.5 rounded hover:bg-muted transition-colors"
+        title={`Mark as ${targetStatus}`}
+      >
+        {children}
+      </button>
+    </fetcher.Form>
+  );
+}
+
+function DeliverableRow({
+  d,
+  todayStr,
+}: {
+  d: DeliverableForGrouping;
+  todayStr: string;
+}) {
+  const day = parseDate(d.date);
+  const overdue = d.status === "planned" && d.date < todayStr;
+  const cancelled = d.status === "cancelled";
+  const done = d.status === "done";
+
+  return (
+    <li
+      className={cn(
+        "flex items-start gap-3 rounded-md border p-2.5 bg-background",
+        overdue ? "border-red-500/50 bg-red-500/5" : "border-border",
+        cancelled && "opacity-50"
+      )}
+    >
       <div className="w-12 shrink-0 text-center">
         <div className="text-[10px] uppercase text-muted-foreground">
           {day.toLocaleDateString(undefined, { weekday: "short" })}
         </div>
-        <div className="text-lg leading-none font-medium tabular-nums">
+        <div
+          className={cn(
+            "text-lg leading-none font-medium tabular-nums",
+            overdue && "text-red-400"
+          )}
+        >
           {day.getDate()}
         </div>
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-sm">{d.title}</span>
+        <div className="flex items-center gap-2">
+          {overdue && (
+            <AlertTriangleIcon className="size-3.5 text-red-400 shrink-0" />
+          )}
+          {done && (
+            <CheckIcon className="size-3.5 text-muted-foreground shrink-0" />
+          )}
+          {cancelled && (
+            <XIcon className="size-3.5 text-muted-foreground shrink-0" />
+          )}
+          <span
+            className={cn(
+              "text-sm",
+              overdue && "text-red-200 font-medium",
+              done && "text-muted-foreground",
+              cancelled && "line-through text-muted-foreground"
+            )}
+          >
+            {d.title}
+          </span>
+        </div>
         {d.notes && (
           <p className="text-xs text-muted-foreground mt-0.5">{d.notes}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <StatusFlipButton
+          deliverableId={d.id}
+          currentStatus={d.status}
+          targetStatus="done"
+        >
+          <CheckIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
+        </StatusFlipButton>
+        <StatusFlipButton
+          deliverableId={d.id}
+          currentStatus={d.status}
+          targetStatus="cancelled"
+        >
+          <XIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
+        </StatusFlipButton>
+        {(done || cancelled) && (
+          <StatusFlipButton
+            deliverableId={d.id}
+            currentStatus={d.status}
+            targetStatus="planned"
+          >
+            <CircleIcon className="size-3 text-muted-foreground hover:text-foreground" />
+          </StatusFlipButton>
         )}
       </div>
     </li>
@@ -132,6 +245,41 @@ function CreateDeliverableForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+function HistoryDisclosure({
+  items,
+  todayStr,
+}: {
+  items: DeliverableForGrouping[];
+  todayStr: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mb-5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-left text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 py-2 border-b border-border"
+      >
+        {open ? (
+          <ChevronDownIcon className="size-3" />
+        ) : (
+          <ChevronRightIcon className="size-3" />
+        )}
+        {items.length} earlier — shipped &amp; cancelled
+      </button>
+      {open && (
+        <ul className="space-y-1.5 mt-2">
+          {items.map((d) => (
+            <DeliverableRow key={d.id} d={d} todayStr={todayStr} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function DeliverablesCalendarPage() {
   const { deliverables, courses, sidebarVideos, pitches, diagrams } =
     useLoaderData<typeof loader>();
@@ -139,6 +287,7 @@ export default function DeliverablesCalendarPage() {
 
   const today = new Date();
   const todayWeek = isoWeek(today);
+  const todayStr = formatTodayStr();
 
   const deliverablesForGrouping: DeliverableForGrouping[] = deliverables.map(
     (d) => ({
@@ -147,7 +296,10 @@ export default function DeliverablesCalendarPage() {
     })
   );
 
-  const { weekGroups } = groupDeliverables(deliverablesForGrouping, today);
+  const { pastHistory, weekGroups } = groupDeliverables(
+    deliverablesForGrouping,
+    today
+  );
 
   return (
     <div className="flex h-screen">
@@ -178,6 +330,8 @@ export default function DeliverablesCalendarPage() {
             </div>
           )}
 
+          <HistoryDisclosure items={pastHistory} todayStr={todayStr} />
+
           <div className="space-y-5">
             {weekGroups.map((g) => {
               const isThisWeek =
@@ -199,6 +353,11 @@ export default function DeliverablesCalendarPage() {
                       Week {g.week}
                       {isThisWeek && " · this week"}
                     </h3>
+                    {g.overdueCount > 0 && (
+                      <span className="text-[10px] text-red-400">
+                        {g.overdueCount} overdue
+                      </span>
+                    )}
                     <div
                       className={cn(
                         "h-px flex-1",
@@ -209,7 +368,7 @@ export default function DeliverablesCalendarPage() {
                   {g.items.length > 0 ? (
                     <ul className="space-y-1.5">
                       {g.items.map((d) => (
-                        <DeliverableRow key={d.id} d={d} />
+                        <DeliverableRow key={d.id} d={d} todayStr={todayStr} />
                       ))}
                     </ul>
                   ) : (
