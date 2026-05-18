@@ -502,4 +502,38 @@ describe("groupDeliverables", () => {
     expect(result.weekGroups[4]!.items.map((d) => d.id)).toEqual(["d9"]);
     expect(result.weekGroups[4]!.overdueCount).toBe(0);
   });
+
+  it("preserves extra properties on extended types through grouping", () => {
+    interface Extended extends DeliverableForGrouping {
+      linkedCourses: { id: string; name: string }[];
+    }
+
+    const items: Extended[] = [
+      {
+        ...makeDeliverable({
+          date: "2026-05-10",
+          title: "Past done",
+          status: "done",
+        }),
+        linkedCourses: [{ id: "c1", name: "Course 1" }],
+      },
+      {
+        ...makeDeliverable({ date: "2026-05-19", title: "This week" }),
+        linkedCourses: [
+          { id: "c2", name: "Course 2" },
+          { id: "c3", name: "Course 3" },
+        ],
+      },
+    ];
+
+    const result = groupDeliverables(items, today);
+
+    expect(result.pastHistory[0]!.linkedCourses).toEqual([
+      { id: "c1", name: "Course 1" },
+    ]);
+    expect(result.weekGroups[0]!.items[0]!.linkedCourses).toEqual([
+      { id: "c2", name: "Course 2" },
+      { id: "c3", name: "Course 3" },
+    ]);
+  });
 });

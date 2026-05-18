@@ -10,16 +10,20 @@ export interface DeliverableForGrouping {
   createdAt: Date;
 }
 
-export interface WeekGroup {
+export interface WeekGroup<
+  T extends DeliverableForGrouping = DeliverableForGrouping,
+> {
   week: number;
   year: number;
-  items: DeliverableForGrouping[];
+  items: T[];
   overdueCount: number;
 }
 
-export interface GroupedDeliverables {
-  pastHistory: DeliverableForGrouping[];
-  weekGroups: WeekGroup[];
+export interface GroupedDeliverables<
+  T extends DeliverableForGrouping = DeliverableForGrouping,
+> {
+  pastHistory: T[];
+  weekGroups: WeekGroup<T>[];
 }
 
 function parseDate(s: string): Date {
@@ -34,15 +38,15 @@ function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function groupDeliverables(
-  deliverables: DeliverableForGrouping[],
+export function groupDeliverables<T extends DeliverableForGrouping>(
+  deliverables: T[],
   today: Date
-): GroupedDeliverables {
+): GroupedDeliverables<T> {
   const active = deliverables.filter((d) => !d.archived);
   const todayStr = formatDate(today);
 
-  const pastHistory: DeliverableForGrouping[] = [];
-  const inline: DeliverableForGrouping[] = [];
+  const pastHistory: T[] = [];
+  const inline: T[] = [];
 
   for (const d of active) {
     const isPast = d.date < todayStr;
@@ -69,13 +73,13 @@ export function groupDeliverables(
   const weekKey = (w: number, y: number) =>
     `${y}-${String(w).padStart(2, "0")}`;
 
-  const byWeek = new Map<string, WeekGroup>();
+  const byWeek = new Map<string, WeekGroup<T>>();
 
   const todayKey = weekKey(todayWeek.week, todayWeek.year);
   byWeek.set(todayKey, {
     week: todayWeek.week,
     year: todayWeek.year,
-    items: [],
+    items: [] as T[],
     overdueCount: 0,
   });
 
@@ -84,7 +88,7 @@ export function groupDeliverables(
     const key = weekKey(week, year);
     let group = byWeek.get(key);
     if (!group) {
-      group = { week, year, items: [], overdueCount: 0 };
+      group = { week, year, items: [] as T[], overdueCount: 0 };
       byWeek.set(key, group);
     }
     group.items.push(d);

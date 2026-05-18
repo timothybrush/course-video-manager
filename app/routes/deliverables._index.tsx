@@ -589,7 +589,7 @@ export default function DeliverablesCalendarPage() {
           )}
 
           <HistoryDisclosure
-            items={pastHistory as DeliverableWithLinks[]}
+            items={pastHistory}
             todayStr={todayStr}
             allCourses={courses}
             allPitches={pitches}
@@ -633,7 +633,7 @@ export default function DeliverablesCalendarPage() {
                       {g.items.map((d) => (
                         <DeliverableRow
                           key={d.id}
-                          d={d as DeliverableWithLinks}
+                          d={d}
                           todayStr={todayStr}
                           allCourses={courses}
                           allPitches={pitches}
