@@ -21,6 +21,8 @@ describe("isoWeek", () => {
     { date: "2028-01-01", week: 52, year: 2027 },
     { date: "2028-01-03", week: 1, year: 2028 },
     { date: "2026-02-28", week: 9, year: 2026 },
+    { date: "2024-02-29", week: 9, year: 2024 },
+    { date: "2020-12-31", week: 53, year: 2020 },
   ])("$date → week $week, year $year", ({ date, week, year }) => {
     expect(isoWeek(d(date))).toEqual({ week, year });
   });

@@ -7,8 +7,8 @@ import { data } from "react-router";
 import type { Route } from "./+types/api.deliverables.create";
 
 const createSchema = Schema.Struct({
-  title: Schema.String,
-  date: Schema.String,
+  title: Schema.String.pipe(Schema.minLength(1)),
+  date: Schema.String.pipe(Schema.pattern(/^\d{4}-\d{2}-\d{2}$/)),
   notes: Schema.optional(Schema.String),
 });
 

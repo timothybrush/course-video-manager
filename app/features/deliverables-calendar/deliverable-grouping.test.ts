@@ -130,6 +130,45 @@ describe("groupDeliverables", () => {
     ]);
   });
 
+  it("returns only current week when all items are archived", () => {
+    const items = [
+      makeDeliverable({
+        date: "2026-05-19",
+        title: "Archived A",
+        archived: true,
+      }),
+      makeDeliverable({
+        date: "2026-05-26",
+        title: "Archived B",
+        archived: true,
+      }),
+    ];
+    const result = groupDeliverables(items, today);
+    expect(result.weekGroups).toHaveLength(1);
+    expect(result.weekGroups[0]!.week).toBe(21);
+    expect(result.weekGroups[0]!.items).toEqual([]);
+  });
+
+  it("groups correctly across year boundary where ISO year differs from calendar year", () => {
+    const yearEnd = new Date(2025, 11, 29); // 2025-12-29, ISO week 1 of 2026
+    const items = [
+      makeDeliverable({ date: "2025-12-28", title: "Week 52 of 2025" }),
+      makeDeliverable({ date: "2025-12-29", title: "Week 1 of 2026" }),
+      makeDeliverable({ date: "2026-01-02", title: "Also week 1 of 2026" }),
+    ];
+    const result = groupDeliverables(items, yearEnd);
+    expect(result.weekGroups).toHaveLength(2);
+    expect(result.weekGroups[0]!.year).toBe(2025);
+    expect(result.weekGroups[0]!.week).toBe(52);
+    expect(result.weekGroups[0]!.items[0]!.title).toBe("Week 52 of 2025");
+    expect(result.weekGroups[1]!.year).toBe(2026);
+    expect(result.weekGroups[1]!.week).toBe(1);
+    expect(result.weekGroups[1]!.items.map((i) => i.title)).toEqual([
+      "Week 1 of 2026",
+      "Also week 1 of 2026",
+    ]);
+  });
+
   it("handles items in past weeks", () => {
     const items = [
       makeDeliverable({ date: "2026-05-11", title: "Past week 20" }),
