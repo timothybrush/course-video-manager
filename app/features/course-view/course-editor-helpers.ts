@@ -123,6 +123,46 @@ export function computeFsStatusCounts(
   return counts;
 }
 
+export function computeCourseStats(
+  sections: Section[],
+  filePath: string | null
+) {
+  const isGhostCourse = filePath === null;
+
+  const shouldCount = (lesson: Section["lessons"][number]) =>
+    isGhostCourse ? lesson.fsStatus === "ghost" : lesson.fsStatus !== "ghost";
+
+  let totalLessons = 0;
+  let totalLessonsWithVideos = 0;
+  let totalVideos = 0;
+  let totalDurationSeconds = 0;
+
+  for (const section of sections) {
+    for (const lesson of section.lessons) {
+      if (!shouldCount(lesson)) continue;
+      totalLessons++;
+      if (lesson.videos.length > 0) totalLessonsWithVideos++;
+      totalVideos += lesson.videos.length;
+      for (const video of lesson.videos) {
+        totalDurationSeconds += video.totalDuration;
+      }
+    }
+  }
+
+  const percentageComplete =
+    totalLessons > 0
+      ? Math.round((totalLessonsWithVideos / totalLessons) * 100)
+      : 0;
+
+  return {
+    totalLessons,
+    totalLessonsWithVideos,
+    totalVideos,
+    totalDurationSeconds,
+    percentageComplete,
+  };
+}
+
 export function computeFlatLessons(sections: Section[]) {
   return sections.flatMap((section, sectionIdx) =>
     section.lessons.map((lesson, lessonIdx) => ({

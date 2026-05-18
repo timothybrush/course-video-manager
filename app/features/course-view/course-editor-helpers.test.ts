@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createLessonDragHandler,
   computeFsStatusCounts,
+  computeCourseStats,
 } from "./course-editor-helpers";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -306,5 +307,122 @@ describe("computeFsStatusCounts", () => {
     const counts = computeFsStatusCounts(sections, noFilters);
     expect(counts.real).toBe(1);
     expect(counts.todo).toBe(1);
+  });
+});
+
+describe("computeCourseStats", () => {
+  const video = {
+    id: "v1",
+    path: "v.mp4",
+    clipCount: 5,
+    totalDuration: 120,
+  } as Lesson["videos"][number];
+
+  describe("real course (filePath is non-null)", () => {
+    it("counts only non-ghost lessons as total", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+          makeLesson({ id: "l2", fsStatus: "ghost", videos: [] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, "/some/path");
+      expect(stats.totalLessons).toBe(1);
+    });
+
+    it("counts non-ghost lessons with videos", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+          makeLesson({ id: "l2", fsStatus: "real", videos: [] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, "/some/path");
+      expect(stats.totalLessonsWithVideos).toBe(1);
+      expect(stats.totalLessons).toBe(2);
+    });
+
+    it("computes percentage correctly", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+          makeLesson({ id: "l2", fsStatus: "real", videos: [] }),
+          makeLesson({ id: "l3", fsStatus: "real", videos: [] }),
+          makeLesson({ id: "l4", fsStatus: "real", videos: [video] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, "/some/path");
+      expect(stats.percentageComplete).toBe(50);
+    });
+
+    it("returns 0% when no lessons exist", () => {
+      const stats = computeCourseStats([], "/some/path");
+      expect(stats.percentageComplete).toBe(0);
+      expect(stats.totalLessons).toBe(0);
+    });
+  });
+
+  describe("ghost course (filePath is null)", () => {
+    it("counts ghost lessons as total", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "ghost", videos: [] }),
+          makeLesson({ id: "l2", fsStatus: "ghost", videos: [] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, null);
+      expect(stats.totalLessons).toBe(2);
+    });
+
+    it("counts ghost lessons with videos in numerator", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "ghost", videos: [video] }),
+          makeLesson({ id: "l2", fsStatus: "ghost", videos: [] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, null);
+      expect(stats.totalLessonsWithVideos).toBe(1);
+      expect(stats.totalLessons).toBe(2);
+      expect(stats.percentageComplete).toBe(50);
+    });
+
+    it("returns 0% when ghost course has no lessons", () => {
+      const stats = computeCourseStats([], null);
+      expect(stats.percentageComplete).toBe(0);
+      expect(stats.totalLessons).toBe(0);
+    });
+
+    it("counts total videos across ghost lessons", () => {
+      const video2 = { ...video, id: "v2" } as Lesson["videos"][number];
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "ghost", videos: [video, video2] }),
+          makeLesson({ id: "l2", fsStatus: "ghost", videos: [video] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, null);
+      expect(stats.totalVideos).toBe(3);
+    });
+
+    it("computes total duration across ghost lessons", () => {
+      const longVideo = {
+        ...video,
+        id: "v2",
+        totalDuration: 300,
+      } as Lesson["videos"][number];
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "ghost", videos: [video] }),
+          makeLesson({
+            id: "l2",
+            fsStatus: "ghost",
+            videos: [longVideo],
+          }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, null);
+      expect(stats.totalDurationSeconds).toBe(420);
+    });
   });
 });

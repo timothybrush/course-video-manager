@@ -6,6 +6,7 @@ import { RenameCourseModal } from "@/components/rename-course-modal";
 import { RenameVideoModal } from "@/components/rename-video-modal";
 import { RewriteCoursePathModal } from "@/components/rewrite-course-path-modal";
 import { VersionSelectorModal } from "@/components/version-selector-modal";
+import { computeCourseStats } from "@/features/course-view/course-editor-helpers";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 
 import {
@@ -34,49 +35,16 @@ export function StatsBar({
   selectedCourse: LoaderData["selectedCourse"];
   gitStatus: LoaderData["gitStatus"];
 }) {
-  const totalLessonsWithVideos =
-    selectedCourse?.sections.reduce((acc, section) => {
-      return (
-        acc +
-        section.lessons.filter(
-          (lesson) => lesson.fsStatus !== "ghost" && lesson.videos.length > 0
-        ).length
-      );
-    }, 0) ?? 0;
-
-  const totalLessons =
-    selectedCourse?.sections.reduce((acc, section) => {
-      return (
-        acc +
-        section.lessons.filter((lesson) => lesson.fsStatus !== "ghost").length
-      );
-    }, 0) ?? 0;
-
-  const totalVideos =
-    selectedCourse?.sections.reduce((acc, section) => {
-      return (
-        acc +
-        section.lessons.reduce((lessonAcc, lesson) => {
-          return lessonAcc + lesson.videos.length;
-        }, 0)
-      );
-    }, 0) ?? 0;
-
-  const totalDurationSeconds =
-    selectedCourse?.sections.reduce((acc, section) => {
-      return (
-        acc +
-        section.lessons.reduce((lessonAcc, lesson) => {
-          return (
-            lessonAcc +
-            lesson.videos.reduce(
-              (videoAcc, video) => videoAcc + video.totalDuration,
-              0
-            )
-          );
-        }, 0)
-      );
-    }, 0) ?? 0;
+  const {
+    totalLessonsWithVideos,
+    totalLessons,
+    totalVideos,
+    totalDurationSeconds,
+    percentageComplete,
+  } = computeCourseStats(
+    selectedCourse?.sections ?? [],
+    selectedCourse?.filePath ?? null
+  );
 
   const totalDurationFormatted = (() => {
     const hours = Math.floor(totalDurationSeconds / 3600);
@@ -86,11 +54,6 @@ export function StatsBar({
     }
     return `${minutes}m`;
   })();
-
-  const percentageComplete =
-    totalLessons > 0
-      ? Math.round((totalLessonsWithVideos / totalLessons) * 100)
-      : 0;
 
   return (
     <div className="flex items-center gap-2">
