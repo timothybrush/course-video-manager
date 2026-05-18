@@ -424,5 +424,75 @@ describe("computeCourseStats", () => {
       const stats = computeCourseStats(sections, null);
       expect(stats.totalDurationSeconds).toBe(420);
     });
+
+    it("ignores real lessons in a ghost course", () => {
+      const sections = [
+        makeSection([
+          makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+          makeLesson({ id: "l2", fsStatus: "ghost", videos: [] }),
+        ]),
+      ];
+      const stats = computeCourseStats(sections, null);
+      expect(stats.totalLessons).toBe(1);
+      expect(stats.totalVideos).toBe(0);
+    });
+  });
+
+  it("accumulates across multiple sections", () => {
+    const sections = [
+      makeSection(
+        [makeLesson({ id: "l1", fsStatus: "real", videos: [video] })],
+        { id: "s1" }
+      ),
+      makeSection(
+        [makeLesson({ id: "l2", fsStatus: "real", videos: [video] })],
+        { id: "s2" }
+      ),
+    ];
+    const stats = computeCourseStats(sections, "/some/path");
+    expect(stats.totalLessons).toBe(2);
+    expect(stats.totalLessonsWithVideos).toBe(2);
+    expect(stats.totalVideos).toBe(2);
+    expect(stats.totalDurationSeconds).toBe(240);
+    expect(stats.percentageComplete).toBe(100);
+  });
+
+  it("counts videos and duration only from matching lessons in a real course", () => {
+    const sections = [
+      makeSection([
+        makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+        makeLesson({ id: "l2", fsStatus: "ghost", videos: [video] }),
+      ]),
+    ];
+    const stats = computeCourseStats(sections, "/some/path");
+    expect(stats.totalVideos).toBe(1);
+    expect(stats.totalDurationSeconds).toBe(120);
+  });
+
+  it("returns all zeros when a real course has only ghost lessons", () => {
+    const sections = [
+      makeSection([
+        makeLesson({ id: "l1", fsStatus: "ghost", videos: [video] }),
+        makeLesson({ id: "l2", fsStatus: "ghost", videos: [] }),
+      ]),
+    ];
+    const stats = computeCourseStats(sections, "/some/path");
+    expect(stats.totalLessons).toBe(0);
+    expect(stats.totalLessonsWithVideos).toBe(0);
+    expect(stats.totalVideos).toBe(0);
+    expect(stats.totalDurationSeconds).toBe(0);
+    expect(stats.percentageComplete).toBe(0);
+  });
+
+  it("rounds percentage to nearest integer", () => {
+    const sections = [
+      makeSection([
+        makeLesson({ id: "l1", fsStatus: "real", videos: [video] }),
+        makeLesson({ id: "l2", fsStatus: "real", videos: [] }),
+        makeLesson({ id: "l3", fsStatus: "real", videos: [] }),
+      ]),
+    ];
+    const stats = computeCourseStats(sections, "/some/path");
+    expect(stats.percentageComplete).toBe(33);
   });
 });
