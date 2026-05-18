@@ -32,7 +32,7 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
         .values({
           title: input.title,
           date: input.date,
-          notes: input.notes ?? null,
+          notes: input.notes || null,
         })
         .returning()
     );
@@ -86,7 +86,7 @@ export const createDeliverableOperations = (db: DrizzleDB) => {
         .set({
           title: input.title,
           date: input.date,
-          notes: input.notes ?? null,
+          notes: input.notes || null,
           status: input.status,
           updatedAt: new Date(),
         })

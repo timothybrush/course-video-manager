@@ -372,6 +372,28 @@ describe("groupDeliverables", () => {
     expect(week20!.items).toHaveLength(1);
   });
 
+  it("archived overdue item excluded from both weekGroups and overdueCount", () => {
+    const items = [
+      makeDeliverable({
+        date: "2026-05-16",
+        title: "Archived overdue",
+        status: "planned",
+        archived: true,
+      }),
+      makeDeliverable({
+        date: "2026-05-16",
+        title: "Active overdue",
+        status: "planned",
+        archived: false,
+      }),
+    ];
+    const result = groupDeliverables(items, today);
+    const week20 = result.weekGroups.find((g) => g.week === 20);
+    expect(week20!.items).toHaveLength(1);
+    expect(week20!.items[0]!.title).toBe("Active overdue");
+    expect(week20!.overdueCount).toBe(1);
+  });
+
   // ─── Integration test with mixed dataset ────────────────────────────
 
   it("integration: full dataset matches expected pastHistory and weekGroups shape", () => {
