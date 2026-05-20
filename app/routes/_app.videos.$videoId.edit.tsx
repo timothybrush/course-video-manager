@@ -24,7 +24,9 @@ import { Console, Effect } from "effect";
 import { useEffectReducer } from "use-effect-reducer";
 import { getActiveDiagramId } from "@/lib/diagram-window";
 import { isDiagramFocused } from "@/lib/diagram-focus-tracking";
-import type { Route } from "./+types/videos.$videoId.edit";
+import type { Route } from "./+types/_app.videos.$videoId.edit";
+
+export const handle = { fullscreen: true };
 import { data, useNavigate, useRevalidator } from "react-router";
 import { getStandaloneVideoFilePath } from "@/services/standalone-video-files";
 import { Array as EffectArray } from "effect";

@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { data, Link } from "react-router";
-import type { Route } from "./+types/courses.$courseId.changelog";
+import type { Route } from "./+types/_app.courses.$courseId.changelog";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { courseId: repoId } = args.params;

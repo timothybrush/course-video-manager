@@ -37,7 +37,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMonacoEditor } from "@/components/markdown-monaco-editor";
 import { data, Link, useFetcher, useNavigate } from "react-router";
-import type { Route } from "./+types/pitches.$pitchId";
+import type { Route } from "./+types/_app.pitches.$pitchId";
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => {
   const title = loaderData?.pitch?.title || "Untitled Pitch";

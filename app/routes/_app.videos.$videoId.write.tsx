@@ -5,7 +5,7 @@ import { runtimeLive } from "@/services/layer.server";
 import { buildTranscript } from "@/lib/transcript-builder";
 import { Array as EffectArray, Console, Effect } from "effect";
 import { data } from "react-router";
-import type { Route } from "./+types/videos.$videoId.write";
+import type { Route } from "./+types/_app.videos.$videoId.write";
 import path from "path";
 import { FileSystem } from "@effect/platform";
 import {

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { data, Link, Outlet, useLocation } from "react-router";
-import type { Route } from "./+types/videos.$videoId";
+import type { Route } from "./+types/_app.videos.$videoId";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;

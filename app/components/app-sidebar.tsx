@@ -1,6 +1,5 @@
 import { AddCourseModal } from "@/components/add-course-modal";
 import { AddStandaloneVideoModal } from "@/components/add-standalone-video-modal";
-import { RenameVideoModal } from "@/components/rename-video-modal";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -15,106 +14,83 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import {
-  openPlayground,
-  openPlaygroundWithDiagram,
-} from "@/lib/diagram-window";
+import { openPlayground } from "@/lib/diagram-window";
 import {
   Archive,
   CalendarDays,
-  Eye,
+  ChevronRight,
   FolderGit2,
-  FolderOpen,
   Lightbulb,
   Menu,
-  PencilIcon,
   PenTool,
   Plus,
   VideoIcon,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
-import { Link, useFetcher, useLocation, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import {
+  Link,
+  useFetcher,
+  useLocation,
+  useNavigate,
+  useRouteLoaderData,
+  useSearchParams,
+} from "react-router";
 
-export interface AppSidebarProps {
-  courses: Array<{
-    id: string;
-    name: string;
-  }>;
-  standaloneVideos: Array<{
-    id: string;
-    path: string;
-  }>;
-  pitches?: Array<{
-    id: string;
-    title: string;
-  }>;
-  diagrams?: Array<{
-    id: string;
-    name: string;
-  }>;
-  selectedCourseId?: string | null;
-  isAddCourseModalOpen?: boolean;
-  setIsAddCourseModalOpen?: (open: boolean) => void;
-  isAddStandaloneVideoModalOpen?: boolean;
-  setIsAddStandaloneVideoModalOpen?: (open: boolean) => void;
+export interface SidebarCourse {
+  id: string;
+  name: string;
 }
 
-export function AppSidebar({
-  courses,
-  standaloneVideos,
-  pitches = [],
-  diagrams = [],
-  selectedCourseId = null,
-  isAddCourseModalOpen = false,
-  setIsAddCourseModalOpen,
-  isAddStandaloneVideoModalOpen = false,
-  setIsAddStandaloneVideoModalOpen,
-}: AppSidebarProps) {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const archiveCourseFetcher = useFetcher();
-  const archiveVideoFetcher = useFetcher();
-  const revealVideoFetcher = useFetcher();
-  const createPitchFetcher = useFetcher<{ id: string }>();
-  const createDiagramFetcher = useFetcher<{ id: string }>();
+export interface AppSidebarData {
+  topCourses: SidebarCourse[];
+}
 
-  const [isInternalAddVideoModalOpen, setIsInternalAddVideoModalOpen] =
-    useState(false);
-  const [videoToRename, setVideoToRename] = useState<{
-    id: string;
-    path: string;
-  } | null>(null);
+interface AppSidebarProps {
+  variant: "rail" | "floating";
+}
+
+export function AppSidebar({ variant }: AppSidebarProps) {
+  const data = useRouteLoaderData("routes/_app") as AppSidebarData | undefined;
+  const topCourses = data?.topCourses ?? [];
+
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const selectedCourseId = searchParams.get("courseId");
+
+  const archiveCourseFetcher = useFetcher();
+  const createPitchFetcher = useFetcher<{ id: string }>();
+
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+  const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Close mobile sheet on navigation
   useEffect(() => {
     setSheetOpen(false);
   }, [location.pathname, location.search]);
 
-  // Navigate to new pitch after creation
   useEffect(() => {
     if (createPitchFetcher.state === "idle" && createPitchFetcher.data?.id) {
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
 
-  // Open playground for newly created diagram
-  const lastOpenedDiagramId = useRef<string | null>(null);
-  useEffect(() => {
-    const id = createDiagramFetcher.data?.id;
-    if (
-      createDiagramFetcher.state === "idle" &&
-      id &&
-      lastOpenedDiagramId.current !== id
-    ) {
-      lastOpenedDiagramId.current = id;
-      openPlaygroundWithDiagram(id);
-    }
-  }, [createDiagramFetcher.state, createDiagramFetcher.data]);
+  const onPitchesPath = location.pathname.startsWith("/pitches");
+  const onVideosPath =
+    location.pathname === "/videos" ||
+    location.pathname === "/videos/concatenate";
+  const onDeliverablesPath = location.pathname.startsWith("/deliverables");
 
-  const sidebarContent = (
-    <>
-      {/* Courses Card */}
+  const content = (
+    <div className="space-y-3 flex-1 overflow-y-auto">
+      <EntityCard
+        icon={<CalendarDays className="w-4 h-4 text-muted-foreground" />}
+        label="Deliverables"
+        href="/deliverables"
+        active={onDeliverablesPath}
+      />
+
       <div className="rounded-lg border bg-card p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -125,13 +101,14 @@ export function AppSidebar({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => setIsAddCourseModalOpen?.(true)}
+            onClick={() => setIsAddCourseOpen(true)}
+            aria-label="Add course"
           >
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </div>
         <div className="space-y-0.5">
-          {courses.map((course) => (
+          {topCourses.map((course) => (
             <ContextMenu key={course.id}>
               <ContextMenuTrigger asChild>
                 <Link
@@ -174,251 +151,140 @@ export function AppSidebar({
         </Link>
       </div>
 
-      {/* Videos Card */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <VideoIcon className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Videos</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => {
-              if (setIsAddStandaloneVideoModalOpen) {
-                setIsAddStandaloneVideoModalOpen(true);
-              } else {
-                setIsInternalAddVideoModalOpen(true);
-              }
-            }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        <div className="space-y-0.5">
-          {standaloneVideos.map((video) => (
-            <ContextMenu key={video.id}>
-              <ContextMenuTrigger asChild>
-                <Link
-                  to={`/videos/${video.id}/edit`}
-                  preventScrollReset
-                  className="block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
-                >
-                  {video.path}
-                </Link>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem
-                  onSelect={() => {
-                    setVideoToRename({ id: video.id, path: video.path });
-                  }}
-                >
-                  <PencilIcon className="w-4 h-4" />
-                  Rename
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    revealVideoFetcher.submit(
-                      {},
-                      {
-                        method: "post",
-                        action: `/api/videos/${video.id}/reveal`,
-                      }
-                    );
-                  }}
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  Reveal in File System
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    archiveVideoFetcher.submit(
-                      { archived: "true" },
-                      {
-                        method: "post",
-                        action: `/api/videos/${video.id}/archive`,
-                      }
-                    );
-                  }}
-                >
-                  <Archive className="w-4 h-4" />
-                  Archive
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
-        </div>
-        <Link
-          to="/videos"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
-        >
-          <Eye className="w-3 h-3" />
-          View All Videos
-        </Link>
-      </div>
+      <EntityCard
+        icon={<Lightbulb className="w-4 h-4 text-muted-foreground" />}
+        label="Pitches"
+        href="/pitches"
+        active={onPitchesPath}
+        onAdd={() => {
+          createPitchFetcher.submit(
+            {},
+            { method: "post", action: "/api/pitches/create" }
+          );
+        }}
+        addDisabled={createPitchFetcher.state !== "idle"}
+      />
 
-      {/* Pitches Card */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Pitches</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => {
-              createPitchFetcher.submit(
-                {},
-                { method: "post", action: "/api/pitches/create" }
-              );
-            }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        <div className="space-y-0.5">
-          {pitches.map((pitch) => (
-            <Link
-              key={pitch.id}
-              to={`/pitches/${pitch.id}`}
-              preventScrollReset
-              className="block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors"
-            >
-              {pitch.title || "Untitled Pitch"}
-            </Link>
-          ))}
-        </div>
-        <Link
-          to="/pitches"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
-        >
-          <Eye className="w-3 h-3" />
-          View All Pitches
-        </Link>
-      </div>
+      <EntityCard
+        icon={<PenTool className="w-4 h-4 text-muted-foreground" />}
+        label="Diagrams"
+        onClick={() => openPlayground()}
+      />
 
-      {/* Deliverables Card */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <CalendarDays className="w-4 h-4 text-muted-foreground" />
-          <Link
-            to="/deliverables"
-            className="text-sm font-medium hover:underline"
-          >
-            Deliverables
-          </Link>
-        </div>
-      </div>
-
-      {/* Diagrams Card */}
-      <div className="rounded-lg border bg-card p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <PenTool className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Diagrams</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => {
-              createDiagramFetcher.submit(
-                {},
-                { method: "post", action: "/api/diagrams/create" }
-              );
-            }}
-            disabled={createDiagramFetcher.state !== "idle"}
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        <div className="space-y-0.5">
-          {diagrams.map((diagram) => (
-            <button
-              key={diagram.id}
-              onClick={() => openPlaygroundWithDiagram(diagram.id)}
-              className="block w-full text-left text-sm px-2 py-1.5 rounded-md hover:bg-accent transition-colors truncate"
-            >
-              {diagram.name}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => openPlayground()}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mt-2 px-2 transition-colors"
-        >
-          <Eye className="w-3 h-3" />
-          View All Diagrams
-        </button>
-      </div>
-    </>
+      <EntityCard
+        icon={<VideoIcon className="w-4 h-4 text-muted-foreground" />}
+        label="Videos"
+        href="/videos"
+        active={onVideosPath}
+        onAdd={() => setIsAddVideoOpen(true)}
+      />
+    </div>
   );
 
   return (
     <>
-      {/* Static sidebar for large screens */}
-      <div className="w-80 border-r bg-muted/30 hidden lg:flex flex-col">
-        <div className="p-4 flex-1 flex flex-col min-h-0">
-          <div className="space-y-3 flex-1 overflow-y-auto">
-            {sidebarContent}
-          </div>
+      {variant === "rail" ? (
+        <div className="w-80 border-r bg-muted/30 flex flex-col shrink-0">
+          <div className="p-4 flex-1 flex flex-col min-h-0">{content}</div>
         </div>
-      </div>
-
-      {/* Floating menu button for smaller screens */}
-      <Button
-        className="lg:hidden fixed bottom-4 left-4 z-40 rounded-full shadow-lg size-12"
-        size="icon"
-        onClick={() => setSheetOpen(true)}
-      >
-        <Menu className="size-5" />
-      </Button>
-
-      {/* Mobile sidebar sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="left" className="p-0 flex flex-col">
-          <SheetHeader className="sr-only">
-            <SheetTitle>Navigation</SheetTitle>
-          </SheetHeader>
-          <div className="p-4 flex-1 flex flex-col min-h-0">
-            <div className="space-y-3 flex-1 overflow-y-auto">
-              {sidebarContent}
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Modals */}
-      {setIsAddCourseModalOpen && (
-        <AddCourseModal
-          isOpen={isAddCourseModalOpen}
-          onOpenChange={setIsAddCourseModalOpen}
-        />
-      )}
-      {setIsAddStandaloneVideoModalOpen ? (
-        <AddStandaloneVideoModal
-          open={isAddStandaloneVideoModalOpen}
-          onOpenChange={setIsAddStandaloneVideoModalOpen}
-        />
       ) : (
-        <AddStandaloneVideoModal
-          open={isInternalAddVideoModalOpen}
-          onOpenChange={setIsInternalAddVideoModalOpen}
-        />
+        <>
+          <Button
+            className="fixed bottom-4 left-4 z-40 rounded-full shadow-lg size-12"
+            size="icon"
+            onClick={() => setSheetOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu className="size-5" />
+          </Button>
+
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetContent side="left" className="p-0 flex flex-col">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Navigation</SheetTitle>
+              </SheetHeader>
+              <div className="p-4 flex-1 flex flex-col min-h-0">{content}</div>
+            </SheetContent>
+          </Sheet>
+        </>
       )}
-      {videoToRename && (
-        <RenameVideoModal
-          videoId={videoToRename.id}
-          currentName={videoToRename.path}
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) setVideoToRename(null);
-          }}
-        />
-      )}
+
+      <AddCourseModal
+        isOpen={isAddCourseOpen}
+        onOpenChange={setIsAddCourseOpen}
+      />
+      <AddStandaloneVideoModal
+        open={isAddVideoOpen}
+        onOpenChange={setIsAddVideoOpen}
+      />
     </>
+  );
+}
+
+interface EntityCardProps {
+  icon: React.ReactNode;
+  label: string;
+  href?: string;
+  onClick?: () => void;
+  active?: boolean;
+  onAdd?: () => void;
+  addDisabled?: boolean;
+}
+
+function EntityCard({
+  icon,
+  label,
+  href,
+  onClick,
+  active,
+  onAdd,
+  addDisabled,
+}: EntityCardProps) {
+  const inner = (
+    <>
+      <div className="flex items-center gap-2 min-w-0">
+        {icon}
+        <span className="text-sm font-medium truncate">{label}</span>
+      </div>
+      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-card flex items-center pr-2 transition-colors",
+        active && "border-foreground/20 bg-muted"
+      )}
+    >
+      {href ? (
+        <Link
+          to={href}
+          className="flex items-center justify-between gap-2 flex-1 min-w-0 px-3 py-2.5 hover:bg-accent/40 rounded-l-lg transition-colors"
+        >
+          {inner}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex items-center justify-between gap-2 flex-1 min-w-0 px-3 py-2.5 hover:bg-accent/40 rounded-l-lg transition-colors text-left"
+        >
+          {inner}
+        </button>
+      )}
+      {onAdd && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={onAdd}
+          disabled={addDisabled}
+          aria-label={`Add ${label.toLowerCase()}`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </Button>
+      )}
+    </div>
   );
 }

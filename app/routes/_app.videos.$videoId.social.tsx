@@ -1,12 +1,14 @@
 "use client";
 
 import { DBFunctionsService } from "@/services/db-service.server";
+import { FeatureFlagService } from "@/services/feature-flag-service";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { runtimeLive } from "@/services/layer.server";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { Array as EffectArray, Console, Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
 import { data, useFetcher } from "react-router";
+import { toast } from "sonner";
 import {
   VideoContextPanel,
   type CourseStructure,
@@ -24,25 +26,24 @@ import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-mod
 import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
 import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
-import { toast } from "sonner";
-import type { Route } from "./+types/videos.$videoId.ai-hero";
+import { SocialPagePanel } from "@/features/video-posting/social-page";
+import type { Route } from "./+types/_app.videos.$videoId.social";
 import path from "path";
 import { FileSystem } from "@effect/platform";
-import { AiHeroPage } from "@/features/video-posting/ai-hero-page";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
     const fs = yield* FileSystem.FileSystem;
-    const [video, aiHeroAuth, globalLinks] = yield* Effect.all(
-      [db.getVideoWithClipsById(videoId), db.getAiHeroAuth(), db.getLinks()],
+    const featureFlags = yield* FeatureFlagService;
+    const [video, globalLinks] = yield* Effect.all(
+      [db.getVideoWithClipsById(videoId), db.getLinks()],
       { concurrency: "unbounded" }
     );
-    const aiHero: { connected: true; userId: string } | { connected: false } =
-      aiHeroAuth
-        ? { connected: true, userId: aiHeroAuth.userId }
-        : { connected: false };
+    const showSocialShareButtons = featureFlags.isEnabled(
+      "ENABLE_SOCIAL_SHARE_BUTTONS"
+    );
 
     const lesson = video.lesson;
 
@@ -162,7 +163,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         clipSections: sectionsWithWordCount,
         links: globalLinks,
         courseStructure: null as CourseStructure | null,
-        aiHero,
+        showSocialShareButtons,
       };
     }
 
@@ -245,7 +246,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       clipSections: sectionsWithWordCount,
       links: globalLinks,
       courseStructure,
-      aiHero,
+      showSocialShareButtons,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -271,7 +272,7 @@ const Video = (props: { src: string }) => {
   return <video src={props.src} className="w-full" controls ref={ref} />;
 };
 
-export default function AiHeroPostPage(props: Route.ComponentProps) {
+export default function SocialPage(props: Route.ComponentProps) {
   const { videoId } = props.params;
   const {
     files,
@@ -280,7 +281,7 @@ export default function AiHeroPostPage(props: Route.ComponentProps) {
     clipSections,
     links,
     courseStructure,
-    aiHero,
+    showSocialShareButtons,
   } = props.loaderData;
 
   // Context panel state
@@ -391,19 +392,16 @@ export default function AiHeroPostPage(props: Route.ComponentProps) {
           videoSlot={<Video src={`/api/videos/${videoId}/stream`} />}
         />
 
-        {/* Right panel: AI Hero post form */}
-        <div className="w-3/4 flex flex-col p-6 overflow-y-auto scrollbar scrollbar-track-transparent scrollbar-thumb-muted hover:scrollbar-thumb-muted-foreground">
-          <AiHeroPage
-            videoId={videoId}
-            aiHero={aiHero}
-            enabledFiles={enabledFiles}
-            enabledSections={enabledSections}
-            includeTranscript={includeTranscript}
-            courseStructure={courseStructure}
-            includeCourseStructure={includeCourseStructure}
-            clipSections={clipSections}
-          />
-        </div>
+        <SocialPagePanel
+          videoId={videoId}
+          clipSections={clipSections}
+          enabledSections={enabledSections}
+          enabledFiles={enabledFiles}
+          includeTranscript={includeTranscript}
+          includeCourseStructure={includeCourseStructure}
+          courseStructure={courseStructure}
+          showSocialShareButtons={showSocialShareButtons}
+        />
       </div>
 
       {/* File preview modal */}

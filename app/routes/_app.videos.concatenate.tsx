@@ -1,4 +1,3 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DBFunctionsService } from "@/services/db-service.server";
@@ -26,7 +25,7 @@ import { GripVertical, Loader2, Plus, Trash2, VideoIcon } from "lucide-react";
 import { buildQueueTreeLines } from "@/lib/queue-tree";
 import { useState, useCallback } from "react";
 import { data, useNavigate, useSearchParams } from "react-router";
-import type { Route } from "./+types/videos.concatenate";
+import type { Route } from "./+types/_app.videos.concatenate";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Concatenate Videos" }];
@@ -60,12 +59,8 @@ const computeDuration = (
 export const loader = async () => {
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const [videos, courseList, sidebarVideos] = yield* Effect.all(
-      [
-        db.getAllStandaloneVideos(),
-        db.getCourses(),
-        db.getStandaloneVideosSidebar(),
-      ],
+    const [videos, courseList] = yield* Effect.all(
+      [db.getAllStandaloneVideos(), db.getCourses()],
       { concurrency: "unbounded" }
     );
 
@@ -116,7 +111,6 @@ export const loader = async () => {
       })),
       courseSources,
       courses: courseList,
-      sidebarVideos,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -325,7 +319,7 @@ function CourseVideoList({
 }
 
 export default function Component({ loaderData }: Route.ComponentProps) {
-  const { videos, courses, courseSources, sidebarVideos } = loaderData;
+  const { videos, courseSources } = loaderData;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialVideoId = searchParams.get("initial");
@@ -418,9 +412,7 @@ export default function Component({ loaderData }: Route.ComponentProps) {
   const selectedCourse = courseSources.find((c) => c.id === selectedSource);
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <AppSidebar courses={courses} standaloneVideos={sidebarVideos} />
-
+    <div className="flex-1 flex flex-col bg-background text-foreground overflow-hidden">
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="border-b px-6 py-4">
           <h1 className="text-xl font-bold">Concatenate Videos</h1>

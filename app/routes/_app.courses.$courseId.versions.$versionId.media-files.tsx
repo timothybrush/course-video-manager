@@ -6,7 +6,7 @@ import { Console, Effect } from "effect";
 import { ArrowLeft, Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { data, Link } from "react-router";
-import type { Route } from "./+types/courses.$courseId.versions.$versionId.media-files";
+import type { Route } from "./+types/_app.courses.$courseId.versions.$versionId.media-files";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { courseId: repoId, versionId } = args.params;

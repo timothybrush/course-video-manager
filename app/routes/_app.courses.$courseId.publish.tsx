@@ -15,7 +15,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { data, Link, useNavigate, useRevalidator } from "react-router";
-import type { Route } from "./+types/courses.$courseId.publish";
+import type { Route } from "./+types/_app.courses.$courseId.publish";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { courseId } = args.params;

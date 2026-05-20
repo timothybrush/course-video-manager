@@ -25,10 +25,10 @@ import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-m
 import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
 import { toast } from "sonner";
-import type { Route } from "./+types/videos.$videoId.skills-changelog";
+import type { Route } from "./+types/_app.videos.$videoId.ai-hero";
 import path from "path";
 import { FileSystem } from "@effect/platform";
-import { SkillsChangelogPage } from "@/features/video-posting/skills-changelog-page";
+import { AiHeroPage } from "@/features/video-posting/ai-hero-page";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
@@ -46,6 +46,7 @@ export const loader = async (args: Route.LoaderArgs) => {
 
     const lesson = video.lesson;
 
+    // Build transcript from clips and clip sections
     type ClipItem = { type: "clip"; order: string; text: string | null };
     type ClipSectionItem = {
       type: "clip-section";
@@ -69,6 +70,7 @@ export const loader = async (args: Route.LoaderArgs) => {
 
     const sortedItems = sortByOrder([...clipItems, ...clipSectionItems]);
 
+    // Build formatted transcript with sections as H2 headers
     const transcriptParts: string[] = [];
     let currentParagraph: string[] = [];
 
@@ -91,6 +93,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     const transcript = transcriptParts.join("\n\n").trim();
     const transcriptWordCount = transcript ? transcript.split(/\s+/).length : 0;
 
+    // Calculate word count per section
     const sectionsWithWordCount: SectionWithWordCount[] = [];
     let currentSectionIndex = -1;
 
@@ -112,6 +115,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       }
     }
 
+    // For standalone videos (no lesson), fetch standalone video files
     if (!lesson) {
       const standaloneVideoDir = getStandaloneVideoFilePath(videoId);
       const dirExists = yield* fs.exists(standaloneVideoDir);
@@ -209,6 +213,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       }
     ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
 
+    // Fetch course structure for non-standalone videos
     const repoWithSections = yield* db.getCourseStructureById(
       section.repoVersion.repoId
     );
@@ -266,7 +271,7 @@ const Video = (props: { src: string }) => {
   return <video src={props.src} className="w-full" controls ref={ref} />;
 };
 
-export default function SkillsChangelogRoute(props: Route.ComponentProps) {
+export default function AiHeroPostPage(props: Route.ComponentProps) {
   const { videoId } = props.params;
   const {
     files,
@@ -278,6 +283,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
     aiHero,
   } = props.loaderData;
 
+  // Context panel state
   const [enabledFiles, setEnabledFiles] = useState<Set<string>>(() => {
     return new Set(files.filter((f) => f.defaultEnabled).map((f) => f.path));
   });
@@ -287,11 +293,14 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
   });
   const [includeCourseStructure, setIncludeCourseStructure] = useState(false);
 
+  // File preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewFilePath, setPreviewFilePath] = useState<string>("");
 
+  // Add link modal state
   const [isAddLinkModalOpen, setIsAddLinkModalOpen] = useState(false);
 
+  // Delete link fetcher
   const deleteLinkFetcher = useFetcher();
   const openFolderFetcher = useFetcher();
 
@@ -302,6 +311,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
     }
   }, [openFolderFetcher.state, openFolderFetcher.data]);
 
+  // Standalone file management state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [selectedFilename, setSelectedFilename] = useState<string>("");
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
@@ -309,6 +319,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>("");
 
+  // Lesson file paste modal state
   const [isLessonPasteModalOpen, setIsLessonPasteModalOpen] = useState(false);
 
   const handleFileClick = (filePath: string) => {
@@ -380,8 +391,9 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
           videoSlot={<Video src={`/api/videos/${videoId}/stream`} />}
         />
 
+        {/* Right panel: AI Hero post form */}
         <div className="w-3/4 flex flex-col p-6 overflow-y-auto scrollbar scrollbar-track-transparent scrollbar-thumb-muted hover:scrollbar-thumb-muted-foreground">
-          <SkillsChangelogPage
+          <AiHeroPage
             videoId={videoId}
             aiHero={aiHero}
             enabledFiles={enabledFiles}
@@ -394,6 +406,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
         </div>
       </div>
 
+      {/* File preview modal */}
       <FilePreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
@@ -402,11 +415,13 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
         isStandalone={isStandalone}
       />
 
+      {/* Add link modal */}
       <AddLinkModal
         open={isAddLinkModalOpen}
         onOpenChange={setIsAddLinkModalOpen}
       />
 
+      {/* Standalone file modals */}
       {isStandalone && (
         <>
           <StandaloneFileManagementModal
@@ -434,6 +449,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
         </>
       )}
 
+      {/* Lesson file modals */}
       {!isStandalone && (
         <>
           <LessonFilePasteModal

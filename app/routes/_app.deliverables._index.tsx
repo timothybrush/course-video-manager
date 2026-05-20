@@ -1,4 +1,3 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { data, useLoaderData } from "react-router";
-import type { Route } from "./+types/deliverables._index";
+import type { Route } from "./+types/_app.deliverables._index";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Deliverables Calendar" }];
@@ -37,17 +36,10 @@ export const meta: Route.MetaFunction = () => {
 export const loader = async () => {
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const [deliverables, courses, sidebarVideos, pitches, diagrams] =
-      yield* Effect.all(
-        [
-          db.listDeliverables(),
-          db.getCourses(),
-          db.getStandaloneVideosSidebar(),
-          db.listPitches(),
-          db.listDiagrams(),
-        ],
-        { concurrency: "unbounded" }
-      );
+    const [deliverables, courses, pitches] = yield* Effect.all(
+      [db.listDeliverables(), db.getCourses(), db.listPitches()],
+      { concurrency: "unbounded" }
+    );
 
     const courseMap = new Map(courses.map((c) => [c.id, c.name]));
     const pitchMap = new Map(
@@ -80,14 +72,12 @@ export const loader = async () => {
         }),
       })),
       courses: courses.map((c) => ({ id: c.id, name: c.name })),
-      sidebarVideos: sidebarVideos.map((v) => ({ id: v.id, path: v.path })),
       pitches: pitches.map((p) => ({
         id: p.id,
         title: p.title,
         priority: p.priority,
         status: p.status as PitchStatus,
       })),
-      diagrams: diagrams.map((d) => ({ id: d.id, name: d.name })),
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -160,8 +150,7 @@ function HistoryDisclosure({
 }
 
 export default function DeliverablesCalendarPage() {
-  const { deliverables, courses, sidebarVideos, pitches, diagrams } =
-    useLoaderData<typeof loader>();
+  const { deliverables, courses, pitches } = useLoaderData<typeof loader>();
   const [createForm, setCreateForm] = useState<
     { kind: "top" } | { kind: "week"; mondayStr: string } | null
   >(null);
@@ -184,14 +173,7 @@ export default function DeliverablesCalendarPage() {
   );
 
   return (
-    <div className="flex h-screen">
-      <AppSidebar
-        courses={courses}
-        standaloneVideos={sidebarVideos}
-        pitches={pitches}
-        diagrams={diagrams}
-      />
-
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         <div className="border-b border-border px-6 py-3 flex items-center gap-3">
           <h1 className="text-sm font-semibold">Deliverables Calendar</h1>

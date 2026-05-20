@@ -4,7 +4,7 @@ import { runtimeLive } from "@/services/layer.server";
 import { FileSystem } from "@effect/platform";
 import { Console, Effect } from "effect";
 import { createReadStream, statSync } from "fs";
-import type { Route } from "./+types/videos.$videoId";
+import type { Route } from "./+types/api.videos.$videoId.stream";
 import { data } from "react-router";
 
 export const loader = async (args: Route.LoaderArgs) => {

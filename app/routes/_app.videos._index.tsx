@@ -1,4 +1,4 @@
-import { AppSidebar } from "@/components/app-sidebar";
+import { AddStandaloneVideoModal } from "@/components/add-standalone-video-modal";
 import { DeleteVideoModal } from "@/components/delete-video-modal";
 import { RenameVideoModal } from "@/components/rename-video-modal";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { useContext, useState } from "react";
 import { data, Link, useFetcher, useNavigate } from "react-router";
-import type { Route } from "./+types/videos._index";
+import type { Route } from "./+types/_app.videos._index";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Videos" }];
@@ -41,22 +41,8 @@ export const loader = async () => {
     const db = yield* DBFunctionsService;
     const publishService = yield* CoursePublishService;
 
-    const [
-      courses,
-      videos,
-      sidebarVideos,
-      archivedVideos,
-      sidebarPitches,
-      sidebarDiagrams,
-    ] = yield* Effect.all(
-      [
-        db.getCourses(),
-        db.getAllStandaloneVideos(),
-        db.getStandaloneVideosSidebar(),
-        db.getArchivedStandaloneVideos(),
-        db.listPitches(),
-        db.listDiagrams(),
-      ],
+    const [videos, archivedVideos] = yield* Effect.all(
+      [db.getAllStandaloneVideos(), db.getArchivedStandaloneVideos()],
       { concurrency: "unbounded" }
     );
 
@@ -69,19 +55,9 @@ export const loader = async () => {
     });
 
     return {
-      courses,
       videos,
-      sidebarVideos,
       archivedVideos,
       hasExportedVideoMap,
-      sidebarPitches: sidebarPitches.slice(0, 5).map((p) => ({
-        id: p.id,
-        title: p.title,
-      })),
-      sidebarDiagrams: sidebarDiagrams.slice(0, 5).map((d) => ({
-        id: d.id,
-        name: d.name,
-      })),
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -93,17 +69,8 @@ export const loader = async () => {
 };
 
 export default function Component(props: Route.ComponentProps) {
-  const {
-    courses,
-    videos,
-    sidebarVideos,
-    archivedVideos,
-    hasExportedVideoMap,
-    sidebarPitches,
-    sidebarDiagrams,
-  } = props.loaderData;
+  const { videos, archivedVideos, hasExportedVideoMap } = props.loaderData;
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
-  const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<{
     id: string;
     path: string;
@@ -121,18 +88,7 @@ export default function Component(props: Route.ComponentProps) {
   useFocusRevalidate({ enabled: true });
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <AppSidebar
-        courses={courses}
-        standaloneVideos={sidebarVideos}
-        pitches={sidebarPitches}
-        diagrams={sidebarDiagrams}
-        isAddCourseModalOpen={isAddCourseModalOpen}
-        setIsAddCourseModalOpen={setIsAddCourseModalOpen}
-        isAddStandaloneVideoModalOpen={isAddVideoOpen}
-        setIsAddStandaloneVideoModalOpen={setIsAddVideoOpen}
-      />
-
+    <div className="flex-1 flex flex-col bg-background text-foreground">
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center justify-between mb-8">
@@ -433,6 +389,10 @@ export default function Component(props: Route.ComponentProps) {
           )}
         </div>
       </div>
+      <AddStandaloneVideoModal
+        open={isAddVideoOpen}
+        onOpenChange={setIsAddVideoOpen}
+      />
     </div>
   );
 }

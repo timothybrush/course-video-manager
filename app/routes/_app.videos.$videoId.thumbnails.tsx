@@ -2,7 +2,7 @@ import { DBFunctionsService } from "@/services/db-service.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
 import { data, Link } from "react-router";
-import type { Route } from "./+types/videos.$videoId.thumbnails";
+import type { Route } from "./+types/_app.videos.$videoId.thumbnails";
 import {
   CameraIcon,
   ImageIcon,

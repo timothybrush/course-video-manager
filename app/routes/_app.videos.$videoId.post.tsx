@@ -7,6 +7,12 @@ import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { Array as EffectArray, Console, Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
 import { data, useFetcher } from "react-router";
+import { toast } from "sonner";
+import type { Route } from "./+types/_app.videos.$videoId.post";
+
+export const handle = { fullscreen: true };
+import path from "path";
+import { FileSystem } from "@effect/platform";
 import {
   VideoContextPanel,
   type CourseStructure,
@@ -17,6 +23,7 @@ import {
   DEFAULT_UNCHECKED_PATHS,
 } from "@/services/text-writing-agent";
 import { getStandaloneVideoFilePath } from "@/services/standalone-video-files";
+import { CoursePublishService } from "@/services/course-publish-service";
 import { FilePreviewModal } from "@/components/file-preview-modal";
 import { AddLinkModal } from "@/components/add-link-modal";
 import { StandaloneFileManagementModal } from "@/components/standalone-file-management-modal";
@@ -24,21 +31,33 @@ import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-mod
 import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
 import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
-import { NewsletterPagePanel } from "@/features/video-posting/newsletter-page";
-import type { Route } from "./+types/videos.$videoId.newsletter";
-import path from "path";
-import { FileSystem } from "@effect/platform";
-import { toast } from "sonner";
+import { VideoOffIcon } from "lucide-react";
+import { PostPage } from "@/features/video-posting/post-page";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
     const fs = yield* FileSystem.FileSystem;
-    const [video, globalLinks] = yield* Effect.all(
-      [db.getVideoWithClipsById(videoId), db.getLinks()],
-      { concurrency: "unbounded" }
-    );
+    const publishService = yield* CoursePublishService;
+    const [video, youtubeAuth, globalLinks, videoThumbnails] =
+      yield* Effect.all(
+        [
+          db.getVideoWithClipsById(videoId),
+          db.getYoutubeAuth(),
+          db.getLinks(),
+          db.getThumbnailsByVideoId(videoId),
+        ],
+        { concurrency: "unbounded" }
+      );
+    const videoExists = yield* publishService.isExported(video);
+    const isYoutubeAuthenticated = youtubeAuth !== null;
+
+    const pitch = video.pitchId
+      ? yield* db
+          .getPitch(video.pitchId)
+          .pipe(Effect.catchTag("NotFoundError", () => Effect.succeed(null)))
+      : null;
 
     const lesson = video.lesson;
 
@@ -111,9 +130,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       }
     }
 
-    const kitSequenceUrl =
-      process.env.KIT_SEQUENCE_URL || "https://app.kit.com/sequences/2625552";
-
     // For standalone videos (no lesson), fetch standalone video files
     if (!lesson) {
       const standaloneVideoDir = getStandaloneVideoFilePath(videoId);
@@ -155,13 +171,17 @@ export const loader = async (args: Route.LoaderArgs) => {
 
       return {
         videoPath: video.path,
+        videoExists,
         files: standaloneFiles,
         isStandalone: true,
         transcriptWordCount,
         clipSections: sectionsWithWordCount,
         links: globalLinks,
         courseStructure: null as CourseStructure | null,
-        kitSequenceUrl,
+        isYoutubeAuthenticated,
+        thumbnails: videoThumbnails,
+        pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
+        pitchTweet: pitch?.tweet ?? null,
       };
     }
 
@@ -238,13 +258,17 @@ export const loader = async (args: Route.LoaderArgs) => {
 
     return {
       videoPath: video.path,
+      videoExists,
       files: filesWithMetadata,
       isStandalone: false,
       transcriptWordCount,
       clipSections: sectionsWithWordCount,
       links: globalLinks,
       courseStructure,
-      kitSequenceUrl,
+      isYoutubeAuthenticated,
+      thumbnails: videoThumbnails,
+      pitchYoutubeTitle: pitch?.youtubeTitle ?? null,
+      pitchTweet: pitch?.tweet ?? null,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -267,10 +291,18 @@ const Video = (props: { src: string }) => {
     }
   }, [props.src, ref.current]);
 
-  return <video src={props.src} className="w-full" controls ref={ref} />;
+  return (
+    <video
+      src={props.src}
+      className="w-full"
+      controls
+      preload="none"
+      ref={ref}
+    />
+  );
 };
 
-export default function NewsletterPage(props: Route.ComponentProps) {
+export default function PostPageRoute(props: Route.ComponentProps) {
   const { videoId } = props.params;
   const {
     files,
@@ -279,7 +311,11 @@ export default function NewsletterPage(props: Route.ComponentProps) {
     clipSections,
     links,
     courseStructure,
-    kitSequenceUrl,
+    isYoutubeAuthenticated,
+    thumbnails,
+    videoExists,
+    pitchYoutubeTitle,
+    pitchTweet,
   } = props.loaderData;
 
   // Context panel state
@@ -302,6 +338,7 @@ export default function NewsletterPage(props: Route.ComponentProps) {
   // Delete link fetcher
   const deleteLinkFetcher = useFetcher();
   const openFolderFetcher = useFetcher();
+  const revealVideoFetcher = useFetcher();
 
   useEffect(() => {
     const result = openFolderFetcher.data as { error?: string } | undefined;
@@ -387,20 +424,49 @@ export default function NewsletterPage(props: Route.ComponentProps) {
               action: `/api/links/${linkId}/delete`,
             });
           }}
-          videoSlot={<Video src={`/api/videos/${videoId}/stream`} />}
+          videoSlot={
+            videoExists ? (
+              <Video src={`/api/videos/${videoId}/stream`} />
+            ) : (
+              <div className="w-full aspect-[16/9] bg-card rounded-lg flex flex-col items-center justify-center gap-3">
+                <VideoOffIcon className="size-10 text-muted-foreground" />
+                <p className="text-muted-foreground text-sm text-center px-4">
+                  Video file not found on disk.
+                </p>
+              </div>
+            )
+          }
+          onRevealInFileSystem={
+            videoExists
+              ? () => {
+                  revealVideoFetcher.submit(
+                    {},
+                    {
+                      method: "post",
+                      action: `/api/videos/${videoId}/reveal`,
+                    }
+                  );
+                }
+              : undefined
+          }
         />
 
-        {/* Right panel: Newsletter interface */}
-        <NewsletterPagePanel
-          videoId={videoId}
-          clipSections={clipSections}
-          enabledSections={enabledSections}
-          enabledFiles={enabledFiles}
-          includeTranscript={includeTranscript}
-          includeCourseStructure={includeCourseStructure}
-          courseStructure={courseStructure}
-          kitSequenceUrl={kitSequenceUrl}
-        />
+        {/* Right panel: Tabbed posting interface */}
+        <div className="w-3/4 flex flex-col p-6 overflow-y-auto scrollbar scrollbar-track-transparent scrollbar-thumb-muted hover:scrollbar-thumb-muted-foreground">
+          <PostPage
+            videoId={videoId}
+            isYoutubeAuthenticated={isYoutubeAuthenticated}
+            thumbnails={thumbnails}
+            enabledFiles={enabledFiles}
+            enabledSections={enabledSections}
+            includeTranscript={includeTranscript}
+            courseStructure={courseStructure}
+            includeCourseStructure={includeCourseStructure}
+            clipSections={clipSections}
+            pitchYoutubeTitle={pitchYoutubeTitle}
+            pitchTweet={pitchTweet}
+          />
+        </div>
       </div>
 
       {/* File preview modal */}

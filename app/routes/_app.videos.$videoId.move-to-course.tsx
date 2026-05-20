@@ -1,4 +1,3 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +21,7 @@ import { ArrowRightLeft, Loader2 } from "lucide-react";
 import path from "node:path";
 import { useState } from "react";
 import { data, redirect, Form, useNavigation } from "react-router";
-import type { Route } from "./+types/videos.$videoId.move-to-course";
+import type { Route } from "./+types/_app.videos.$videoId.move-to-course";
 import { buildMoveToCourseRedirectUrl } from "@/lib/move-to-course-redirect";
 
 export const meta: Route.MetaFunction = () => {
@@ -249,9 +248,7 @@ export default function Component(props: Route.ComponentProps) {
     (!isNewLesson || newLessonName.trim().length > 0);
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <AppSidebar courses={courses} standaloneVideos={[]} />
-
+    <div className="flex-1 flex flex-col bg-background text-foreground">
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto p-6">
           <div className="flex items-center gap-2 mb-8">

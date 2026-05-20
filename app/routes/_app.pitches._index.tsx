@@ -1,4 +1,3 @@
-import { AppSidebar } from "@/components/app-sidebar";
 import {
   PrioritySelector,
   PRIORITY_STYLES,
@@ -45,7 +44,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router";
-import type { Route } from "./+types/pitches._index";
+import type { Route } from "./+types/_app.pitches._index";
 
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Pitches" }];
@@ -118,19 +117,10 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const publishService = yield* CoursePublishService;
 
-    const [courses, sidebarVideos, pitchesRaw, sidebarDiagramsRaw] =
-      yield* Effect.all(
-        [
-          db.getCourses(),
-          db.getStandaloneVideosSidebar(),
-          db.listPitchesWithVideos({
-            status: statusFilter,
-            priority: priorityFilter.length > 0 ? priorityFilter : undefined,
-          }),
-          db.listDiagrams(),
-        ],
-        { concurrency: "unbounded" }
-      );
+    const pitchesRaw = yield* db.listPitchesWithVideos({
+      status: statusFilter,
+      priority: priorityFilter.length > 0 ? priorityFilter : undefined,
+    });
 
     const hasExportedVideoMap: Record<string, boolean> = {};
     const allVideos = pitchesRaw.flatMap((p) => p.videos);
@@ -161,17 +151,9 @@ export const loader = async (args: Route.LoaderArgs) => {
       })),
     }));
 
-    const sidebarDiagrams = sidebarDiagramsRaw.slice(0, 5).map((d) => ({
-      id: d.id,
-      name: d.name,
-    }));
-
     return {
-      courses,
-      sidebarVideos,
       pitches,
       hasExportedVideoMap,
-      sidebarDiagrams,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -183,15 +165,7 @@ export const loader = async (args: Route.LoaderArgs) => {
 };
 
 export default function PitchesIndexRoute(props: Route.ComponentProps) {
-  const {
-    courses,
-    sidebarVideos,
-    pitches,
-    hasExportedVideoMap,
-    sidebarDiagrams,
-  } = props.loaderData;
-  const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
-  const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
+  const { pitches, hasExportedVideoMap } = props.loaderData;
   const navigate = useNavigate();
   const createPitchFetcher = useFetcher<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -204,11 +178,6 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
-
-  const sidebarPitches = pitches.slice(0, 5).map((p) => ({
-    id: p.id,
-    title: p.title,
-  }));
 
   const updateFilters = (
     nextStatus: PitchStatus[],
@@ -248,18 +217,7 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
     priorityFilter.length > 0 || !isDefaultStatusFilter(statusFilter);
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <AppSidebar
-        courses={courses}
-        standaloneVideos={sidebarVideos}
-        pitches={sidebarPitches}
-        diagrams={sidebarDiagrams}
-        isAddCourseModalOpen={isAddCourseModalOpen}
-        setIsAddCourseModalOpen={setIsAddCourseModalOpen}
-        isAddStandaloneVideoModalOpen={isAddVideoOpen}
-        setIsAddStandaloneVideoModalOpen={setIsAddVideoOpen}
-      />
-
+    <div className="flex-1 flex flex-col bg-background text-foreground">
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">

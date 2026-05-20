@@ -341,6 +341,19 @@ export const createCourseOperations = (db: DrizzleDB) => {
     return result;
   });
 
+  const getTopActiveCourses = Effect.fn("getTopActiveCourses")(function* (
+    limit: number
+  ) {
+    const result = yield* makeDbCall(() =>
+      db.query.courses.findMany({
+        where: eq(courses.archived, false),
+        orderBy: desc(courses.createdAt),
+        limit,
+      })
+    );
+    return result;
+  });
+
   const getArchivedCourses = Effect.fn("getArchivedCourses")(function* () {
     const result = yield* makeDbCall(() =>
       db.query.courses.findMany({
@@ -726,6 +739,7 @@ export const createCourseOperations = (db: DrizzleDB) => {
     getVideoTranscripts,
     getCourseWithSectionsByFilePath,
     getCourses,
+    getTopActiveCourses,
     getArchivedCourses,
     createCourse,
     createGhostCourse,

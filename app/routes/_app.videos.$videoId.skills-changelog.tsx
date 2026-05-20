@@ -1,14 +1,12 @@
 "use client";
 
 import { DBFunctionsService } from "@/services/db-service.server";
-import { FeatureFlagService } from "@/services/feature-flag-service";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { runtimeLive } from "@/services/layer.server";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { Array as EffectArray, Console, Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
 import { data, useFetcher } from "react-router";
-import { toast } from "sonner";
 import {
   VideoContextPanel,
   type CourseStructure,
@@ -26,28 +24,28 @@ import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-mod
 import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
 import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
 import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
-import { SocialPagePanel } from "@/features/video-posting/social-page";
-import type { Route } from "./+types/videos.$videoId.social";
+import { toast } from "sonner";
+import type { Route } from "./+types/_app.videos.$videoId.skills-changelog";
 import path from "path";
 import { FileSystem } from "@effect/platform";
+import { SkillsChangelogPage } from "@/features/video-posting/skills-changelog-page";
 
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
   return Effect.gen(function* () {
     const db = yield* DBFunctionsService;
     const fs = yield* FileSystem.FileSystem;
-    const featureFlags = yield* FeatureFlagService;
-    const [video, globalLinks] = yield* Effect.all(
-      [db.getVideoWithClipsById(videoId), db.getLinks()],
+    const [video, aiHeroAuth, globalLinks] = yield* Effect.all(
+      [db.getVideoWithClipsById(videoId), db.getAiHeroAuth(), db.getLinks()],
       { concurrency: "unbounded" }
     );
-    const showSocialShareButtons = featureFlags.isEnabled(
-      "ENABLE_SOCIAL_SHARE_BUTTONS"
-    );
+    const aiHero: { connected: true; userId: string } | { connected: false } =
+      aiHeroAuth
+        ? { connected: true, userId: aiHeroAuth.userId }
+        : { connected: false };
 
     const lesson = video.lesson;
 
-    // Build transcript from clips and clip sections
     type ClipItem = { type: "clip"; order: string; text: string | null };
     type ClipSectionItem = {
       type: "clip-section";
@@ -71,7 +69,6 @@ export const loader = async (args: Route.LoaderArgs) => {
 
     const sortedItems = sortByOrder([...clipItems, ...clipSectionItems]);
 
-    // Build formatted transcript with sections as H2 headers
     const transcriptParts: string[] = [];
     let currentParagraph: string[] = [];
 
@@ -94,7 +91,6 @@ export const loader = async (args: Route.LoaderArgs) => {
     const transcript = transcriptParts.join("\n\n").trim();
     const transcriptWordCount = transcript ? transcript.split(/\s+/).length : 0;
 
-    // Calculate word count per section
     const sectionsWithWordCount: SectionWithWordCount[] = [];
     let currentSectionIndex = -1;
 
@@ -116,7 +112,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       }
     }
 
-    // For standalone videos (no lesson), fetch standalone video files
     if (!lesson) {
       const standaloneVideoDir = getStandaloneVideoFilePath(videoId);
       const dirExists = yield* fs.exists(standaloneVideoDir);
@@ -163,7 +158,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         clipSections: sectionsWithWordCount,
         links: globalLinks,
         courseStructure: null as CourseStructure | null,
-        showSocialShareButtons,
+        aiHero,
       };
     }
 
@@ -214,7 +209,6 @@ export const loader = async (args: Route.LoaderArgs) => {
       }
     ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
 
-    // Fetch course structure for non-standalone videos
     const repoWithSections = yield* db.getCourseStructureById(
       section.repoVersion.repoId
     );
@@ -246,7 +240,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       clipSections: sectionsWithWordCount,
       links: globalLinks,
       courseStructure,
-      showSocialShareButtons,
+      aiHero,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -272,7 +266,7 @@ const Video = (props: { src: string }) => {
   return <video src={props.src} className="w-full" controls ref={ref} />;
 };
 
-export default function SocialPage(props: Route.ComponentProps) {
+export default function SkillsChangelogRoute(props: Route.ComponentProps) {
   const { videoId } = props.params;
   const {
     files,
@@ -281,10 +275,9 @@ export default function SocialPage(props: Route.ComponentProps) {
     clipSections,
     links,
     courseStructure,
-    showSocialShareButtons,
+    aiHero,
   } = props.loaderData;
 
-  // Context panel state
   const [enabledFiles, setEnabledFiles] = useState<Set<string>>(() => {
     return new Set(files.filter((f) => f.defaultEnabled).map((f) => f.path));
   });
@@ -294,14 +287,11 @@ export default function SocialPage(props: Route.ComponentProps) {
   });
   const [includeCourseStructure, setIncludeCourseStructure] = useState(false);
 
-  // File preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewFilePath, setPreviewFilePath] = useState<string>("");
 
-  // Add link modal state
   const [isAddLinkModalOpen, setIsAddLinkModalOpen] = useState(false);
 
-  // Delete link fetcher
   const deleteLinkFetcher = useFetcher();
   const openFolderFetcher = useFetcher();
 
@@ -312,7 +302,6 @@ export default function SocialPage(props: Route.ComponentProps) {
     }
   }, [openFolderFetcher.state, openFolderFetcher.data]);
 
-  // Standalone file management state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [selectedFilename, setSelectedFilename] = useState<string>("");
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
@@ -320,7 +309,6 @@ export default function SocialPage(props: Route.ComponentProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>("");
 
-  // Lesson file paste modal state
   const [isLessonPasteModalOpen, setIsLessonPasteModalOpen] = useState(false);
 
   const handleFileClick = (filePath: string) => {
@@ -392,19 +380,20 @@ export default function SocialPage(props: Route.ComponentProps) {
           videoSlot={<Video src={`/api/videos/${videoId}/stream`} />}
         />
 
-        <SocialPagePanel
-          videoId={videoId}
-          clipSections={clipSections}
-          enabledSections={enabledSections}
-          enabledFiles={enabledFiles}
-          includeTranscript={includeTranscript}
-          includeCourseStructure={includeCourseStructure}
-          courseStructure={courseStructure}
-          showSocialShareButtons={showSocialShareButtons}
-        />
+        <div className="w-3/4 flex flex-col p-6 overflow-y-auto scrollbar scrollbar-track-transparent scrollbar-thumb-muted hover:scrollbar-thumb-muted-foreground">
+          <SkillsChangelogPage
+            videoId={videoId}
+            aiHero={aiHero}
+            enabledFiles={enabledFiles}
+            enabledSections={enabledSections}
+            includeTranscript={includeTranscript}
+            courseStructure={courseStructure}
+            includeCourseStructure={includeCourseStructure}
+            clipSections={clipSections}
+          />
+        </div>
       </div>
 
-      {/* File preview modal */}
       <FilePreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
@@ -413,13 +402,11 @@ export default function SocialPage(props: Route.ComponentProps) {
         isStandalone={isStandalone}
       />
 
-      {/* Add link modal */}
       <AddLinkModal
         open={isAddLinkModalOpen}
         onOpenChange={setIsAddLinkModalOpen}
       />
 
-      {/* Standalone file modals */}
       {isStandalone && (
         <>
           <StandaloneFileManagementModal
@@ -447,7 +434,6 @@ export default function SocialPage(props: Route.ComponentProps) {
         </>
       )}
 
-      {/* Lesson file modals */}
       {!isStandalone && (
         <>
           <LessonFilePasteModal

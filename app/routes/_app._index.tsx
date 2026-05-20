@@ -1,6 +1,5 @@
 "use client";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import { CreateSectionModal } from "@/components/create-section-modal";
 import { VideoModal } from "@/components/video-player";
 import { useFocusRevalidate } from "@/hooks/use-focus-revalidate";
@@ -38,7 +37,7 @@ import {
   useSubmit,
 } from "react-router";
 import { useEffectReducer } from "use-effect-reducer";
-import type { Route } from "./+types/_index";
+import type { Route } from "./+types/_app._index";
 import { UploadContext } from "@/features/upload-manager/upload-context";
 import { ActionsDropdown } from "@/features/course-view/actions-menu";
 import { GenerateClipSectionsProvider } from "@/features/course-view/generate-clip-sections-context";
@@ -94,16 +93,10 @@ export const loader = async (args: Route.LoaderArgs) => {
     const db = yield* DBFunctionsService;
     const featureFlags = yield* FeatureFlagService;
 
-    const [courses, standaloneVideos, sidebarPitches, sidebarDiagrams] =
-      yield* Effect.all(
-        [
-          db.getCourses(),
-          db.getStandaloneVideosSidebar(),
-          db.listPitches(),
-          db.listDiagrams(),
-        ],
-        { concurrency: "unbounded" }
-      );
+    const [courses, standaloneVideos] = yield* Effect.all(
+      [db.getCourses(), db.getStandaloneVideosSidebar()],
+      { concurrency: "unbounded" }
+    );
 
     let versions: Awaited<
       ReturnType<typeof db.getCourseVersions>
@@ -224,14 +217,6 @@ export const loader = async (args: Route.LoaderArgs) => {
     return {
       courses,
       standaloneVideos,
-      sidebarPitches: sidebarPitches.slice(0, 5).map((p) => ({
-        id: p.id,
-        title: p.title,
-      })),
-      sidebarDiagrams: sidebarDiagrams.slice(0, 5).map((d) => ({
-        id: d.id,
-        name: d.name,
-      })),
       selectedCourse: slimCourse,
       versions,
       selectedVersion,
@@ -317,9 +302,7 @@ function ComponentInner(props: Route.ComponentProps) {
   }, [displaySections, loaderData.isLatestVersion]);
 
   const {
-    isAddCourseModalOpen,
     isCreateSectionModalOpen,
-    isAddStandaloneVideoModalOpen,
     addGhostLessonSectionId,
     insertAdjacentLessonId,
     insertPosition,
@@ -409,24 +392,7 @@ function ComponentInner(props: Route.ComponentProps) {
 
   return (
     <GenerateClipSectionsProvider>
-      <div className="flex h-screen bg-background text-foreground">
-        <AppSidebar
-          courses={courses}
-          standaloneVideos={loaderData.standaloneVideos}
-          pitches={loaderData.sidebarPitches}
-          diagrams={loaderData.sidebarDiagrams}
-          selectedCourseId={selectedCourseId}
-          isAddCourseModalOpen={isAddCourseModalOpen}
-          setIsAddCourseModalOpen={(open) =>
-            dispatch({ type: "set-add-course-modal-open", open })
-          }
-          isAddStandaloneVideoModalOpen={isAddStandaloneVideoModalOpen}
-          setIsAddStandaloneVideoModalOpen={(open) =>
-            dispatch({ type: "set-add-standalone-video-modal-open", open })
-          }
-        />
-
-        {/* Main Content Area */}
+      <div className="flex-1 flex flex-col bg-background text-foreground">
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
             {currentCourse ? (

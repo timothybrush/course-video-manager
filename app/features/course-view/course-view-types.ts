@@ -1,4 +1,4 @@
-import type { Route } from "../../routes/+types/_index";
+import type { Route } from "../../routes/+types/_app._index";
 
 export type LoaderData = Route.ComponentProps["loaderData"];
 export type Section = NonNullable<
