@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { z } from "zod";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
@@ -75,8 +75,21 @@ query($owner:String!,$repo:String!,$number:Int!) {
 }`;
 
 const [owner, repo] = required("GH_REPO").split("/");
-const threadsJson = sh(
-  `gh api graphql -F owner=${owner} -F repo=${repo} -F number=${PR_NUMBER} -f query=${JSON.stringify(graphqlQuery)}`
+const threadsJson = execFileSync(
+  "gh",
+  [
+    "api",
+    "graphql",
+    "-F",
+    `owner=${owner}`,
+    "-F",
+    `repo=${repo}`,
+    "-F",
+    `number=${PR_NUMBER}`,
+    "-f",
+    `query=${graphqlQuery}`,
+  ],
+  { encoding: "utf8" }
 );
 const threadsParsed = z
   .object({
