@@ -61,6 +61,34 @@ index aaa..bbb 100644
  ctx 23
 `;
 
+const newFileDiff = `diff --git a/app/new.ts b/app/new.ts
+new file mode 100644
+index 0000000..abc1234
+--- /dev/null
++++ b/app/new.ts
+@@ -0,0 +1,3 @@
++line 1
++line 2
++line 3
+`;
+
+const noNewlineDiff = `diff --git a/app/trail.ts b/app/trail.ts
+index abc..def 100644
+--- a/app/trail.ts
++++ b/app/trail.ts
+@@ -1,3 +1,3 @@
+ line 1
+-old line 2
++new line 2
+ line 3
+\\ No newline at end of file
+`;
+
+const modeOnlyDiff = `diff --git a/app/script.sh b/app/script.sh
+old mode 100644
+new mode 100755
+`;
+
 describe("parseDiffLines", () => {
   it("returns valid right-side line numbers from a simple diff", () => {
     const result = parseDiffLines(simpleDiff);
@@ -94,5 +122,20 @@ describe("parseDiffLines", () => {
 
   it("returns empty map for whitespace-only diff", () => {
     expect(parseDiffLines("   \n\n  ")).toEqual(new Map());
+  });
+
+  it("handles new file diffs", () => {
+    const result = parseDiffLines(newFileDiff);
+    expect(result.get("app/new.ts")).toEqual(new Set([1, 2, 3]));
+  });
+
+  it("skips the no-newline-at-end-of-file marker without breaking line counts", () => {
+    const result = parseDiffLines(noNewlineDiff);
+    expect(result.get("app/trail.ts")).toEqual(new Set([1, 2, 3]));
+  });
+
+  it("handles mode-only changes with no hunks", () => {
+    const result = parseDiffLines(modeOnlyDiff);
+    expect(result.get("app/script.sh")).toEqual(new Set());
   });
 });
