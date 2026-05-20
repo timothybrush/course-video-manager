@@ -89,6 +89,26 @@ old mode 100644
 new mode 100755
 `;
 
+const renamedFileDiff = `diff --git a/app/old-name.ts b/app/new-name.ts
+similarity index 80%
+rename from app/old-name.ts
+rename to app/new-name.ts
+index abc..def 100644
+--- a/app/old-name.ts
++++ b/app/new-name.ts
+@@ -1,3 +1,4 @@
+ line 1
++added line 2
+ line 3
+ line 4
+`;
+
+const binaryFileDiff = `diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+index 0000000..abc1234
+Binary files /dev/null and b/assets/logo.png differ
+`;
+
 describe("parseDiffLines", () => {
   it("returns valid right-side line numbers from a simple diff", () => {
     const result = parseDiffLines(simpleDiff);
@@ -137,5 +157,16 @@ describe("parseDiffLines", () => {
   it("handles mode-only changes with no hunks", () => {
     const result = parseDiffLines(modeOnlyDiff);
     expect(result.get("app/script.sh")).toEqual(new Set());
+  });
+
+  it("handles renamed files using the new path", () => {
+    const result = parseDiffLines(renamedFileDiff);
+    expect(result.has("app/old-name.ts")).toBe(false);
+    expect(result.get("app/new-name.ts")).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it("handles binary files with no line content", () => {
+    const result = parseDiffLines(binaryFileDiff);
+    expect(result.get("assets/logo.png")).toEqual(new Set());
   });
 });
