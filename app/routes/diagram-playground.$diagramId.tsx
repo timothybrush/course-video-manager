@@ -9,15 +9,7 @@ import {
   sendToParent,
   type ParentToChildMessage,
 } from "@/lib/diagram-protocol";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { RestoreSnapshotDialog } from "@/features/diagrams/restore-snapshot-dialog";
 import { DiagramThumbnail } from "@/features/diagrams/diagram-thumbnail";
 import { renderThumbnailPngBase64 } from "@/features/diagrams/render-thumbnail";
 import { usePreserveSnapshotShortcut } from "@/features/diagrams/preserve-snapshot-shortcut";
@@ -54,6 +46,7 @@ export default function DiagramPlaygroundActive({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeDiagramId = useRef<string | null>(diagramId ?? null);
   const [preserving, setPreserving] = useState(false);
+  const preservingRef = useRef(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pendingRestore, setPendingRestore] = useState<Snapshot | null>(null);
@@ -159,10 +152,12 @@ export default function DiagramPlaygroundActive({
   );
 
   const preserveSnapshot = useCallback(async () => {
+    if (preservingRef.current) return;
     const id = activeDiagramId.current;
     const ed = editorRef.current;
     if (!id || !ed) return;
 
+    preservingRef.current = true;
     setPreserving(true);
     try {
       if (saveTimer.current) {
@@ -199,6 +194,7 @@ export default function DiagramPlaygroundActive({
     } catch {
       toast.error("Failed to preserve snapshot");
     } finally {
+      preservingRef.current = false;
       setPreserving(false);
     }
   }, [saveHead]);
@@ -631,36 +627,11 @@ export default function DiagramPlaygroundActive({
           </div>
         </div>
       )}
-      <Dialog
-        open={pendingRestore !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingRestore(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Restore snapshot?</DialogTitle>
-            <DialogDescription>
-              The current canvas has not been saved as a preserved snapshot.
-              Restoring will replace it and you won't be able to recover it.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPendingRestore(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                const snap = pendingRestore;
-                setPendingRestore(null);
-                if (snap) performRestore(snap);
-              }}
-            >
-              Restore
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RestoreSnapshotDialog
+        pendingRestore={pendingRestore}
+        onDismiss={() => setPendingRestore(null)}
+        onConfirm={performRestore}
+      />
     </div>
   );
 }

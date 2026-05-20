@@ -5,6 +5,24 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+const statusConfig = {
+  disconnected: {
+    label: "Not connected to a video editor",
+    Icon: AlertTriangle,
+    palette: "bg-amber-900/80 text-amber-300",
+  },
+  pinning: {
+    label: "Diagram focused — snapshots will pin to clips ending now",
+    Icon: Pin,
+    palette: "bg-emerald-700/80 text-emerald-100",
+  },
+  connected: {
+    label: "Connected to video editor — focus this window to pin snapshots",
+    Icon: Link2,
+    palette: "bg-zinc-700/80 text-zinc-300",
+  },
+};
+
 export function ConnectionStatusIndicator({
   editorConnected,
   windowFocused,
@@ -17,24 +35,7 @@ export function ConnectionStatusIndicator({
     : windowFocused
       ? "pinning"
       : "connected";
-  const label =
-    status === "disconnected"
-      ? "Not connected to a video editor"
-      : status === "pinning"
-        ? "Diagram focused — snapshots will pin to clips ending now"
-        : "Connected to video editor — focus this window to pin snapshots";
-  const Icon =
-    status === "disconnected"
-      ? AlertTriangle
-      : status === "pinning"
-        ? Pin
-        : Link2;
-  const palette =
-    status === "disconnected"
-      ? "bg-amber-900/80 text-amber-300"
-      : status === "pinning"
-        ? "bg-emerald-700/80 text-emerald-100"
-        : "bg-zinc-700/80 text-zinc-300";
+  const { label, Icon, palette } = statusConfig[status];
   return (
     <Tooltip>
       <TooltipTrigger asChild>
