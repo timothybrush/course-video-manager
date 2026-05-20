@@ -13,7 +13,7 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       "**/.react-router/**",
-      "**/.sandcastle/**",
+      "**/.sandcastle/worktrees/**",
     ],
     pool: "forks",
     poolOptions: {

@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { execSync, execFileSync } from "node:child_process";
 import { z } from "zod";
 import * as sandcastle from "@ai-hero/sandcastle";
+import { parseDiffLines } from "./parse-diff-lines";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 
 const PR_NUMBER = required("PR_NUMBER");
@@ -208,11 +209,18 @@ if (result.output.verdict === "clean" && result.commits.length > 0) {
   );
 }
 
-const diffPaths = parseChangedFilesFromDiff();
+const diffLines = parseDiffLines(safeSh("git diff main..HEAD"));
 const validInlineComments = result.output.inlineComments.filter((c) => {
-  if (!diffPaths.has(c.path)) {
+  const fileLines = diffLines.get(c.path);
+  if (!fileLines) {
     console.warn(
       `Dropping inline comment for ${c.path}:${c.line} — file not in diff.`
+    );
+    return false;
+  }
+  if (!fileLines.has(c.line)) {
+    console.warn(
+      `Dropping inline comment for ${c.path}:${c.line} — line not in diff hunks.`
     );
     return false;
   }
@@ -259,16 +267,6 @@ console.log(`  verdict: ${result.output.verdict}`);
 console.log(`  commits: ${result.commits.length}`);
 console.log(`  inline comments: ${validInlineComments.length}`);
 console.log(`  replies: ${validReplies.length}`);
-
-function parseChangedFilesFromDiff(): Set<string> {
-  const out = safeSh("git diff --name-only main..HEAD");
-  return new Set(
-    out
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-  );
-}
 
 function sh(cmd: string): string {
   return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
