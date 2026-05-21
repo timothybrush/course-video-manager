@@ -3,7 +3,7 @@ import { stripEmojis } from "./strip-emojis";
 
 describe("stripEmojis", () => {
   it("removes common emojis from text", () => {
-    expect(stripEmojis("Hello 🌍 World 🎉")).toBe("Hello World ");
+    expect(stripEmojis("Hello 🌍 World 🎉")).toBe("Hello World");
   });
 
   it("preserves plain text without emojis", () => {
@@ -34,6 +34,14 @@ describe("stripEmojis", () => {
 
   it("removes number-style emojis like keycap sequences", () => {
     expect(stripEmojis("Step 1️⃣: Do something")).toBe("Step 1: Do something");
+  });
+
+  it("strips leading spaces left by emojis at line start", () => {
+    expect(stripEmojis("🎬 Learn TypeScript")).toBe("Learn TypeScript");
+  });
+
+  it("strips trailing spaces left by emojis at line end", () => {
+    expect(stripEmojis("Hello World 🎉")).toBe("Hello World");
   });
 
   it("handles empty string", () => {
