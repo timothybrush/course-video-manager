@@ -109,6 +109,16 @@ index 0000000..abc1234
 Binary files /dev/null and b/assets/logo.png differ
 `;
 
+const contentStartingWithPlusDiff = `diff --git a/app/plus.ts b/app/plus.ts
+index abc..def 100644
+--- a/app/plus.ts
++++ b/app/plus.ts
+@@ -1,2 +1,3 @@
+ line 1
++++ added content starting with double plus
+ line 2
+`;
+
 describe("parseDiffLines", () => {
   it("returns valid right-side line numbers from a simple diff", () => {
     const result = parseDiffLines(simpleDiff);
@@ -168,5 +178,10 @@ describe("parseDiffLines", () => {
   it("handles binary files with no line content", () => {
     const result = parseDiffLines(binaryFileDiff);
     expect(result.get("assets/logo.png")).toEqual(new Set());
+  });
+
+  it("handles added lines whose content starts with ++", () => {
+    const result = parseDiffLines(contentStartingWithPlusDiff);
+    expect(result.get("app/plus.ts")).toEqual(new Set([1, 2, 3]));
   });
 });
