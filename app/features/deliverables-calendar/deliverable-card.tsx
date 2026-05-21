@@ -73,7 +73,7 @@ function CourseContextMenu({
       <ContextMenuTrigger className="cursor-context-menu">
         <CourseBadge course={course} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-56 max-h-[min(20rem,var(--radix-context-menu-content-available-height))]">
         <ContextMenuLabel>Change course</ContextMenuLabel>
         <ContextMenuSeparator />
         <ContextMenuRadioGroup
@@ -140,7 +140,7 @@ function PitchContextMenu({
       <ContextMenuTrigger className="cursor-context-menu">
         <PitchBadge pitch={pitch} />
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-72">
+      <ContextMenuContent className="w-72 max-h-[min(20rem,var(--radix-context-menu-content-available-height))]">
         <ContextMenuLabel>Change pitch</ContextMenuLabel>
         <ContextMenuSeparator />
         <ContextMenuRadioGroup
