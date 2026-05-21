@@ -9,7 +9,7 @@ import {
   type CourseOption,
   type PitchOption,
 } from "@/features/deliverables-calendar/deliverable-form";
-import { WeekActionsMenu } from "@/features/deliverables-calendar/week-actions-menu";
+import { WeekContextMenu } from "@/features/deliverables-calendar/week-actions-menu";
 import {
   groupDeliverables,
   type DeliverableForGrouping,
@@ -152,7 +152,10 @@ function HistoryDisclosure({
 export default function DeliverablesCalendarPage() {
   const { deliverables, courses, pitches } = useLoaderData<typeof loader>();
   const [createForm, setCreateForm] = useState<
-    { kind: "top" } | { kind: "week"; mondayStr: string } | null
+    | { kind: "top" }
+    | { kind: "week"; mondayStr: string }
+    | { kind: "day"; mondayStr: string; dateStr: string }
+    | null
   >(null);
 
   const today = new Date();
@@ -217,78 +220,94 @@ export default function DeliverablesCalendarPage() {
                 g.week === todayWeek.week && g.year === todayWeek.year;
               const mondayStr = formatDateStr(isoWeekStart(g.week, g.year));
               const showWeekForm =
-                createForm?.kind === "week" &&
-                createForm.mondayStr === mondayStr;
+                (createForm?.kind === "week" &&
+                  createForm.mondayStr === mondayStr) ||
+                (createForm?.kind === "day" &&
+                  createForm.mondayStr === mondayStr);
+              const formInitialDate =
+                createForm?.kind === "day" ? createForm.dateStr : mondayStr;
               return (
-                <section key={`${g.year}-${g.week}`}>
-                  <header className="flex items-center gap-3 mb-2">
-                    {isThisWeek ? (
-                      <CircleIcon className="size-2 fill-foreground text-foreground" />
-                    ) : (
-                      <span className="size-2 inline-block rounded-full border border-muted-foreground/40" />
-                    )}
-                    <h3
-                      className={cn(
-                        "text-[11px] uppercase tracking-wider font-medium",
-                        isThisWeek ? "text-foreground" : "text-muted-foreground"
+                <WeekContextMenu
+                  key={`${g.year}-${g.week}`}
+                  items={g.items}
+                  onAddNew={() => setCreateForm({ kind: "week", mondayStr })}
+                >
+                  <section className="cursor-context-menu">
+                    <header className="flex items-center gap-3 mb-2">
+                      {isThisWeek ? (
+                        <CircleIcon className="size-2 fill-foreground text-foreground" />
+                      ) : (
+                        <span className="size-2 inline-block rounded-full border border-muted-foreground/40" />
                       )}
-                    >
-                      Week {g.week}
-                      {isThisWeek
-                        ? " · this week"
-                        : ` · ${isoWeekStart(g.week, g.year).toLocaleDateString(
-                            undefined,
-                            { month: "short", day: "numeric" }
-                          )}`}
-                    </h3>
-                    {g.overdueCount > 0 && (
-                      <span className="text-[10px] text-red-600 dark:text-red-400">
-                        {g.overdueCount} overdue
-                      </span>
-                    )}
-                    <WeekActionsMenu
-                      items={g.items}
-                      onAddNew={() =>
-                        setCreateForm({ kind: "week", mondayStr })
-                      }
-                    />
-                    <div
-                      className={cn(
-                        "h-px flex-1",
-                        isThisWeek ? "bg-foreground/30" : "bg-border"
+                      <h3
+                        className={cn(
+                          "text-[11px] uppercase tracking-wider font-medium",
+                          isThisWeek
+                            ? "text-foreground"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        Week {g.week}
+                        {isThisWeek
+                          ? " · this week"
+                          : ` · ${isoWeekStart(
+                              g.week,
+                              g.year
+                            ).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                            })}`}
+                      </h3>
+                      {g.overdueCount > 0 && (
+                        <span className="text-[10px] text-red-600 dark:text-red-400">
+                          {g.overdueCount} overdue
+                        </span>
                       )}
-                    />
-                  </header>
-                  {showWeekForm && (
-                    <div className="mb-2">
-                      <DeliverableForm
-                        initialDate={mondayStr}
-                        onClose={() => setCreateForm(null)}
-                        allCourses={courses}
-                        allPitches={pitches}
+                      <div
+                        className={cn(
+                          "h-px flex-1",
+                          isThisWeek ? "bg-foreground/30" : "bg-border"
+                        )}
                       />
-                    </div>
-                  )}
-                  {g.items.length > 0 ? (
-                    <ul className="space-y-2">
-                      {g.items.map((d) => (
-                        <DeliverableCard
-                          key={d.id}
-                          d={d}
-                          todayStr={todayStr}
+                    </header>
+                    {showWeekForm && (
+                      <div className="mb-2">
+                        <DeliverableForm
+                          initialDate={formInitialDate}
+                          onClose={() => setCreateForm(null)}
                           allCourses={courses}
                           allPitches={pitches}
                         />
-                      ))}
-                    </ul>
-                  ) : (
-                    !showWeekForm && (
-                      <p className="text-xs text-muted-foreground italic pl-5">
-                        No deliverables
-                      </p>
-                    )
-                  )}
-                </section>
+                      </div>
+                    )}
+                    {g.items.length > 0 ? (
+                      <ul className="space-y-2">
+                        {g.items.map((d) => (
+                          <DeliverableCard
+                            key={d.id}
+                            d={d}
+                            todayStr={todayStr}
+                            allCourses={courses}
+                            allPitches={pitches}
+                            onAddNewForDate={(dateStr) =>
+                              setCreateForm({
+                                kind: "day",
+                                mondayStr,
+                                dateStr,
+                              })
+                            }
+                          />
+                        ))}
+                      </ul>
+                    ) : (
+                      !showWeekForm && (
+                        <p className="text-xs text-muted-foreground italic pl-5">
+                          No deliverables
+                        </p>
+                      )
+                    )}
+                  </section>
+                </WeekContextMenu>
               );
             })}
           </div>
