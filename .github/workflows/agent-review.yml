@@ -96,6 +96,10 @@ jobs:
             "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews" \
             --input "$PAYLOAD"
 
+      - name: Mark PR ready for review
+        if: success()
+        run: gh pr ready "$PR_NUMBER" || true
+
       - name: Post thread replies
         if: success()
         env:
