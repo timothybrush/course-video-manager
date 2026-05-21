@@ -141,13 +141,24 @@ jobs:
         if: steps.preflight.outputs.refused != 'true' && success()
         env:
           PR_NUMBER: ${{ steps.open_pr.outputs.pr_number }}
-          # Use AGENT_PAT so the labeled event triggers agent-review.yml.
-          # GITHUB_TOKEN-driven label adds do not trigger downstream workflows.
-          # If AGENT_PAT is unset, fall back to GITHUB_TOKEN and a human will
-          # need to re-add `agent:review` manually to fire the review workflow.
-          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          # Prefer AGENT_PAT so the labeled event triggers agent-review.yml
+          # (GITHUB_TOKEN-driven label adds do not trigger downstream workflows).
+          # Fall back to GITHUB_TOKEN if AGENT_PAT is unset or lacks
+          # pull-requests permission; in that case a human will need to
+          # re-add `agent:review` manually to fire the review workflow.
+          AGENT_PAT: ${{ secrets.AGENT_PAT }}
+          GITHUB_TOKEN_FALLBACK: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit "$PR_NUMBER" --add-label "agent:review"
+          set +e
+          if [ -n "$AGENT_PAT" ]; then
+            GH_TOKEN="$AGENT_PAT" gh pr edit "$PR_NUMBER" --add-label "agent:review"
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            echo "AGENT_PAT label add failed (status $status); falling back to GITHUB_TOKEN."
+          fi
+          GH_TOKEN="$GITHUB_TOKEN_FALLBACK" gh pr edit "$PR_NUMBER" --add-label "agent:review"
 
       - name: Mark blocked on failure
         if: steps.preflight.outputs.refused != 'true' && failure()
