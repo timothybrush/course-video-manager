@@ -3,6 +3,7 @@ export interface SSEUploadParams {
   title: string;
   description: string;
   privacyStatus: "public" | "unlisted";
+  thumbnailId: string;
 }
 
 export interface SSEUploadCallbacks {
@@ -43,6 +44,7 @@ const performSSEUpload = async (
       title: params.title,
       description: params.description,
       privacyStatus: params.privacyStatus,
+      thumbnailId: params.thumbnailId,
     }),
     signal,
   });

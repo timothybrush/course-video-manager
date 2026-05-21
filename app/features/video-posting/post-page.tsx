@@ -37,6 +37,7 @@ import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { PostPageOverwriteDialog } from "./post-page-overwrite-dialog";
 import { ThumbnailSelector } from "./post-page-thumbnail-selector";
 import { validateYoutubeTitle } from "./post-page-validation";
+import { getAutoSelectThumbnailId } from "./auto-select-thumbnail";
 
 const POST_TITLE_STORAGE_KEY = (videoId: string) => `post-title-${videoId}`;
 const POST_DESCRIPTION_STORAGE_KEY = (videoId: string) =>
@@ -58,7 +59,7 @@ export function PostPage({
 }: {
   videoId: string;
   isYoutubeAuthenticated: boolean;
-  thumbnails: Array<{ id: string; selectedForUpload: boolean }>;
+  thumbnails: Array<{ id: string }>;
   enabledFiles: Set<string>;
   enabledSections: Set<string>;
   includeTranscript: boolean;
@@ -243,7 +244,10 @@ export function PostPage({
   };
 
   const titleValidationError = validateYoutubeTitle(title);
-  const selectedThumbnail = thumbnails.find((t) => t.selectedForUpload);
+
+  const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(
+    () => getAutoSelectThumbnailId(thumbnails)
+  );
 
   const [isCheckingExport, setIsCheckingExport] = useState(false);
 
@@ -251,7 +255,7 @@ export function PostPage({
     if (
       !title.trim() ||
       !description.trim() ||
-      !selectedThumbnail ||
+      !selectedThumbnailId ||
       titleValidationError
     )
       return;
@@ -262,13 +266,26 @@ export function PostPage({
       const { exists } = await res.json();
 
       if (exists) {
-        globalStartUpload(videoId, title, description, privacyStatus);
+        globalStartUpload(
+          videoId,
+          title,
+          description,
+          privacyStatus,
+          selectedThumbnailId
+        );
         toast("Upload started", {
           description: `"${title}" is uploading to YouTube`,
         });
       } else {
         const exportId = startExportUpload(videoId, title);
-        globalStartUpload(videoId, title, description, privacyStatus, exportId);
+        globalStartUpload(
+          videoId,
+          title,
+          description,
+          privacyStatus,
+          selectedThumbnailId,
+          exportId
+        );
         toast("Export + upload started", {
           description: `"${title}" will export first, then upload to YouTube`,
         });
@@ -495,7 +512,12 @@ export function PostPage({
         </div>
 
         {/* Thumbnail selection */}
-        <ThumbnailSelector videoId={videoId} thumbnails={thumbnails} />
+        <ThumbnailSelector
+          videoId={videoId}
+          thumbnails={thumbnails}
+          selectedThumbnailId={selectedThumbnailId}
+          onSelectThumbnail={setSelectedThumbnailId}
+        />
 
         {/* Upload section */}
         <div className="space-y-3">
@@ -506,7 +528,7 @@ export function PostPage({
               isCheckingExport ||
               !title.trim() ||
               !description.trim() ||
-              !selectedThumbnail ||
+              !selectedThumbnailId ||
               !!titleValidationError
             }
             className="w-full"
@@ -530,7 +552,7 @@ export function PostPage({
             )}
           </Button>
 
-          {!selectedThumbnail && uploadStatus !== "uploading" && (
+          {!selectedThumbnailId && uploadStatus !== "uploading" && (
             <p className="text-sm text-muted-foreground text-center">
               {thumbnails.length === 0
                 ? "Create and select a thumbnail before uploading."

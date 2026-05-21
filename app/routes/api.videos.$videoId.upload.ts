@@ -20,6 +20,8 @@ export const action = async (args: Route.ActionArgs) => {
       : body.description;
   const privacyStatus: "public" | "unlisted" =
     body.privacyStatus === "public" ? "public" : "unlisted";
+  const thumbnailId: string | undefined =
+    typeof body.thumbnailId === "string" ? body.thumbnailId : undefined;
 
   if (!title || !description) {
     return Response.json(
@@ -28,14 +30,22 @@ export const action = async (args: Route.ActionArgs) => {
     );
   }
 
-  // Validate that a thumbnail is selected
+  if (!thumbnailId) {
+    return Response.json(
+      { error: "A thumbnail must be selected before uploading" },
+      { status: 400 }
+    );
+  }
+
   const selectedThumbnail = await Effect.gen(function* () {
     const db = yield* DBFunctionsService;
-    const thumbnails = yield* db.getThumbnailsByVideoId(videoId);
-    return thumbnails.find((t) => t.selectedForUpload) ?? null;
-  }).pipe(runtimeLive.runPromise);
+    return yield* db.getThumbnailById(thumbnailId);
+  }).pipe(
+    Effect.catchTag("NotFoundError", () => Effect.succeed(null)),
+    runtimeLive.runPromise
+  );
 
-  if (!selectedThumbnail?.filePath) {
+  if (!selectedThumbnail?.filePath || selectedThumbnail.videoId !== videoId) {
     return Response.json(
       { error: "A thumbnail must be selected before uploading" },
       { status: 400 }

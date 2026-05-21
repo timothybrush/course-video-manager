@@ -94,42 +94,6 @@ export const createThumbnailOperations = (db: DrizzleDB) => {
     return updated;
   });
 
-  const selectThumbnailForUpload = Effect.fn("selectThumbnailForUpload")(
-    function* (thumbnailId: string, videoId: string) {
-      yield* makeDbCall(() =>
-        db
-          .update(thumbnails)
-          .set({ selectedForUpload: false })
-          .where(eq(thumbnails.videoId, videoId))
-      );
-      const [updated] = yield* makeDbCall(() =>
-        db
-          .update(thumbnails)
-          .set({ selectedForUpload: true })
-          .where(eq(thumbnails.id, thumbnailId))
-          .returning()
-      );
-      if (!updated) {
-        return yield* new NotFoundError({
-          type: "selectThumbnailForUpload",
-          params: { thumbnailId },
-        });
-      }
-      return updated;
-    }
-  );
-
-  const deselectAllThumbnails = Effect.fn("deselectAllThumbnails")(function* (
-    videoId: string
-  ) {
-    yield* makeDbCall(() =>
-      db
-        .update(thumbnails)
-        .set({ selectedForUpload: false })
-        .where(eq(thumbnails.videoId, videoId))
-    );
-  });
-
   const deleteThumbnail = Effect.fn("deleteThumbnail")(function* (
     thumbnailId: string
   ) {
@@ -152,8 +116,6 @@ export const createThumbnailOperations = (db: DrizzleDB) => {
     createThumbnail,
     getThumbnailById,
     updateThumbnail,
-    selectThumbnailForUpload,
-    deselectAllThumbnails,
     deleteThumbnail,
   };
 };

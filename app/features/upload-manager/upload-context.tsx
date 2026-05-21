@@ -25,6 +25,7 @@ export interface UploadContextType {
     title: string,
     description: string,
     privacyStatus: "public" | "unlisted",
+    thumbnailId: string,
     dependsOn?: string
   ) => string;
   startSocialUpload: (
@@ -78,9 +79,16 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
   const previousUploadsRef = useRef<uploadReducer.State["uploads"]>({});
 
-  // Stores description + privacyStatus for YouTube retries
+  // Stores description + privacyStatus + thumbnailId for YouTube retries
   const uploadParamsRef = useRef<
-    Map<string, { description: string; privacyStatus: "public" | "unlisted" }>
+    Map<
+      string,
+      {
+        description: string;
+        privacyStatus: "public" | "unlisted";
+        thumbnailId: string;
+      }
+    >
   >(new Map());
 
   // Stores caption for Buffer retries
@@ -115,7 +123,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       videoId: string,
       title: string,
       description: string,
-      privacyStatus: "public" | "unlisted"
+      privacyStatus: "public" | "unlisted",
+      thumbnailId: string
     ) => {
       const existing = abortControllersRef.current.get(uploadId);
       if (existing) {
@@ -123,7 +132,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       }
 
       const abortController = startSSEUpload(
-        { videoId, title, description, privacyStatus },
+        { videoId, title, description, privacyStatus, thumbnailId },
         {
           onProgress: (percentage) => {
             dispatch({
@@ -202,11 +211,16 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       title: string,
       description: string,
       privacyStatus: "public" | "unlisted",
+      thumbnailId: string,
       dependsOn?: string
     ) => {
       const uploadId = generateUploadId();
 
-      uploadParamsRef.current.set(uploadId, { description, privacyStatus });
+      uploadParamsRef.current.set(uploadId, {
+        description,
+        privacyStatus,
+        thumbnailId,
+      });
 
       dispatch({
         type: "START_UPLOAD",
@@ -222,7 +236,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           videoId,
           title,
           description,
-          privacyStatus
+          privacyStatus,
+          thumbnailId
         );
       }
 
@@ -529,7 +544,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               upload.videoId,
               upload.title,
               params.description,
-              params.privacyStatus
+              params.privacyStatus,
+              params.thumbnailId
             );
           }
         } else if (upload.uploadType === "ai-hero") {
@@ -589,7 +605,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               upload.videoId,
               upload.title,
               params.description,
-              params.privacyStatus
+              params.privacyStatus,
+              params.thumbnailId
             );
           }
         } else if (upload.uploadType === "ai-hero") {

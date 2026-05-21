@@ -1,41 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { Link, useRevalidator } from "react-router";
+import { Link } from "react-router";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { CheckIcon, ImageIcon, Loader2Icon, PlusIcon } from "lucide-react";
+import { CheckIcon, ImageIcon, PlusIcon } from "lucide-react";
 
 export function ThumbnailSelector({
   videoId,
   thumbnails,
+  selectedThumbnailId,
+  onSelectThumbnail,
 }: {
   videoId: string;
-  thumbnails: Array<{ id: string; selectedForUpload: boolean }>;
+  thumbnails: Array<{ id: string }>;
+  selectedThumbnailId: string | null;
+  onSelectThumbnail: (id: string | null) => void;
 }) {
-  const [selectingThumbnailId, setSelectingThumbnailId] = useState<
-    string | null
-  >(null);
-  const { revalidate } = useRevalidator();
-
-  const handleSelectThumbnail = async (thumbnailId: string) => {
-    const isCurrentlySelected = thumbnails.find(
-      (t) => t.id === thumbnailId
-    )?.selectedForUpload;
-
-    setSelectingThumbnailId(thumbnailId);
-    try {
-      const endpoint = isCurrentlySelected ? "deselect" : "select";
-      const response = await fetch(
-        `/api/thumbnails/${thumbnailId}/${endpoint}`,
-        { method: "POST" }
-      );
-      if (response.ok) {
-        revalidate();
-      }
-    } finally {
-      setSelectingThumbnailId(null);
-    }
+  const handleToggle = (thumbnailId: string) => {
+    onSelectThumbnail(thumbnailId === selectedThumbnailId ? null : thumbnailId);
   };
 
   return (
@@ -55,34 +37,31 @@ export function ThumbnailSelector({
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            {thumbnails.map((thumbnail) => (
-              <button
-                key={thumbnail.id}
-                onClick={() => handleSelectThumbnail(thumbnail.id)}
-                disabled={selectingThumbnailId !== null}
-                className={`relative aspect-video rounded-lg overflow-hidden border-2 transition-all ${
-                  thumbnail.selectedForUpload
-                    ? "border-primary ring-2 ring-primary/30"
-                    : "border-transparent hover:border-muted-foreground/30"
-                }`}
-              >
-                <img
-                  src={`/api/thumbnails/${thumbnail.id}/image`}
-                  alt="Thumbnail"
-                  className="w-full h-full object-cover"
-                />
-                {thumbnail.selectedForUpload && (
-                  <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
-                    <CheckIcon className="h-3 w-3" />
-                  </div>
-                )}
-                {selectingThumbnailId === thumbnail.id && (
-                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
-                    <Loader2Icon className="h-5 w-5 animate-spin" />
-                  </div>
-                )}
-              </button>
-            ))}
+            {thumbnails.map((thumbnail) => {
+              const isSelected = thumbnail.id === selectedThumbnailId;
+              return (
+                <button
+                  key={thumbnail.id}
+                  onClick={() => handleToggle(thumbnail.id)}
+                  className={`relative aspect-video rounded-lg overflow-hidden border-2 transition-all ${
+                    isSelected
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <img
+                    src={`/api/thumbnails/${thumbnail.id}/image`}
+                    alt="Thumbnail"
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelected && (
+                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                      <CheckIcon className="h-3 w-3" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to={`/videos/${videoId}/thumbnails`}>

@@ -134,8 +134,6 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         createThumbnail,
         getThumbnailById,
         updateThumbnail,
-        selectThumbnailForUpload,
-        deselectAllThumbnails,
         deleteThumbnail,
       } = createThumbnailOperations(db);
 
@@ -272,8 +270,6 @@ export class DBFunctionsService extends Effect.Service<DBFunctionsService>()(
         createThumbnail,
         getThumbnailById,
         updateThumbnail,
-        selectThumbnailForUpload,
-        deselectAllThumbnails,
         deleteThumbnail,
         createPitch,
         listPitches,
