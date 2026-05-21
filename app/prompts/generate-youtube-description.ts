@@ -91,9 +91,9 @@ The description should have the following structure:
 4. **Standard Promotional Footer** (Fourth section, always include)
    - Always include this promotional section at the end of the description:
 
-   Sign up for the AI Hero newsletter:
+   Keep up to date with my skills here:
 
-   https://aihero.dev/newsletter
+   https://aihero.dev/skills/subscribe
 
    Follow Matt on Twitter
 
