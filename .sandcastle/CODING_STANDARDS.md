@@ -64,6 +64,13 @@ test("createUser saves to database", async () => {
 });
 ```
 
+```typescript
+// BAD: Test restates the implementation — the function IS the spec
+test("pitchHref includes from param", () => {
+  expect(pitchHref("abc")).toBe("/pitches/abc?from=deliverables");
+});
+```
+
 Red flags:
 
 - Mocking internal collaborators (your own classes/modules)
@@ -72,6 +79,7 @@ Red flags:
 - Test breaks when refactoring without behavior change
 - Test name describes HOW not WHAT
 - Verifying through external means (e.g. querying a DB) instead of through the interface
+- Testing a trivial function (one-liner, simple mapping, string concatenation) where the test just mirrors the code — these tests add no confidence and break on any refactor
 
 ### Mocking
 
