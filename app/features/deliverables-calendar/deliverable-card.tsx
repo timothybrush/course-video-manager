@@ -9,25 +9,18 @@ import {
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertTriangleIcon,
   CheckIcon,
   CircleDashedIcon,
   CopyIcon,
-  MoreHorizontalIcon,
   PencilIcon,
+  PlusIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
@@ -61,102 +54,6 @@ export interface DeliverableForCard {
 function parseDate(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y!, m! - 1, d!);
-}
-
-function DeliverableActionsMenu({
-  d,
-  onEdit,
-}: {
-  d: DeliverableForCard;
-  onEdit: () => void;
-}) {
-  const statusFetcher = useFetcher();
-  const archiveFetcher = useFetcher();
-  const duplicateFetcher = useFetcher();
-
-  const setStatus = (status: "planned" | "done" | "cancelled") => {
-    const fd = new FormData();
-    fd.set("status", status);
-    statusFetcher.submit(fd, {
-      method: "post",
-      action: `/api/deliverables/${d.id}/update-status`,
-    });
-  };
-
-  const duplicate = () => {
-    duplicateFetcher.submit(new FormData(), {
-      method: "post",
-      action: `/api/deliverables/${d.id}/duplicate`,
-    });
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-          title="Actions"
-          aria-label="Actions"
-        >
-          <MoreHorizontalIcon className="size-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onSelect={onEdit}>
-          <PencilIcon className="size-3.5 mr-2" />
-          Edit…
-        </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <CircleDashedIcon className="size-3.5 mr-2" />
-            Status
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-40">
-            <DropdownMenuItem
-              disabled={d.status === "planned"}
-              onSelect={() => setStatus("planned")}
-            >
-              <CircleDashedIcon className="size-3.5 mr-2" />
-              Planned
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={d.status === "done"}
-              onSelect={() => setStatus("done")}
-            >
-              <CheckIcon className="size-3.5 mr-2" />
-              Done
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={d.status === "cancelled"}
-              onSelect={() => setStatus("cancelled")}
-            >
-              <XIcon className="size-3.5 mr-2" />
-              Cancelled
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={duplicate}>
-          <CopyIcon className="size-3.5 mr-2" />
-          Duplicate
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-red-600 dark:text-red-400 focus:text-red-500 dark:focus:text-red-300"
-          onSelect={() =>
-            archiveFetcher.submit(new FormData(), {
-              method: "post",
-              action: `/api/deliverables/${d.id}/archive`,
-            })
-          }
-        >
-          <Trash2Icon className="size-3.5 mr-2" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
 
 function CourseContextMenu({
@@ -318,14 +215,19 @@ export function DeliverableCard({
   todayStr,
   allCourses,
   allPitches,
+  onAddNewForDate,
 }: {
   d: DeliverableForCard;
   todayStr: string;
   allCourses: CourseOption[];
   allPitches: PitchOption[];
+  onAddNewForDate?: (dateStr: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const linkFetcher = useFetcher();
+  const statusFetcher = useFetcher();
+  const archiveFetcher = useFetcher();
+  const duplicateFetcher = useFetcher();
 
   function submitLinkUpdate(courseIds: string[], pitchIds: string[]) {
     const fd = new FormData();
@@ -359,80 +261,170 @@ export function DeliverableCard({
   const cancelled = d.status === "cancelled";
   const done = d.status === "done";
 
+  const setStatus = (status: "planned" | "done" | "cancelled") => {
+    const fd = new FormData();
+    fd.set("status", status);
+    statusFetcher.submit(fd, {
+      method: "post",
+      action: `/api/deliverables/${d.id}/update-status`,
+    });
+  };
+
+  const duplicate = () => {
+    duplicateFetcher.submit(new FormData(), {
+      method: "post",
+      action: `/api/deliverables/${d.id}/duplicate`,
+    });
+  };
+
+  const dayLabel = `${day.toLocaleDateString(undefined, { weekday: "short" })} ${day.getDate()}`;
+
+  const dateArea = (
+    <div className="w-12 shrink-0 text-center">
+      <div className="text-[10px] uppercase text-muted-foreground">
+        {day.toLocaleDateString(undefined, { weekday: "short" })}
+      </div>
+      <div
+        className={cn(
+          "text-xl leading-none font-medium tabular-nums",
+          overdue && "text-red-600 dark:text-red-400"
+        )}
+      >
+        {day.getDate()}
+      </div>
+    </div>
+  );
+
   return (
-    <li
-      className={cn(
-        "rounded-lg border bg-background p-3 flex items-start gap-3",
-        overdue ? "border-red-500/50 bg-red-500/5" : "border-border",
-        cancelled && "opacity-50"
-      )}
-    >
-      <div className="w-12 shrink-0 text-center">
-        <div className="text-[10px] uppercase text-muted-foreground">
-          {day.toLocaleDateString(undefined, { weekday: "short" })}
-        </div>
-        <div
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <li
           className={cn(
-            "text-xl leading-none font-medium tabular-nums",
-            overdue && "text-red-600 dark:text-red-400"
+            "cursor-context-menu rounded-lg border bg-background p-3 flex items-start gap-3",
+            overdue ? "border-red-500/50 bg-red-500/5" : "border-border",
+            cancelled && "opacity-50"
           )}
         >
-          {day.getDate()}
-        </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {overdue && (
-            <AlertTriangleIcon className="size-3.5 text-red-600 dark:text-red-400 shrink-0" />
+          {onAddNewForDate ? (
+            <ContextMenu>
+              <ContextMenuTrigger asChild>{dateArea}</ContextMenuTrigger>
+              <ContextMenuContent className="w-48">
+                <ContextMenuItem onSelect={() => onAddNewForDate(d.date)}>
+                  <PlusIcon className="size-3.5 mr-2" />
+                  Add new for {dayLabel}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          ) : (
+            dateArea
           )}
-          {done && (
-            <CheckIcon className="size-3.5 text-muted-foreground shrink-0" />
-          )}
-          {cancelled && (
-            <XIcon className="size-3.5 text-muted-foreground shrink-0" />
-          )}
-          <span
-            className={cn(
-              "text-sm font-medium",
-              done && "text-muted-foreground",
-              cancelled && "line-through text-muted-foreground"
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              {overdue && (
+                <AlertTriangleIcon className="size-3.5 text-red-600 dark:text-red-400 shrink-0" />
+              )}
+              {done && (
+                <CheckIcon className="size-3.5 text-muted-foreground shrink-0" />
+              )}
+              {cancelled && (
+                <XIcon className="size-3.5 text-muted-foreground shrink-0" />
+              )}
+              <span
+                className={cn(
+                  "text-sm font-medium",
+                  done && "text-muted-foreground",
+                  cancelled && "line-through text-muted-foreground"
+                )}
+              >
+                {d.title}
+              </span>
+              {overdue && (
+                <span className="text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400">
+                  · Overdue
+                </span>
+              )}
+            </div>
+            {d.notes && (
+              <p className="text-xs text-muted-foreground mt-1">{d.notes}</p>
             )}
-          >
-            {d.title}
-          </span>
-          {overdue && (
-            <span className="text-[10px] uppercase tracking-wider text-red-600 dark:text-red-400">
-              · Overdue
-            </span>
-          )}
-          <DeliverableActionsMenu d={d} onEdit={() => setEditing(true)} />
-        </div>
-        {d.notes && (
-          <p className="text-xs text-muted-foreground mt-1">{d.notes}</p>
-        )}
-        {(d.linkedCourses.length > 0 || d.linkedPitches.length > 0) && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {d.linkedCourses.map((c) => (
-              <CourseContextMenu
-                key={c.id}
-                course={c}
-                d={d}
-                allCourses={allCourses}
-                submitLinkUpdate={submitLinkUpdate}
-              />
-            ))}
-            {d.linkedPitches.map((p) => (
-              <PitchContextMenu
-                key={p.id}
-                pitch={p}
-                d={d}
-                allPitches={allPitches}
-                submitLinkUpdate={submitLinkUpdate}
-              />
-            ))}
+            {(d.linkedCourses.length > 0 || d.linkedPitches.length > 0) && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {d.linkedCourses.map((c) => (
+                  <CourseContextMenu
+                    key={c.id}
+                    course={c}
+                    d={d}
+                    allCourses={allCourses}
+                    submitLinkUpdate={submitLinkUpdate}
+                  />
+                ))}
+                {d.linkedPitches.map((p) => (
+                  <PitchContextMenu
+                    key={p.id}
+                    pitch={p}
+                    d={d}
+                    allPitches={allPitches}
+                    submitLinkUpdate={submitLinkUpdate}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </li>
+        </li>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onSelect={() => setEditing(true)}>
+          <PencilIcon className="size-3.5 mr-2" />
+          Edit…
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <CircleDashedIcon className="size-3.5 mr-2" />
+            Status
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-40">
+            <ContextMenuItem
+              disabled={d.status === "planned"}
+              onSelect={() => setStatus("planned")}
+            >
+              <CircleDashedIcon className="size-3.5 mr-2" />
+              Planned
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={d.status === "done"}
+              onSelect={() => setStatus("done")}
+            >
+              <CheckIcon className="size-3.5 mr-2" />
+              Done
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={d.status === "cancelled"}
+              onSelect={() => setStatus("cancelled")}
+            >
+              <XIcon className="size-3.5 mr-2" />
+              Cancelled
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={duplicate}>
+          <CopyIcon className="size-3.5 mr-2" />
+          Duplicate
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() =>
+            archiveFetcher.submit(new FormData(), {
+              method: "post",
+              action: `/api/deliverables/${d.id}/archive`,
+            })
+          }
+        >
+          <Trash2Icon className="size-3.5 mr-2" />
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

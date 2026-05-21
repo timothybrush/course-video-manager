@@ -241,3 +241,9 @@ _Avoid_: Delete, Remove
 
 **ARCHIVE Section**:
 A special section directory whose name ends in `ARCHIVE`, filtered out of the default course view.
+
+## UI conventions
+
+### Right-click context menus over action menus
+
+Prefer right-click context menus (`ContextMenu` from `@/components/ui/context-menu`) over visible action-button dropdown menus (`DropdownMenu`) for entity-level actions. Context menus keep the UI clean by hiding actions behind a right-click and are the standard interaction pattern for lists, cards, and calendar items. Add the `cursor-context-menu` class to the trigger element so users discover the right-click affordance on hover.
