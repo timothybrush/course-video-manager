@@ -209,7 +209,8 @@ if (result.output.verdict === "clean" && result.commits.length > 0) {
   );
 }
 
-const diffLines = parseDiffLines(safeSh("git diff main..HEAD"));
+const headSha = sh("git rev-parse HEAD").trim();
+const diffLines = parseDiffLines(safeSh("git diff main...HEAD"));
 const validInlineComments = result.output.inlineComments.filter((c) => {
   const fileLines = diffLines.get(c.path);
   if (!fileLines) {
@@ -241,6 +242,7 @@ const validReplies = result.output.replies.filter((r) => {
 });
 
 const reviewPayload = {
+  commit_id: headSha,
   event: "COMMENT" as const,
   body: result.output.summary,
   comments: validInlineComments.map((c) => ({
