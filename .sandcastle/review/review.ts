@@ -156,7 +156,6 @@ const prComments = {
 };
 
 const ReviewOutput = z.object({
-  verdict: z.enum(["improved", "clean"]),
   summary: z.string().min(1),
   inlineComments: z
     .array(
@@ -164,7 +163,7 @@ const ReviewOutput = z.object({
         .object({
           path: z.string().min(1).optional(),
           file: z.string().min(1).optional(),
-          line: z.number().int().positive(),
+          line: z.coerce.number().int().positive(),
           body: z.string().min(1).optional(),
           comment: z.string().min(1).optional(),
         })
@@ -222,14 +221,7 @@ const result = await sandcastle.run({
   }),
 });
 
-if (result.output.verdict === "improved" && result.commits.length === 0) {
-  fail("Agent claimed verdict=improved but produced no commits.");
-}
-if (result.output.verdict === "clean" && result.commits.length > 0) {
-  fail(
-    `Agent claimed verdict=clean but produced ${result.commits.length} commit(s).`
-  );
-}
+const verdict = result.commits.length > 0 ? "improved" : "clean";
 
 const headSha = sh("git rev-parse HEAD").trim();
 const diffLines = parseDiffLines(safeSh("git diff main...HEAD"));
@@ -284,10 +276,10 @@ fs.writeFileSync(
   JSON.stringify(validReplies, null, 2)
 );
 fs.writeFileSync(path.join(OUTPUT_DIR, "summary.md"), result.output.summary);
-fs.writeFileSync(path.join(OUTPUT_DIR, "verdict.txt"), result.output.verdict);
+fs.writeFileSync(path.join(OUTPUT_DIR, "verdict.txt"), verdict);
 
 console.log(`\nReview complete.`);
-console.log(`  verdict: ${result.output.verdict}`);
+console.log(`  verdict: ${verdict}`);
 console.log(`  commits: ${result.commits.length}`);
 console.log(`  inline comments: ${validInlineComments.length}`);
 console.log(`  replies: ${validReplies.length}`);

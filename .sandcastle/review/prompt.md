@@ -98,7 +98,7 @@ Default to Address. Decline when you have a real reason. Defer only when a reply
 4. Decide which inline review comments to leave (line-anchored notes about your changes or remaining findings) and which thread replies to make.
 5. Emit the structured output below.
 
-If the code is already clean and there are no human comments to address, make no commits and emit `verdict: "clean"`.
+If the code is already clean and there are no human comments to address, make no commits.
 
 # OUTPUT
 
@@ -106,7 +106,6 @@ Emit a single block as the last thing in your response:
 
 <output>
 {
-  "verdict": "improved",
   "summary": "Top-level summary comment posted on the PR. 1–3 short paragraphs in markdown. Describe what you changed and why; flag anything notable for the human reviewer.",
   "inlineComments": [
     {
@@ -126,8 +125,7 @@ Emit a single block as the last thing in your response:
 
 Rules:
 
-- `verdict` is `"improved"` if you made any commits, otherwise `"clean"`.
 - `summary` is required. Even on a clean review, write a short "Reviewed, no changes needed because X."
-- `inlineComments[].line` is a line number in the **post-commit** version of the file. The workflow will validate that the path/line exists in the diff; hallucinated anchors are dropped with a warning.
+- `inlineComments[].line` is a single integer line number in the **post-commit** version of the file (not a range like `"122-125"`). The workflow validates that the path/line exists in the diff; hallucinated anchors are dropped with a warning.
 - `replies[].commentId` must come from a `review_thread` entry in `<pr-comments>`. Don't invent IDs.
-- Empty arrays are fine.
+- Empty arrays are fine. Omit `inlineComments` / `replies` entirely if you have none.
