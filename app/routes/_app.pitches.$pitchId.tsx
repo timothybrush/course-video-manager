@@ -44,10 +44,7 @@ import {
   useSearchParams,
 } from "react-router";
 import { pitchBackLink } from "@/features/pitches/pitch-back-link";
-import {
-  X_POST_CHARACTER_LIMIT,
-  isOverXCharacterLimit,
-} from "@/features/pitches/x-character-count";
+import { X_POST_CHARACTER_LIMIT } from "@/features/pitches/x-character-count";
 import type { Route } from "./+types/_app.pitches.$pitchId";
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => {
@@ -510,7 +507,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
               />
               <p
                 className={`text-xs ${
-                  isOverXCharacterLimit(tweet)
+                  tweet.length > X_POST_CHARACTER_LIMIT
                     ? "text-destructive"
                     : "text-muted-foreground"
                 }`}
