@@ -3,6 +3,7 @@
 import { useContext, useEffect, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { toast } from "sonner";
+import { useFetcher } from "react-router";
 import { UploadContext } from "@/features/upload-manager/upload-context";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -248,6 +249,19 @@ export function PostPage({
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(
     () => getAutoSelectThumbnailId(thumbnails)
   );
+
+  const deleteThumbnailFetcher = useFetcher();
+
+  const handleDeleteThumbnail = (thumbnailId: string) => {
+    if (!confirm("Delete this thumbnail?")) return;
+    if (thumbnailId === selectedThumbnailId) {
+      setSelectedThumbnailId(null);
+    }
+    deleteThumbnailFetcher.submit(null, {
+      method: "post",
+      action: `/api/thumbnails/${thumbnailId}/delete`,
+    });
+  };
 
   const [isCheckingExport, setIsCheckingExport] = useState(false);
 
@@ -517,6 +531,7 @@ export function PostPage({
           thumbnails={thumbnails}
           selectedThumbnailId={selectedThumbnailId}
           onSelectThumbnail={setSelectedThumbnailId}
+          onDeleteThumbnail={handleDeleteThumbnail}
         />
 
         {/* Upload section */}
