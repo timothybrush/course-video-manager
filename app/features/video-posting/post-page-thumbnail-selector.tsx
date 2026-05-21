@@ -27,7 +27,8 @@ export function ThumbnailSelector({
       fetch(`/api/thumbnails/${id}/select`, { method: "POST" }).then(
         (response) => {
           if (response.ok) revalidate();
-        }
+        },
+        () => {}
       );
     }
   }, [thumbnails, revalidate]);
