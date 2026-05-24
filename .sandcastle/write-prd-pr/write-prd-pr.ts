@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { z } from "zod";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import { runWithExtraction } from "../run-with-extraction";
 
 const PRD_NUMBER = required("PRD_NUMBER");
 const PRD_TITLE = required("PRD_TITLE");
@@ -13,7 +14,7 @@ const PromptOutput = z.object({
   prDescription: z.string().min(1),
 });
 
-const result = await sandcastle.run({
+const result = await runWithExtraction({
   name: `write-prd-pr-#${PRD_NUMBER}`,
   agent: sandcastle.claudeCode("claude-opus-4-6", {
     env: {
@@ -31,6 +32,10 @@ const result = await sandcastle.run({
     tag: "output",
     schema: PromptOutput,
   }),
+  extractionPrompt: fs.readFileSync(
+    path.join(import.meta.dirname, "extraction.md"),
+    "utf8"
+  ),
 });
 
 fs.writeFileSync(path.join(OUTPUT_DIR, "pr_title.txt"), result.output.prTitle);

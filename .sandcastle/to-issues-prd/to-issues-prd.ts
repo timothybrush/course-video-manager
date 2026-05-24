@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import { runWithExtraction } from "../run-with-extraction";
 
 const PRD_NUMBER = required("PRD_NUMBER");
 const PRD_TITLE = required("PRD_TITLE");
@@ -18,7 +20,7 @@ const PromptOutput = z.object({
   slices: z.array(Slice).min(1),
 });
 
-const result = await sandcastle.run({
+const result = await runWithExtraction({
   name: `to-issues-prd-#${PRD_NUMBER}`,
   agent: sandcastle.claudeCode("claude-opus-4-6", {
     env: {
@@ -36,6 +38,10 @@ const result = await sandcastle.run({
     tag: "output",
     schema: PromptOutput,
   }),
+  extractionPrompt: fs.readFileSync(
+    path.join(import.meta.dirname, "extraction.md"),
+    "utf8"
+  ),
 });
 
 const slices = result.output.slices;

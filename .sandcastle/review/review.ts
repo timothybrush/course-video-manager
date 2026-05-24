@@ -6,6 +6,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { parseDiffLines } from "./parse-diff-lines";
 import { ReviewOutput } from "./review-output";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
+import { runWithExtraction } from "../run-with-extraction";
 
 const PR_NUMBER = required("PR_NUMBER");
 const BRANCH = required("BRANCH");
@@ -156,7 +157,7 @@ const prComments = {
   ),
 };
 
-const result = await sandcastle.run({
+const result = await runWithExtraction({
   name: `review-pr-${PR_NUMBER}`,
   agent: sandcastle.claudeCode("claude-opus-4-6", {
     env: {
@@ -177,6 +178,10 @@ const result = await sandcastle.run({
     tag: "output",
     schema: ReviewOutput,
   }),
+  extractionPrompt: fs.readFileSync(
+    path.join(import.meta.dirname, "extraction.md"),
+    "utf8"
+  ),
 });
 
 const verdict = result.commits.length > 0 ? "improved" : "clean";
