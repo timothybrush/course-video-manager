@@ -7,7 +7,8 @@ import { UploadContext } from "@/features/upload-manager/upload-context";
 import { hasActiveExportUploads } from "@/features/upload-manager/export-status";
 import { generateChangelog } from "@/services/changelog-service";
 import { CoursePublishService } from "@/services/course-publish-service";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect } from "effect";
 import { ArrowLeft, Download, AlertCircle, ChevronRight } from "lucide-react";
@@ -21,11 +22,15 @@ export const loader = async (args: Route.LoaderArgs) => {
   const { courseId } = args.params;
 
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const courseOps = yield* CourseOperationsService;
+    const versionOps = yield* VersionOperationsService;
     const publishService = yield* CoursePublishService;
 
     const [course, allVersions] = yield* Effect.all(
-      [db.getCourseById(courseId), db.getAllVersionsWithStructure(courseId)],
+      [
+        courseOps.getCourseById(courseId),
+        versionOps.getAllVersionsWithStructure(courseId),
+      ],
       { concurrency: "unbounded" }
     );
 

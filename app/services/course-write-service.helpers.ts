@@ -1,7 +1,8 @@
 import { Effect } from "effect";
 import { FileSystem } from "@effect/platform";
 import { execFileSync } from "node:child_process";
-import type { DBFunctionsService } from "./db-service.server";
+import type { CourseOperationsService } from "./db-course-operations.server";
+import type { LessonSectionOperationsService } from "./db-lesson-section-operations.server";
 import type { CourseRepoWriteService } from "./course-repo-write-service";
 import { parseLessonPath, buildLessonPath } from "./lesson-path-service";
 import {
@@ -18,7 +19,7 @@ import { CourseWriteError } from "./course-write-service.types";
 export const validateAndAssignRepoPath = Effect.fn("validateAndAssignRepoPath")(
   function* (
     fileSystem: FileSystem.FileSystem,
-    db: DBFunctionsService,
+    db: Pick<CourseOperationsService, "updateCourseFilePath">,
     repoId: string,
     filePath: string
   ) {
@@ -58,7 +59,7 @@ export const validateAndAssignRepoPath = Effect.fn("validateAndAssignRepoPath")(
 );
 
 export function createSectionOps(
-  db: DBFunctionsService,
+  db: LessonSectionOperationsService,
   repoWrite: CourseRepoWriteService
 ) {
   /**

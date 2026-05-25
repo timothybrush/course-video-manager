@@ -1,7 +1,7 @@
 import { describe, it, expect } from "@effect/vitest";
 import { beforeAll, beforeEach } from "vitest";
 import { Effect, Layer } from "effect";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import {
   createTestDb,
@@ -11,13 +11,13 @@ import {
 import * as schema from "@/db/schema";
 
 let testDb: TestDb;
-let testLayer: Layer.Layer<DBFunctionsService>;
+let testLayer: Layer.Layer<CourseOperationsService>;
 
 beforeAll(async () => {
   const result = await createTestDb();
   testDb = result.testDb;
 
-  testLayer = DBFunctionsService.Default.pipe(
+  testLayer = CourseOperationsService.Default.pipe(
     Layer.provide(Layer.succeed(DrizzleService, testDb as any))
   );
 });
@@ -127,8 +127,8 @@ describe("getCourseStructureById - archived section filtering", () => {
         ])
       );
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(course!.id);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(course!.id);
 
       const sections = result.versions[0]!.sections;
       expect(sections).toHaveLength(1);
@@ -171,8 +171,8 @@ describe("getCourseStructureById - archived section filtering", () => {
         ])
       );
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(course!.id);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(course!.id);
 
       expect(result.versions[0]!.sections).toHaveLength(0);
     }).pipe(Effect.provide(testLayer))
@@ -185,8 +185,8 @@ describe("getCourseStructureById", () => {
       const { courseId, versionId, sectionId, lessonRealId, lessonGhostId } =
         yield* Effect.promise(() => buildCourseWithVideos());
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(courseId);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(courseId);
 
       expect(result.id).toBe(courseId);
       expect(result.name).toBe("Test Course");
@@ -215,8 +215,8 @@ describe("getCourseStructureById", () => {
     Effect.gen(function* () {
       const { courseId } = yield* Effect.promise(() => buildCourseWithVideos());
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(courseId);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(courseId);
 
       const lesson = result.versions[0]!.sections[0]!.lessons[0]!;
       expect((lesson as any).videos).toBeUndefined();
@@ -225,8 +225,8 @@ describe("getCourseStructureById", () => {
 
   it.effect("throws NotFoundError for unknown course id", () =>
     Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      const result = yield* db
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps
         .getCourseStructureById("nonexistent-id")
         .pipe(Effect.flip);
       expect(result._tag).toBe("NotFoundError");
@@ -251,8 +251,8 @@ describe("getCourseStructureById", () => {
           .values({ repoId: course!.id, name: "v1" })
       );
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(course!.id);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(course!.id);
 
       expect(result.memory).toBe("This is the AI context for the course");
     }).pipe(Effect.provide(testLayer))
@@ -308,8 +308,8 @@ describe("getCourseStructureById", () => {
         ])
       );
 
-      const db = yield* DBFunctionsService;
-      const result = yield* db.getCourseStructureById(course!.id);
+      const courseOps = yield* CourseOperationsService;
+      const result = yield* courseOps.getCourseStructureById(course!.id);
 
       const sections = result.versions[0]!.sections;
       expect(sections[0]!.path).toBe("01-basics");

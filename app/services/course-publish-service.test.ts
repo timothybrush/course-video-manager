@@ -9,7 +9,10 @@ import {
   truncateAllTables,
   type TestDb,
 } from "@/test-utils/pglite";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VideoOperationsService } from "@/services/db-video-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
+import { LessonSectionOperationsService } from "@/services/db-lesson-section-operations.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import { VideoProcessingService } from "@/services/video-processing-service";
 import { CoursePublishService } from "@/services/course-publish-service";
@@ -34,7 +37,12 @@ const setup = async () => {
   );
 
   const drizzleLayer = Layer.succeed(DrizzleService, testDb as any);
-  const dbLayer = DBFunctionsService.Default.pipe(Layer.provide(drizzleLayer));
+  const dbLayer = Layer.mergeAll(
+    CourseOperationsService.Default,
+    VideoOperationsService.Default,
+    VersionOperationsService.Default,
+    LessonSectionOperationsService.Default
+  ).pipe(Layer.provide(drizzleLayer));
 
   // Mock VideoProcessingService: creates a dummy file at {videoId}.mp4
   const mockVideoProcessing = Layer.succeed(VideoProcessingService, {
@@ -57,7 +65,9 @@ const setup = async () => {
 
   // Build a core layer with all deps, then provide to CoursePublishService
   const coreTestLayer = Layer.mergeAll(
-    DBFunctionsService.Default,
+    CourseOperationsService.Default,
+    VideoOperationsService.Default,
+    VersionOperationsService.Default,
     mockVideoProcessing,
     NodeContext.layer
   ).pipe(Layer.provide(drizzleLayer), Layer.provide(configLayer));
@@ -69,24 +79,24 @@ const setup = async () => {
 
   // Seed data
   const course = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.createCourse({
+    const courseOps = yield* CourseOperationsService;
+    return yield* courseOps.createCourse({
       filePath: "/tmp/test-course",
       name: "test-course",
     });
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const version = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.createCourseVersion({
+    const versionOps = yield* VersionOperationsService;
+    return yield* versionOps.createCourseVersion({
       repoId: course.id,
       name: "v1",
     });
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const section = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    const sections = yield* db.createSections({
+    const lsOps = yield* LessonSectionOperationsService;
+    const sections = yield* lsOps.createSections({
       repoVersionId: version.id,
       sections: [{ sectionPathWithNumber: "01-intro", sectionNumber: 1 }],
     });
@@ -94,16 +104,16 @@ const setup = async () => {
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const lesson = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    const lessons = yield* db.createLessons(section.id, [
+    const lsOps = yield* LessonSectionOperationsService;
+    const lessons = yield* lsOps.createLessons(section.id, [
       { lessonPathWithNumber: "01.01-welcome", lessonNumber: 1 },
     ]);
     return lessons[0]!;
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const video = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.createVideo(lesson.id, {
+    const videoOps = yield* VideoOperationsService;
+    return yield* videoOps.createVideo(lesson.id, {
       path: "Problem",
       originalFootagePath: "/tmp/footage.mp4",
     });
@@ -206,9 +216,9 @@ describe("CoursePublishService", () => {
 
       const result = await run(
         Effect.gen(function* () {
-          const db = yield* DBFunctionsService;
+          const videoOps = yield* VideoOperationsService;
           const svc = yield* CoursePublishService;
-          const fullVideo = yield* db.getVideoWithClipsById(video.id);
+          const fullVideo = yield* videoOps.getVideoWithClipsById(video.id);
           return yield* svc.isExported(fullVideo);
         })
       );
@@ -227,9 +237,9 @@ describe("CoursePublishService", () => {
 
       const result = await run(
         Effect.gen(function* () {
-          const db = yield* DBFunctionsService;
+          const videoOps = yield* VideoOperationsService;
           const svc = yield* CoursePublishService;
-          const fullVideo = yield* db.getVideoWithClipsById(video.id);
+          const fullVideo = yield* videoOps.getVideoWithClipsById(video.id);
           return yield* svc.isExported(fullVideo);
         })
       );
@@ -259,9 +269,9 @@ describe("CoursePublishService", () => {
 
       const result = await run(
         Effect.gen(function* () {
-          const db = yield* DBFunctionsService;
+          const videoOps = yield* VideoOperationsService;
           const svc = yield* CoursePublishService;
-          const fullVideo = yield* db.getVideoWithClipsById(video.id);
+          const fullVideo = yield* videoOps.getVideoWithClipsById(video.id);
           return yield* svc.resolveExportPath(fullVideo);
         })
       );

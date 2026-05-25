@@ -1,4 +1,6 @@
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
+import { LessonSectionOperationsService } from "@/services/db-lesson-section-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import { ConfigProvider, Console, Data, Effect, Schema } from "effect";
 import type { Route } from "./+types/api.courses.update";
@@ -74,12 +76,16 @@ export const action = async (args: Route.ActionArgs) => {
     const deletedLessons = [...decoded.deletedLessons];
     const modifiedLessons = { ...decoded.modifiedLessons };
 
-    const db = yield* DBFunctionsService;
+    const courseOps = yield* CourseOperationsService;
+    const versionOps = yield* VersionOperationsService;
+    const lessonSectionOps = yield* LessonSectionOperationsService;
 
-    const baseCourse = yield* db.getCourseByFilePath(decoded.filePath);
+    const baseCourse = yield* courseOps.getCourseByFilePath(decoded.filePath);
 
     // Get the latest version - updates should only affect latest version
-    const latestVersion = yield* db.getLatestCourseVersion(baseCourse.id);
+    const latestVersion = yield* versionOps.getLatestCourseVersion(
+      baseCourse.id
+    );
 
     if (!latestVersion) {
       return yield* new NotLatestVersionError({
@@ -87,10 +93,12 @@ export const action = async (args: Route.ActionArgs) => {
       });
     }
 
-    const courseWithSections = yield* db.getCourseWithSectionsByVersion({
-      repoId: baseCourse.id,
-      versionId: latestVersion.id,
-    });
+    const courseWithSections = yield* versionOps.getCourseWithSectionsByVersion(
+      {
+        repoId: baseCourse.id,
+        versionId: latestVersion.id,
+      }
+    );
 
     const lessonPathToLessonId = new Map<string, string>();
 
@@ -110,7 +118,7 @@ export const action = async (args: Route.ActionArgs) => {
         return sectionId;
       }
 
-      const [section] = yield* db.createSections({
+      const [section] = yield* lessonSectionOps.createSections({
         sections: [{ sectionPathWithNumber: sectionPath, sectionNumber }],
         repoVersionId: latestVersion.id,
       });
@@ -148,7 +156,7 @@ export const action = async (args: Route.ActionArgs) => {
         continue;
       }
 
-      const lesson = yield* db.getLessonById(lessonId);
+      const lesson = yield* lessonSectionOps.getLessonById(lessonId);
 
       if (lesson && lesson.videos && lesson.videos.length > 0) {
         // Throw an error and abort the update if a deleted lesson has an attached video
@@ -180,7 +188,7 @@ export const action = async (args: Route.ActionArgs) => {
         newLessonPathParsed.sectionNumber
       );
 
-      yield* db.updateLesson(existingLessonId, {
+      yield* lessonSectionOps.updateLesson(existingLessonId, {
         path: newLessonPathParsed.lessonPathWithNumber,
         sectionId,
         lessonNumber: newLessonPathParsed.lessonNumber,
@@ -222,7 +230,7 @@ export const action = async (args: Route.ActionArgs) => {
         continue;
       }
 
-      const [newLesson] = yield* db.createLessons(sectionId, [
+      const [newLesson] = yield* lessonSectionOps.createLessons(sectionId, [
         {
           lessonPathWithNumber: pathParseResult.lessonPathWithNumber,
           lessonNumber: pathParseResult.lessonNumber,
@@ -251,23 +259,25 @@ export const action = async (args: Route.ActionArgs) => {
         continue;
       }
 
-      yield* db.deleteLesson(lessonId);
+      yield* lessonSectionOps.deleteLesson(lessonId);
     }
 
     // 5. After all updates, check for any sections that have no lessons left
     //    - Delete or archive empty sections as needed (only for the latest version)
 
-    const courseAfterUpdates = yield* db.getCourseWithSectionsByVersion({
-      repoId: courseWithSections.id,
-      versionId: latestVersion.id,
-    });
+    const courseAfterUpdates = yield* versionOps.getCourseWithSectionsByVersion(
+      {
+        repoId: courseWithSections.id,
+        versionId: latestVersion.id,
+      }
+    );
 
     const sectionsWithNoLessons = courseAfterUpdates.sections.filter(
       (section) => section.lessons.length === 0
     );
 
     for (const section of sectionsWithNoLessons) {
-      yield* db.deleteSection(section.id);
+      yield* lessonSectionOps.deleteSection(section.id);
     }
 
     return {

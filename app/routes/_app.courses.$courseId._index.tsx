@@ -9,7 +9,8 @@ import {
 } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { Button } from "@/components/ui/button";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
 import {
   loadExportStatusMap,
   loadLessonFsMaps,
@@ -83,30 +84,32 @@ export const loader = async (args: Route.LoaderArgs) => {
   const selectedVersionId = url.searchParams.get("versionId");
 
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const courseOps = yield* CourseOperationsService;
+    const versionOps = yield* VersionOperationsService;
     const featureFlags = yield* FeatureFlagService;
 
-    const courses = yield* db.getCourses();
+    const courses = yield* courseOps.getCourses();
 
-    const versions = yield* db.getCourseVersions(selectedCourseId);
+    const versions = yield* versionOps.getCourseVersions(selectedCourseId);
 
     let selectedVersion: Awaited<
-      ReturnType<typeof db.getLatestCourseVersion>
+      ReturnType<typeof versionOps.getLatestCourseVersion>
     > extends Effect.Effect<infer R, any, any>
       ? R
       : never = undefined;
 
     if (selectedVersionId) {
-      selectedVersion = yield* db
+      selectedVersion = yield* versionOps
         .getCourseVersionById(selectedVersionId)
         .pipe(
           Effect.catchTag("NotFoundError", () => Effect.succeed(undefined))
         );
     } else {
-      selectedVersion = yield* db.getLatestCourseVersion(selectedCourseId);
+      selectedVersion =
+        yield* versionOps.getLatestCourseVersion(selectedCourseId);
     }
 
-    const selectedCourse = yield* db
+    const selectedCourse = yield* courseOps
       .getCourseWithSlimClipsById(selectedCourseId, selectedVersion?.id)
       .pipe(
         Effect.andThen((course) => {
@@ -177,7 +180,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     const lessonFsMaps = runtimeLive.runPromise(loadLessonFsMaps({ lessons }));
 
     const videoTranscripts = runtimeLive.runPromise(
-      db.getVideoTranscripts(selectedCourseId)
+      courseOps.getVideoTranscripts(selectedCourseId)
     );
 
     const latestVersion = versions[0];

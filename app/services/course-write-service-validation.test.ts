@@ -16,7 +16,8 @@ import {
 import { createDirectCourseEditorService } from "./course-editor-service-handler";
 import type { CourseEditorService } from "./course-editor-service";
 import { DrizzleService } from "./drizzle-service.server";
-import { DBFunctionsService } from "./db-service.server";
+import { CourseOperationsService } from "./db-course-operations.server";
+import { LessonSectionOperationsService } from "./db-lesson-section-operations.server";
 import { CourseWriteService } from "./course-write-service";
 import { CourseRepoWriteService } from "./course-repo-write-service";
 import { CourseRepoSyncValidationService } from "./course-repo-sync-validation";
@@ -38,9 +39,10 @@ function setup() {
     validateCallCount = 0;
 
     const testDrizzleLayer = Layer.succeed(DrizzleService, testDb as any);
-    const testDbFunctionsLayer = DBFunctionsService.Default.pipe(
-      Layer.provide(testDrizzleLayer)
-    );
+    const testDbFunctionsLayer = Layer.mergeAll(
+      CourseOperationsService.Default,
+      LessonSectionOperationsService.Default
+    ).pipe(Layer.provide(testDrizzleLayer));
 
     const mockRepoWriteLayer = Layer.succeed(CourseRepoWriteService, {
       createLessonDirectory: Effect.fn(function* (_opts: any) {

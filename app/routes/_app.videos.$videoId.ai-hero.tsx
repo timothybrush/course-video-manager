@@ -2,7 +2,9 @@
 
 export const handle = { fullscreen: true };
 
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VideoOperationsService } from "@/services/db-video-operations.server";
+import { LinkAuthOperationsService } from "@/services/db-link-auth-operations.server";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { runtimeLive } from "@/services/layer.server";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
@@ -35,10 +37,16 @@ import { AiHeroPage } from "@/features/video-posting/ai-hero-page";
 export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const videoOps = yield* VideoOperationsService;
+    const courseOps = yield* CourseOperationsService;
+    const linkAuthOps = yield* LinkAuthOperationsService;
     const fs = yield* FileSystem.FileSystem;
     const [video, aiHeroAuth, globalLinks] = yield* Effect.all(
-      [db.getVideoWithClipsById(videoId), db.getAiHeroAuth(), db.getLinks()],
+      [
+        videoOps.getVideoWithClipsById(videoId),
+        linkAuthOps.getAiHeroAuth(),
+        linkAuthOps.getLinks(),
+      ],
       { concurrency: "unbounded" }
     );
     const aiHero: { connected: true; userId: string } | { connected: false } =
@@ -214,7 +222,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
 
     // Fetch course structure for non-standalone videos
-    const repoWithSections = yield* db.getCourseStructureById(
+    const repoWithSections = yield* courseOps.getCourseStructureById(
       section.repoVersion.repoId
     );
     const matchingVersion = repoWithSections?.versions.find(

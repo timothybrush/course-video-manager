@@ -1,7 +1,7 @@
 import { Console, Effect } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { Route } from "./+types/api.thumbnails.$thumbnailId.delete";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { ThumbnailOperationsService } from "@/services/db-thumbnail-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import { withDatabaseDump } from "@/services/dump-service";
 import { data } from "react-router";
@@ -10,11 +10,11 @@ export const action = async (args: Route.ActionArgs) => {
   const { thumbnailId } = args.params;
 
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const thumbnailOps = yield* ThumbnailOperationsService;
     const fs = yield* FileSystem.FileSystem;
 
     // Fetch thumbnail to get file paths before deleting
-    const thumbnail = yield* db.getThumbnailById(thumbnailId);
+    const thumbnail = yield* thumbnailOps.getThumbnailById(thumbnailId);
 
     // Collect all file paths to delete
     const filesToDelete: string[] = [];
@@ -46,7 +46,7 @@ export const action = async (args: Route.ActionArgs) => {
     }
 
     // Delete DB record
-    yield* db.deleteThumbnail(thumbnailId);
+    yield* thumbnailOps.deleteThumbnail(thumbnailId);
 
     return { success: true };
   }).pipe(

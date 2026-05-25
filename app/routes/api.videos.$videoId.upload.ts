@@ -1,5 +1,5 @@
 import { CoursePublishService } from "@/services/course-publish-service";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { ThumbnailOperationsService } from "@/services/db-thumbnail-operations.server";
 import { getValidAccessToken } from "@/services/youtube-auth-service";
 import {
   setYouTubeThumbnail,
@@ -38,8 +38,8 @@ export const action = async (args: Route.ActionArgs) => {
   }
 
   const selectedThumbnail = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.getThumbnailById(thumbnailId);
+    const thumbnailOps = yield* ThumbnailOperationsService;
+    return yield* thumbnailOps.getThumbnailById(thumbnailId);
   }).pipe(
     Effect.catchTag("NotFoundError", () => Effect.succeed(null)),
     runtimeLive.runPromise

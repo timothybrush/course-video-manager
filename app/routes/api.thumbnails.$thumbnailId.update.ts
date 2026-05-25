@@ -1,7 +1,7 @@
 import { Console, Effect } from "effect";
 import { FileSystem } from "@effect/platform";
 import type { Route } from "./+types/api.thumbnails.$thumbnailId.update";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { ThumbnailOperationsService } from "@/services/db-thumbnail-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import { withDatabaseDump } from "@/services/dump-service";
 import { getStandaloneVideoFilePath } from "@/services/standalone-video-files";
@@ -40,11 +40,11 @@ export const action = async (args: Route.ActionArgs) => {
       );
     }
 
-    const db = yield* DBFunctionsService;
+    const thumbnailOps = yield* ThumbnailOperationsService;
     const fs = yield* FileSystem.FileSystem;
 
     // Get existing thumbnail to find its file paths
-    const existing = yield* db.getThumbnailById(thumbnailId);
+    const existing = yield* thumbnailOps.getThumbnailById(thumbnailId);
     const existingLayers = existing.layers as {
       backgroundPhoto?: { filePath?: string };
       diagram?: { filePath?: string } | null;
@@ -152,7 +152,7 @@ export const action = async (args: Route.ActionArgs) => {
     };
 
     // Update DB record
-    const updated = yield* db.updateThumbnail(thumbnailId, {
+    const updated = yield* thumbnailOps.updateThumbnail(thumbnailId, {
       layers,
       filePath: existing.filePath,
     });

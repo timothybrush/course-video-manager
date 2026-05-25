@@ -10,7 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VideoOperationsService } from "@/services/db-video-operations.server";
+import { LessonSectionOperationsService } from "@/services/db-lesson-section-operations.server";
 import { withDatabaseDump } from "@/services/dump-service";
 import { runtimeLive } from "@/services/layer.server";
 import { toSlug } from "@/services/lesson-path-service";
@@ -34,13 +36,14 @@ export const loader = async (args: Route.LoaderArgs) => {
   const { videoId } = args.params;
 
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const videoOps = yield* VideoOperationsService;
+    const courseOps = yield* CourseOperationsService;
 
-    const video = yield* db.getVideoWithLessonById(videoId);
-    const courses = yield* db.getCourses();
+    const video = yield* videoOps.getVideoWithLessonById(videoId);
+    const courses = yield* courseOps.getCourses();
 
     const coursesWithSections = yield* Effect.all(
-      courses.map((course) => db.getCourseStructureById(course.id))
+      courses.map((course) => courseOps.getCourseStructureById(course.id))
     );
 
     return { video, courses: coursesWithSections };
@@ -110,7 +113,8 @@ export const action = async (args: Route.ActionArgs) => {
   const formDataObject = Object.fromEntries(formData);
 
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
+    const videoOps = yield* VideoOperationsService;
+    const lessonSectionOps = yield* LessonSectionOperationsService;
     const fs = yield* FileSystem.FileSystem;
     const repoWrite = yield* CourseRepoWriteService;
 
@@ -123,7 +127,8 @@ export const action = async (args: Route.ActionArgs) => {
 
     if (lessonId && lessonId !== "new") {
       // Use existing lesson
-      const lesson = yield* db.getLessonWithHierarchyById(lessonId);
+      const lesson =
+        yield* lessonSectionOps.getLessonWithHierarchyById(lessonId);
       const repo = lesson.section.repoVersion.repo;
       const section = lesson.section;
       targetLessonId = lesson.id;
@@ -131,7 +136,8 @@ export const action = async (args: Route.ActionArgs) => {
       lessonDirPath = path.join(repo.filePath!, section.path, lesson.path);
     } else {
       // Create a new real lesson at end of section
-      const section = yield* db.getSectionWithHierarchyById(sectionId);
+      const section =
+        yield* lessonSectionOps.getSectionWithHierarchyById(sectionId);
       const repo = section.repoVersion.repo;
       const parsed = parseSectionPath(section.path);
       const sectionNumber = parsed?.sectionNumber ?? 1;
@@ -144,7 +150,7 @@ export const action = async (args: Route.ActionArgs) => {
         slug,
       });
 
-      const [newLesson] = yield* db.createLessons(sectionId, [
+      const [newLesson] = yield* lessonSectionOps.createLessons(sectionId, [
         { lessonPathWithNumber: lessonDirName, lessonNumber },
       ]);
 
@@ -202,7 +208,7 @@ export const action = async (args: Route.ActionArgs) => {
     }
 
     // Update video's lessonId in the database
-    yield* db.updateVideoLesson({ videoId, lessonId: targetLessonId });
+    yield* videoOps.updateVideoLesson({ videoId, lessonId: targetLessonId });
 
     return redirect(
       buildMoveToCourseRedirectUrl({

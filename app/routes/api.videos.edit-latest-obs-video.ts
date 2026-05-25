@@ -1,4 +1,5 @@
-import { DBFunctionsService } from "@/services/db-service.server";
+import { VideoOperationsService } from "@/services/db-video-operations.server";
+import { LessonSectionOperationsService } from "@/services/db-lesson-section-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import { Console, Effect, Schema } from "effect";
 import type { Route } from "./+types/api.videos.edit-latest-obs-video";
@@ -19,11 +20,12 @@ export const action = async (args: Route.ActionArgs) => {
       editLatestObsVideoSchema
     )(formDataObject);
 
-    const db = yield* DBFunctionsService;
+    const videoOps = yield* VideoOperationsService;
+    const lessonSectionOps = yield* LessonSectionOperationsService;
 
-    const lesson = yield* db.getLessonById(lessonId);
+    const lesson = yield* lessonSectionOps.getLessonById(lessonId);
 
-    const video = yield* db.createVideo(lesson.id, {
+    const video = yield* videoOps.createVideo(lesson.id, {
       path,
       originalFootagePath: "",
     });
@@ -36,7 +38,7 @@ export const action = async (args: Route.ActionArgs) => {
 
     const originalFootagePath = yield* Command.string(cmd);
 
-    yield* db.updateVideo(video.id, {
+    yield* videoOps.updateVideo(video.id, {
       originalFootagePath: originalFootagePath.trim(),
     });
 

@@ -1,7 +1,9 @@
 import { Config, Data, Effect, Schedule } from "effect";
 import { Command, FileSystem } from "@effect/platform";
 import path from "node:path";
-import { DBFunctionsService } from "./db-service.server";
+import { CourseOperationsService } from "./db-course-operations.server";
+import { VideoOperationsService } from "./db-video-operations.server";
+import { VersionOperationsService } from "./db-version-operations.server";
 import {
   VideoProcessingService,
   type BeatType,
@@ -90,7 +92,9 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
   "CoursePublishService",
   {
     effect: Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
+      const courseOps = yield* CourseOperationsService;
+      const videoOps = yield* VideoOperationsService;
+      const versionOps = yield* VersionOperationsService;
       const videoProcessing = yield* VideoProcessingService;
       const effectFs = yield* FileSystem.FileSystem;
       const FINISHED_VIDEOS_DIRECTORY = yield* Config.string(
@@ -102,7 +106,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
       ) {
         const video =
           typeof videoOrId === "string"
-            ? yield* db.getVideoWithClipsById(videoOrId)
+            ? yield* videoOps.getVideoWithClipsById(videoOrId)
             : videoOrId;
         if (video.clips.length === 0) return null;
 
@@ -134,7 +138,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         videoId: string,
         onStage?: (stage: "concatenating-clips" | "normalizing-audio") => void
       ) {
-        const video = yield* db.getVideoWithClipsById(videoId);
+        const video = yield* videoOps.getVideoWithClipsById(videoId);
         const courseId = video.lesson?.section.repoVersion.repo.id;
         const owner: ExportOwner = courseId
           ? { kind: "course", courseId }
@@ -204,7 +208,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         versionId: string,
         sendEvent?: (event: string, data: unknown) => void
       ) {
-        const version = yield* db.getVersionWithSections(versionId);
+        const version = yield* versionOps.getVersionWithSections(versionId);
         const courseId = version.repo.id;
 
         // Find unexported videos
@@ -279,7 +283,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
       const validatePublishability = Effect.fn("validatePublishability")(
         function* (versionId: string) {
-          const version = yield* db.getVersionWithSections(versionId);
+          const version = yield* versionOps.getVersionWithSections(versionId);
           const courseId = version.repo.id;
 
           const unexportedVideoIds: string[] = [];
@@ -321,7 +325,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
       ) {
         onProgress?.("validating");
 
-        const latestVersion = yield* db.getLatestCourseVersion(courseId);
+        const latestVersion =
+          yield* versionOps.getLatestCourseVersion(courseId);
         if (!latestVersion) {
           return yield* Effect.die(new Error("No version found for course"));
         }
@@ -336,13 +341,14 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         // Upload to Dropbox
         onProgress?.("uploading");
         const DROPBOX_PATH = yield* Config.string("DROPBOX_PATH");
-        const course = yield* db.getCourseById(courseId);
+        const course = yield* courseOps.getCourseById(courseId);
         const repoParser = yield* CourseRepoParserService;
 
-        const repoWithSections = yield* db.getCourseWithSectionsByVersion({
-          repoId: courseId,
-          versionId: latestVersion.id,
-        });
+        const repoWithSections =
+          yield* versionOps.getCourseWithSectionsByVersion({
+            repoId: courseId,
+            versionId: latestVersion.id,
+          });
 
         const sectionsOnFileSystem = yield* repoParser.parseRepo(
           repoWithSections.filePath!
@@ -527,7 +533,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         }
 
         // Generate changelog (treat draft as published with given name)
-        const allVersions = yield* db.getAllVersionsWithStructure(courseId);
+        const allVersions =
+          yield* versionOps.getAllVersionsWithStructure(courseId);
         const changelogVersions = allVersions.map((v) =>
           v.id === latestVersion.id
             ? { ...v, name: versionName, description: versionDescription }
@@ -552,7 +559,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
         // Freeze draft (set name/description)
         onProgress?.("freezing");
-        yield* db.updateCourseVersion({
+        yield* versionOps.updateCourseVersion({
           versionId: latestVersion.id,
           name: versionName,
           description: versionDescription,
@@ -560,7 +567,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
         // Clone new draft
         onProgress?.("cloning");
-        const { version: newDraft } = yield* db.copyVersionStructure({
+        const { version: newDraft } = yield* versionOps.copyVersionStructure({
           sourceVersionId: latestVersion.id,
           repoId: courseId,
           newVersionName: "",

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "@effect/vitest";
 import { beforeAll, beforeEach } from "vitest";
 import { Effect, Layer } from "effect";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { ClipOperationsService } from "@/services/db-clip-operations.server";
+import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { concatenateVideos } from "@/services/video-concatenation-service";
@@ -12,18 +13,20 @@ import {
 } from "@/test-utils/pglite";
 
 let testDb: TestDb;
-let testLayer: Layer.Layer<DBFunctionsService | DrizzleService>;
+let testLayer: Layer.Layer<
+  ClipOperationsService | VideoOperationsService | DrizzleService
+>;
 
 beforeAll(async () => {
   const result = await createTestDb();
   testDb = result.testDb;
 
-  testLayer = Layer.merge(
-    DBFunctionsService.Default.pipe(
-      Layer.provide(Layer.succeed(DrizzleService, testDb as any))
-    ),
-    Layer.succeed(DrizzleService, testDb as any)
-  );
+  const drizzleLayer = Layer.succeed(DrizzleService, testDb as any);
+  testLayer = Layer.mergeAll(
+    ClipOperationsService.Default,
+    VideoOperationsService.Default,
+    drizzleLayer
+  ).pipe(Layer.provide(drizzleLayer));
 });
 
 /** Helper: create a standalone video with clips and optional chapters */
@@ -39,11 +42,12 @@ const createVideoWithClips = (
   sectionSpecs?: Array<{ name: string; afterClipIndex: number }>
 ) =>
   Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    const video = yield* db.createStandaloneVideo({ path: name });
+    const videoOps = yield* VideoOperationsService;
+    const clipOps = yield* ClipOperationsService;
+    const video = yield* videoOps.createStandaloneVideo({ path: name });
 
     // Add all clips at the start
-    const createdClips = yield* db.appendClips({
+    const createdClips = yield* clipOps.appendClips({
       videoId: video.id,
       insertionPoint: { type: "start" },
       clips: clipSpecs.map((c) => ({
@@ -57,7 +61,7 @@ const createVideoWithClips = (
     for (let i = 0; i < clipSpecs.length; i++) {
       const spec = clipSpecs[i]!;
       if (spec.text || spec.beatType) {
-        yield* db.updateClip(createdClips[i]!.id, {
+        yield* clipOps.updateClip(createdClips[i]!.id, {
           ...(spec.text ? { text: spec.text } : {}),
           ...(spec.beatType ? { beatType: spec.beatType } : {}),
         });
@@ -68,10 +72,14 @@ const createVideoWithClips = (
     if (sectionSpecs) {
       for (const sectionSpec of sectionSpecs) {
         const afterClip = createdClips[sectionSpec.afterClipIndex]!;
-        yield* db.createChapterAtInsertionPoint(video.id, sectionSpec.name, {
-          type: "after-clip",
-          databaseClipId: afterClip.id,
-        });
+        yield* clipOps.createChapterAtInsertionPoint(
+          video.id,
+          sectionSpec.name,
+          {
+            type: "after-clip",
+            databaseClipId: afterClip.id,
+          }
+        );
       }
     }
 
@@ -120,8 +128,8 @@ describe("concatenateVideos", () => {
       });
 
       // Verify it's a standalone video
-      const db = yield* DBFunctionsService;
-      const newVideo = yield* db.getVideoWithClipsById(result.id);
+      const videoOps = yield* VideoOperationsService;
+      const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
       expect(newVideo.path).toBe("Combined Video");
       expect(newVideo.lessonId).toBeNull();
 
@@ -175,8 +183,8 @@ describe("concatenateVideos", () => {
           sourceVideoIds: [video1.id],
         });
 
-        const db = yield* DBFunctionsService;
-        const newVideo = yield* db.getVideoWithClipsById(result.id);
+        const videoOps = yield* VideoOperationsService;
+        const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
 
         expect(newVideo.clips).toHaveLength(1);
         const clip = newVideo.clips[0]!;
@@ -207,8 +215,8 @@ describe("concatenateVideos", () => {
         sourceVideoIds: [video1.id],
       });
 
-      const db = yield* DBFunctionsService;
-      const newVideo = yield* db.getVideoWithClipsById(result.id);
+      const videoOps = yield* VideoOperationsService;
+      const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
 
       const allItems = sortByOrder([
         ...newVideo.clips.map((c: any) => ({ type: "clip" as const, ...c })),
@@ -255,8 +263,8 @@ describe("concatenateVideos", () => {
           sourceVideoIds: [video1.id, video2.id, video3.id],
         });
 
-        const db = yield* DBFunctionsService;
-        const newVideo = yield* db.getVideoWithClipsById(result.id);
+        const videoOps = yield* VideoOperationsService;
+        const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
 
         const allItems = sortByOrder([
           ...newVideo.clips.map((c: any) => ({ type: "clip" as const, ...c })),
@@ -297,8 +305,8 @@ describe("concatenateVideos", () => {
         sourceVideoIds: [video1.id],
       });
 
-      const db = yield* DBFunctionsService;
-      const newVideo = yield* db.getVideoWithClipsById(result.id);
+      const videoOps = yield* VideoOperationsService;
+      const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
 
       // No boundary sections for single video
       expect(newVideo.chapters).toHaveLength(0);
@@ -332,8 +340,8 @@ describe("concatenateVideos", () => {
           sourceVideoIds: [video1.id, video2.id, video3.id],
         });
 
-        const db = yield* DBFunctionsService;
-        const newVideo = yield* db.getVideoWithClipsById(result.id);
+        const videoOps = yield* VideoOperationsService;
+        const newVideo = yield* videoOps.getVideoWithClipsById(result.id);
 
         const allItems = sortByOrder([
           ...newVideo.clips.map((c: any) => ({ type: "clip" as const, ...c })),

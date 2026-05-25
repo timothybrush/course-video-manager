@@ -1,5 +1,5 @@
 import { Console, Effect, Schema } from "effect";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { PitchOperationsService } from "@/services/db-pitch-operations.server";
 import { runtimeLive } from "@/services/layer.server";
 import type { Route } from "./+types/api.pitches.$pitchId.update";
 import { withDatabaseDump } from "@/services/dump-service";
@@ -32,13 +32,13 @@ export const action = async (args: Route.ActionArgs) => {
     const { field, value } =
       yield* Schema.decodeUnknown(updateSchema)(formDataObject);
 
-    const db = yield* DBFunctionsService;
+    const pitchOps = yield* PitchOperationsService;
 
     let coerced: string | number | boolean = value;
     if (field === "priority") coerced = Number(value);
     if (field === "archived") coerced = value === "true";
 
-    const pitch = yield* db.updatePitchField(pitchId, field, coerced);
+    const pitch = yield* pitchOps.updatePitchField(pitchId, field, coerced);
     return data({ pitch });
   }).pipe(
     withDatabaseDump,

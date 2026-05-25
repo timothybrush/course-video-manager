@@ -1,14 +1,14 @@
 import { Console, Effect } from "effect";
 import { runtimeLive } from "@/services/layer.server";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { LinkAuthOperationsService } from "@/services/db-link-auth-operations.server";
 
 /**
  * Disconnect YouTube account by deleting stored OAuth tokens.
  */
 export const action = async () => {
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    yield* db.deleteYoutubeAuth();
+    const linkAuthOps = yield* LinkAuthOperationsService;
+    yield* linkAuthOps.deleteYoutubeAuth();
     return Response.json({ success: true });
   }).pipe(
     Effect.tapErrorCause((e) => Console.log(e)),

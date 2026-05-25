@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { Effect, Layer } from "effect";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { CourseOperationsService } from "@/services/db-course-operations.server";
+import { VersionOperationsService } from "@/services/db-version-operations.server";
+import { LessonSectionOperationsService } from "@/services/db-lesson-section-operations.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import { CourseWriteService } from "@/services/course-write-service";
 import { NodeContext } from "@effect/platform-node";
@@ -39,22 +41,34 @@ const setup = async () => {
 
   const testLayer = Layer.mergeAll(
     CourseWriteService.Default,
-    DBFunctionsService.Default
+    CourseOperationsService.Default,
+    VersionOperationsService.Default,
+    LessonSectionOperationsService.Default
   ).pipe(Layer.provide(drizzleLayer), Layer.provide(NodeContext.layer));
 
-  const dbLayer = DBFunctionsService.Default.pipe(Layer.provide(drizzleLayer));
+  const dbLayer = Layer.mergeAll(
+    CourseOperationsService.Default,
+    VersionOperationsService.Default,
+    LessonSectionOperationsService.Default
+  ).pipe(Layer.provide(drizzleLayer));
 
   const run = <A, E>(effect: Effect.Effect<A, E, CourseWriteService>) =>
     Effect.runPromise(effect.pipe(Effect.provide(testLayer)));
 
   const repo = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.createCourse({ filePath: tempDir, name: "test-repo" });
+    const courseOps = yield* CourseOperationsService;
+    return yield* courseOps.createCourse({
+      filePath: tempDir,
+      name: "test-repo",
+    });
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const version = await Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    return yield* db.createCourseVersion({ repoId: repo.id, name: "v1" });
+    const versionOps = yield* VersionOperationsService;
+    return yield* versionOps.createCourseVersion({
+      repoId: repo.id,
+      name: "v1",
+    });
   }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   const createSection = async (sectionPath: string, order: number) => {
@@ -65,8 +79,8 @@ const setup = async () => {
       cwd: tempDir,
     });
     const sections = await Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      return yield* db.createSections({
+      const lsOps = yield* LessonSectionOperationsService;
+      return yield* lsOps.createSections({
         repoVersionId: version.id,
         sections: [
           { sectionPathWithNumber: sectionPath, sectionNumber: order },
@@ -94,8 +108,8 @@ const setup = async () => {
       cwd: tempDir,
     });
     const lessons = await Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      return yield* db.createLessons(sectionId, [
+      const lsOps = yield* LessonSectionOperationsService;
+      return yield* lsOps.createLessons(sectionId, [
         { lessonPathWithNumber: lessonPath, lessonNumber: order },
       ]);
     }).pipe(Effect.provide(dbLayer), Effect.runPromise);
@@ -109,8 +123,8 @@ const setup = async () => {
     order: number
   ) => {
     const lesson = await Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      return yield* db.createGhostLesson(sectionId, {
+      const lsOps = yield* LessonSectionOperationsService;
+      return yield* lsOps.createGhostLesson(sectionId, {
         title,
         path: slug,
         order,
@@ -121,8 +135,8 @@ const setup = async () => {
 
   const getLesson = (lessonId: string) =>
     Effect.gen(function* () {
-      const db = yield* DBFunctionsService;
-      return yield* db.getLessonWithHierarchyById(lessonId);
+      const lsOps = yield* LessonSectionOperationsService;
+      return yield* lsOps.getLessonWithHierarchyById(lessonId);
     }).pipe(Effect.provide(dbLayer), Effect.runPromise);
 
   return {

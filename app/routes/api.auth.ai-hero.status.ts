@@ -1,14 +1,14 @@
 import { Console, Effect } from "effect";
 import { runtimeLive } from "@/services/layer.server";
-import { DBFunctionsService } from "@/services/db-service.server";
+import { LinkAuthOperationsService } from "@/services/db-link-auth-operations.server";
 
 /**
  * Get AI Hero auth status. Returns whether connected and user ID if so.
  */
 export const loader = async () => {
   return Effect.gen(function* () {
-    const db = yield* DBFunctionsService;
-    const auth = yield* db.getAiHeroAuth();
+    const linkAuthOps = yield* LinkAuthOperationsService;
+    const auth = yield* linkAuthOps.getAiHeroAuth();
 
     if (!auth) {
       return Response.json({ connected: false });
