@@ -22,11 +22,11 @@ export function useDocumentPanelActions({
   const [isWritingToReadme, setIsWritingToReadme] = useState(false);
 
   const uploadAndReplaceImages = useCallback(
-    async (content: string, deleteLocalFiles = false): Promise<string> => {
+    async (content: string): Promise<string> => {
       const response = await fetch(`/api/videos/${videoId}/upload-images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: content, deleteLocalFiles }),
+        body: JSON.stringify({ body: content, deleteLocalFiles: true }),
       });
       if (!response.ok) {
         const errorText = await response.text();
@@ -67,7 +67,7 @@ export function useDocumentPanelActions({
     try {
       let contentToCopy = currentDoc;
       try {
-        const updatedDoc = await uploadAndReplaceImages(currentDoc, true);
+        const updatedDoc = await uploadAndReplaceImages(currentDoc);
         if (updatedDoc !== currentDoc) {
           updateDocument(updatedDoc);
           contentToCopy = updatedDoc;
@@ -92,7 +92,7 @@ export function useDocumentPanelActions({
     try {
       let contentToCopy = currentDoc;
       try {
-        const updatedDoc = await uploadAndReplaceImages(currentDoc, true);
+        const updatedDoc = await uploadAndReplaceImages(currentDoc);
         if (updatedDoc !== currentDoc) {
           updateDocument(updatedDoc);
           contentToCopy = updatedDoc;
