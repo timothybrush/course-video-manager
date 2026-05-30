@@ -161,21 +161,22 @@ _Avoid_: Caption, Subtitle
 A reusable packaging artifact — the YouTube/newsletter/tweet copy and thumbnail concept for a video idea — authored _before_ the video itself is recorded. A Pitch is independent of the Course hierarchy; it relates only to **Standalone Videos**.
 _Avoid_: Idea, Concept, Draft (overloaded with Draft Version)
 
-**Pitch Status**:
-A manual marker on a Pitch with five values, all user-set (none derived from linked Videos):
+**Pitch Desk State**:
+A Pitch's state, derived (never stored) from the **Deliverable Status** of its linked **Deliverables**:
 
-- `idle` (default) — drafting / mulling; not yet committed to making the video
-- `scheduled` — queued for delivery (typically linked from the **Deliverables Calendar**, set manually); not yet scheduled inside YouTube itself
-- `shipped-to-youtube` — uploaded to YouTube and queued in YouTube's own scheduler; awaiting go-live and remaining channels (newsletter, tweet)
-- `shipped` — fully delivered across channels; the Pitch is done
-- `cancelled` — decided not to make this video; sideways off-ramp from any other state, reversible by flipping back to `idle`
+- **Idle** — no linked Deliverable.
+- **Scheduled** — at least one linked Deliverable, not all terminal.
+- **Shipped** — at least one linked Deliverable, all terminal (`done`/`cancelled`).
 
-Lifecycle ladder: `idle → scheduled → shipped-to-youtube → shipped`, with `cancelled` as a sideways off-ramp from any of them. `shipped` and `cancelled` are mutually exclusive. All transitions are reversible — the field is just a manual bookkeeping marker.
+Abandonment is separate: a Pitch is hidden by **Archive**, not by Desk State.
+_Avoid_: Pitch Status (no stored status field), Pipeline state
 
-A Pitch can have any status independent of how many Videos are linked to it.
+**Effort**:
+A planning estimate of how much work the eventual video will take to produce — one of three levels: `low`, `medium` (default), `high`. Lives on the Pitch (not the Video) because the estimate is a triage input used _before_ the video exists, when deciding whether the idea is worth making. Set manually; never derived. Used alongside **Priority** to rank pitches: within a given priority, a lower-effort pitch is the more attractive one to make next ("low-hanging fruit"). Effort never overrides priority — it only breaks ties within a priority band.
+_Avoid_: Estimate, Cost, Size, Complexity
 
 **Default Pitch Filter**:
-The pitches index defaults to showing `idle + scheduled + shipped-to-youtube` — the "still on my desk" set. `shipped` and `cancelled` are hidden by default. When the filter equals this default set, the `status` URL param is omitted (bookmarks of `/pitches` survive future default changes).
+The pitches index defaults to **Idle + Scheduled** (everything that isn't **Shipped**); a reveal toggle brings **Shipped** into view. At the default, the filter URL param is omitted so `/pitches` bookmarks survive default changes.
 
 ### Reference video
 
@@ -214,7 +215,7 @@ _Avoid_: Changelog (ambiguous with course publish changelog), Skill post, Change
 ### Deliverables and scheduling
 
 **Deliverable**:
-A manually-authored entry on the **Deliverables Calendar**, pinned to a single all-day date. May link to zero or more **Courses** and/or **Pitches**; links are informational only, never derived. Archived Deliverables are hidden from both the active calendar and the history disclosure — archive is the only hide.
+A manually-authored entry on the **Deliverables Calendar**, pinned to a single all-day date. May link to zero or more **Courses** and/or **Pitches**; the Deliverable's own state is never derived, but a linked Pitch's **Pitch Desk State** is derived from it. Archived Deliverables are hidden from both the active calendar and the history disclosure — archive is the only hide.
 _Avoid_: Task, Item, Scheduled work, Ship target
 
 **Deliverable Status**:
