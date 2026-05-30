@@ -175,6 +175,10 @@ _Avoid_: Pitch Status (no stored status field), Desk State, Pipeline state
 A planning estimate of how much work the eventual video will take to produce — one of three levels: `low`, `medium` (default), `high`. Lives on the Pitch (not the Video) because the estimate is a triage input used _before_ the video exists, when deciding whether the idea is worth making. Set manually; never derived. Used alongside **Priority** to rank pitches: within a given priority, a lower-effort pitch is the more attractive one to make next ("low-hanging fruit"). Effort never overrides priority — it only breaks ties within a priority band.
 _Avoid_: Estimate, Cost, Size, Complexity
 
+**Effort**:
+A manual planning estimate on a **Pitch** — how much work the eventual video will take to produce. Three values: `low` (1), `medium` (2), `high` (3). Stored as an integer mirroring **Priority**; defaults to `medium`. A production metric on a packaging artifact: effort lives on the Pitch (not the Video) because it is a planning input used _before_ the video exists. Within a priority band, low-effort pitches sort first ("low-hanging fruit"); effort never overrides priority across bands. No distinct "unestimated" state — `medium + untouched` means "haven't looked yet."
+_Avoid_: Complexity, Size, T-shirt size
+
 **Default Pitch Filter**:
 The pitches index defaults to **Idle + Scheduled** (everything that isn't **Shipped**); a reveal toggle brings **Shipped** into view. At the default, the filter URL param is omitted so `/pitches` bookmarks survive default changes.
 

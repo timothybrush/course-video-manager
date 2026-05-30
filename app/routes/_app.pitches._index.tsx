@@ -1,4 +1,10 @@
 import {
+  EffortSelector,
+  EFFORT_DOT_COLORS,
+  EFFORT_LABELS,
+  type Effort,
+} from "@/components/effort-selector";
+import {
   PrioritySelector,
   PRIORITY_STYLES,
   type Priority,
@@ -21,7 +27,7 @@ import { runtimeLive } from "@/services/layer.server";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { Console, Effect } from "effect";
 import { FileVideo, Lightbulb, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   data,
   Link,
@@ -36,6 +42,7 @@ export const meta: Route.MetaFunction = () => {
 };
 
 type PitchPriority = 1 | 2 | 3;
+type PitchEffort = 1 | 2 | 3;
 
 function parsePriorityParam(raw: string | null): PitchPriority[] {
   if (!raw) return [];
@@ -45,6 +52,18 @@ function parsePriorityParam(raw: string | null): PitchPriority[] {
         .split(",")
         .map(Number)
         .filter((n): n is PitchPriority => n === 1 || n === 2 || n === 3)
+    ),
+  ];
+}
+
+function parseEffortParam(raw: string | null): PitchEffort[] {
+  if (!raw) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map(Number)
+        .filter((n): n is PitchEffort => n === 1 || n === 2 || n === 3)
     ),
   ];
 }
@@ -62,12 +81,14 @@ interface PitchWithVideos {
   description: string;
   state: PitchState;
   priority: number;
+  effort: number;
   videos: PitchVideo[];
 }
 
 export const loader = async (args: Route.LoaderArgs) => {
   const url = new URL(args.request.url);
   const priorityFilter = parsePriorityParam(url.searchParams.get("priority"));
+  const effortFilter = parseEffortParam(url.searchParams.get("effort"));
   const showShipped = url.searchParams.get("shipped") === "1";
 
   const stateFilter: PitchState[] = showShipped
@@ -81,6 +102,7 @@ export const loader = async (args: Route.LoaderArgs) => {
     const pitchesRaw = yield* db.listPitchesWithVideos({
       state: stateFilter,
       priority: priorityFilter.length > 0 ? priorityFilter : undefined,
+      effort: effortFilter.length > 0 ? effortFilter : undefined,
     });
 
     const hasExportedVideoMap: Record<string, boolean> = {};
@@ -101,6 +123,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       description: p.description,
       state: p.state,
       priority: p.priority,
+      effort: p.effort,
       videos: p.videos.map((v) => ({
         id: v.id,
         path: v.path,
@@ -132,6 +155,7 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const priorityFilter = parsePriorityParam(searchParams.get("priority"));
+  const effortFilter = parseEffortParam(searchParams.get("effort"));
   const showShipped = searchParams.get("shipped") === "1";
 
   useEffect(() => {
@@ -142,6 +166,7 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
 
   const updateFilters = (
     nextPriority: PitchPriority[],
+    nextEffort: PitchEffort[],
     nextShowShipped: boolean
   ) => {
     setSearchParams((prev) => {
@@ -151,6 +176,12 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
         next.delete("priority");
       } else {
         next.set("priority", nextPriority.join(","));
+      }
+
+      if (nextEffort.length === 0) {
+        next.delete("effort");
+      } else {
+        next.set("effort", nextEffort.join(","));
       }
 
       if (nextShowShipped) {
@@ -167,14 +198,22 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
     const next = priorityFilter.includes(p)
       ? priorityFilter.filter((x) => x !== p)
       : [...priorityFilter, p];
-    updateFilters(next, showShipped);
+    updateFilters(next, effortFilter, showShipped);
+  };
+
+  const toggleEffort = (e: PitchEffort) => {
+    const next = effortFilter.includes(e)
+      ? effortFilter.filter((x) => x !== e)
+      : [...effortFilter, e];
+    updateFilters(priorityFilter, next, showShipped);
   };
 
   const clearAll = () => {
-    updateFilters([], false);
+    updateFilters([], [], false);
   };
 
-  const hasActiveFilters = priorityFilter.length > 0 || showShipped;
+  const hasActiveFilters =
+    priorityFilter.length > 0 || effortFilter.length > 0 || showShipped;
 
   return (
     <div className="flex-1 flex flex-col bg-background text-foreground">
@@ -225,6 +264,36 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
 
               <span className="text-muted-foreground mx-0.5">|</span>
 
+              {([1, 2, 3] as const).map((effort) => {
+                const isSelected = effortFilter.includes(effort);
+                const showAsActive = effortFilter.length === 0 || isSelected;
+                return (
+                  <button
+                    key={`effort-${effort}`}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-sm font-medium transition-colors",
+                      showAsActive
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground/40 hover:text-muted-foreground/60",
+                      isSelected && "ring-1 ring-current"
+                    )}
+                    onClick={() => toggleEffort(effort)}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block w-2 h-2 rounded-full",
+                        showAsActive
+                          ? EFFORT_DOT_COLORS[effort]
+                          : "bg-muted-foreground/30"
+                      )}
+                    />
+                    {EFFORT_LABELS[effort]}
+                  </button>
+                );
+              })}
+
+              <span className="text-muted-foreground mx-0.5">|</span>
+
               <button
                 className={cn(
                   "text-xs px-2 py-0.5 rounded-sm font-medium transition-colors",
@@ -232,7 +301,9 @@ export default function PitchesIndexRoute(props: Route.ComponentProps) {
                     ? "bg-accent text-accent-foreground ring-1 ring-current"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
-                onClick={() => updateFilters(priorityFilter, !showShipped)}
+                onClick={() =>
+                  updateFilters(priorityFilter, effortFilter, !showShipped)
+                }
               >
                 Show shipped
               </button>
@@ -303,18 +374,16 @@ function PitchRow({
   const navigate = useNavigate();
   const createVideoFetcher = useFetcher<{ id: string }>();
   const priorityFetcher = useFetcher();
+  const effortFetcher = useFetcher();
   const deleteFetcher = useFetcher();
   const isDeleting =
     deleteFetcher.state !== "idle" ||
     deleteFetcher.formAction === `/api/pitches/${pitch.id}/delete`;
 
-  const [optimisticPriority, setOptimisticPriority] = useState<Priority>(
-    pitch.priority as Priority
-  );
-
-  useEffect(() => {
-    setOptimisticPriority(pitch.priority as Priority);
-  }, [pitch.priority]);
+  const optimisticPriority = (Number(priorityFetcher.formData?.get("value")) ||
+    pitch.priority) as Priority;
+  const optimisticEffort = (Number(effortFetcher.formData?.get("value")) ||
+    pitch.effort) as Effort;
 
   useEffect(() => {
     if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
@@ -339,9 +408,20 @@ function PitchRow({
             <PrioritySelector
               priority={optimisticPriority}
               onSelect={(p) => {
-                setOptimisticPriority(p);
                 priorityFetcher.submit(
                   { field: "priority", value: String(p) },
+                  {
+                    method: "post",
+                    action: `/api/pitches/${pitch.id}/update`,
+                  }
+                );
+              }}
+            />
+            <EffortSelector
+              effort={optimisticEffort}
+              onSelect={(e) => {
+                effortFetcher.submit(
+                  { field: "effort", value: String(e) },
                   {
                     method: "post",
                     action: `/api/pitches/${pitch.id}/update`,

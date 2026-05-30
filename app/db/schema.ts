@@ -149,6 +149,7 @@ export const pitches = createTable("pitch", {
   newsletterTitle: text("newsletter_title").notNull().default(""),
   tweet: text("tweet").notNull().default(""),
   priority: integer("priority").notNull().default(2),
+  effort: integer("effort").notNull().default(2),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", {
     mode: "date",

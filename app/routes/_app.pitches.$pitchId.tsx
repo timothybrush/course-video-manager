@@ -8,6 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { EffortSelector, type Effort } from "@/components/effort-selector";
 import {
   PrioritySelector,
   type Priority,
@@ -98,6 +99,7 @@ export const loader = async (args: Route.LoaderArgs) => {
         tweet: pitchRaw.tweet,
         state: pitchRaw.state,
         priority: pitchRaw.priority,
+        effort: pitchRaw.effort,
       },
       videos,
       hasExportedVideoMap,
@@ -222,6 +224,7 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
   const backLink = pitchBackLink(searchParams.get("from"));
   const deleteFetcher = useFetcher();
   const priorityFetcher = useFetcher();
+  const effortFetcher = useFetcher();
   const createVideoFetcher = useFetcher<{ id: string }>();
 
   const [title, setTitle] = useState(initialPitch.title);
@@ -234,9 +237,10 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
     initialPitch.newsletterTitle
   );
   const [tweet, setTweet] = useState(initialPitch.tweet);
-  const [priority, setPriority] = useState<Priority>(
-    initialPitch.priority as Priority
-  );
+  const priority = (Number(priorityFetcher.formData?.get("value")) ||
+    initialPitch.priority) as Priority;
+  const effort = (Number(effortFetcher.formData?.get("value")) ||
+    initialPitch.effort) as Effort;
 
   const { save, saveImmediate, saveState } = usePitchAutoSave(initialPitch.id);
 
@@ -323,9 +327,20 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
           <PrioritySelector
             priority={priority}
             onSelect={(p) => {
-              setPriority(p);
               priorityFetcher.submit(
                 { field: "priority", value: String(p) },
+                {
+                  method: "post",
+                  action: `/api/pitches/${initialPitch.id}/update`,
+                }
+              );
+            }}
+          />
+          <EffortSelector
+            effort={effort}
+            onSelect={(e) => {
+              effortFetcher.submit(
+                { field: "effort", value: String(e) },
                 {
                   method: "post",
                   action: `/api/pitches/${initialPitch.id}/update`,

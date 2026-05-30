@@ -42,6 +42,7 @@ describe("createPitch", () => {
       expect(pitch.newsletterTitle).toBe("");
       expect(pitch.tweet).toBe("");
       expect(pitch.priority).toBe(2);
+      expect(pitch.effort).toBe(2);
       expect(pitch.archived).toBe(false);
       expect(pitch.createdAt).toBeInstanceOf(Date);
       expect(pitch.updatedAt).toBeInstanceOf(Date);
