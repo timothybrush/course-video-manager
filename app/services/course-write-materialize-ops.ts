@@ -9,7 +9,12 @@ import {
   computeInsertionPlan,
   parseLessonPath,
 } from "./lesson-path-service";
-import { parseSectionPath, buildSectionPath } from "./section-path-service";
+import {
+  parseSectionPath,
+  buildSectionPath,
+  sectionHasRealLessons,
+  sectionSlugFromPath,
+} from "./section-path-service";
 import { validateAndAssignRepoPath } from "./course-write-service.helpers";
 import { CourseWriteError } from "./course-write-service.types";
 import {
@@ -45,33 +50,41 @@ export function createMaterializeOps<E1>(
     }
 
     let sectionPath = section.path;
-    const parsed = parseSectionPath(sectionPath);
     const slug = toSlug(title) || "untitled";
     const repoVersionId = section.repoVersionId;
 
-    // If section is ghost, materialize it
+    // Get all lessons in section
+    const lessons = yield* lessonSectionOps.getLessonsBySectionId(sectionId);
+
+    // The section is a ghost unless it already holds a real lesson — never
+    // inferred from the path prefix.
+    const sectionIsGhost = !sectionHasRealLessons(lessons);
+
+    // If section is a ghost, materialize it
     let sectionMaterialized = false;
     let sectionNumber: number;
-    if (!parsed) {
+    if (sectionIsGhost) {
       const allSections =
-        yield* lessonSectionOps.getSectionsByRepoVersionId(repoVersionId);
+        yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
+          repoVersionId
+        );
       const positionIndex = allSections.findIndex((s) => s.id === sectionId);
       let realBefore = 0;
       for (let i = 0; i < positionIndex; i++) {
-        if (parseSectionPath(allSections[i]!.path)) realBefore++;
+        if (sectionHasRealLessons(allSections[i]!.lessons)) realBefore++;
       }
       sectionNumber = realBefore + 1;
 
-      const sectionSlug = toSlug(sectionPath) || "untitled";
-      sectionPath = buildSectionPath(sectionNumber, sectionSlug);
+      sectionPath = buildSectionPath(
+        sectionNumber,
+        sectionSlugFromPath(section.path)
+      );
       yield* lessonSectionOps.updateSectionPath(sectionId, sectionPath);
       sectionMaterialized = true;
     } else {
-      sectionNumber = parsed.sectionNumber;
+      sectionNumber = parseSectionPath(sectionPath)?.sectionNumber ?? 1;
     }
 
-    // Get all lessons in section
-    const lessons = yield* lessonSectionOps.getLessonsBySectionId(sectionId);
     const maxOrder =
       lessons.length > 0 ? Math.max(...lessons.map((l) => l.order)) : 0;
     let insertOrder = maxOrder + 1;
@@ -209,35 +222,43 @@ export function createMaterializeOps<E1>(
     }
     const repoVersionId = lesson.section.repoVersionId;
     let sectionPath = lesson.section.path;
-    const parsed = parseSectionPath(sectionPath);
     const slug =
       toSlug(lesson.title || "") || toSlug(lesson.path) || "untitled";
 
+    const sectionLessons = yield* lessonSectionOps.getLessonsBySectionId(
+      lesson.sectionId
+    );
+    // The section is a ghost unless it already holds a real lesson — never
+    // inferred from the path prefix. The lesson being materialized here is
+    // still a ghost in the DB at this point, so it doesn't count itself.
+    const sectionIsGhost = !sectionHasRealLessons(sectionLessons);
+
     let sectionMaterialized = false;
     let sectionNumber: number;
-    if (!parsed) {
+    if (sectionIsGhost) {
       const allSections =
-        yield* lessonSectionOps.getSectionsByRepoVersionId(repoVersionId);
+        yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
+          repoVersionId
+        );
       const positionIndex = allSections.findIndex(
         (s) => s.id === lesson.sectionId
       );
       let realBefore = 0;
       for (let i = 0; i < positionIndex; i++) {
-        if (parseSectionPath(allSections[i]!.path)) realBefore++;
+        if (sectionHasRealLessons(allSections[i]!.lessons)) realBefore++;
       }
       sectionNumber = realBefore + 1;
 
-      const sectionSlug = toSlug(sectionPath) || "untitled";
-      sectionPath = buildSectionPath(sectionNumber, sectionSlug);
+      sectionPath = buildSectionPath(
+        sectionNumber,
+        sectionSlugFromPath(lesson.section.path)
+      );
       yield* lessonSectionOps.updateSectionPath(lesson.sectionId, sectionPath);
       sectionMaterialized = true;
     } else {
-      sectionNumber = parsed.sectionNumber;
+      sectionNumber = parseSectionPath(sectionPath)?.sectionNumber ?? 1;
     }
 
-    const sectionLessons = yield* lessonSectionOps.getLessonsBySectionId(
-      lesson.sectionId
-    );
     const ghostOrder = lesson.order;
 
     const realLessons = sectionLessons.filter((l) => l.fsStatus !== "ghost");

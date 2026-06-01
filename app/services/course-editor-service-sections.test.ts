@@ -8,11 +8,22 @@ import { describe, it, expect } from "vitest";
 import {
   setupEditorServiceTests,
   createCourseWithVersion,
+  createSectionWithLessons,
   getSections,
   editorService as es,
   testDb,
   schema,
 } from "./course-editor-service-test-setup";
+
+// A real section is one that holds at least one real lesson — never inferred
+// from the path prefix. These helpers build sections that are unambiguously
+// real or ghost under that rule.
+const realLesson = (order: number) => ({
+  path: `01.0${order}-lesson`,
+  title: `Lesson ${order}`,
+  fsStatus: "real",
+  order,
+});
 
 setupEditorServiceTests();
 
@@ -58,19 +69,17 @@ describe("CourseEditorService — sections", () => {
   });
 
   describe("update-section-name", () => {
-    it("renames a section with a parseable path", async () => {
+    it("renames a real section (has a real lesson) on disk with slug conversion", async () => {
       const { version } = await createCourseWithVersion();
-      const [section] = await db()
-        .insert(schema.sections)
-        .values({
-          repoVersionId: version.id,
-          path: "01-introduction",
-          order: 1,
-        })
-        .returning();
+      const { section } = await createSectionWithLessons(
+        version.id,
+        "01-introduction",
+        1,
+        [realLesson(1)]
+      );
 
       const result = await svc().updateSectionName(
-        section!.id,
+        section.id,
         "Getting Started"
       );
       expect(result).toMatchObject({
@@ -105,16 +114,14 @@ describe("CourseEditorService — sections", () => {
 
     it("returns early when slug is unchanged", async () => {
       const { version } = await createCourseWithVersion();
-      const [section] = await db()
-        .insert(schema.sections)
-        .values({
-          repoVersionId: version.id,
-          path: "01-introduction",
-          order: 1,
-        })
-        .returning();
+      const { section } = await createSectionWithLessons(
+        version.id,
+        "01-introduction",
+        1,
+        [realLesson(1)]
+      );
 
-      const result = await svc().updateSectionName(section!.id, "Introduction");
+      const result = await svc().updateSectionName(section.id, "Introduction");
       expect(result).toMatchObject({ success: true, path: "01-introduction" });
     });
   });
@@ -251,22 +258,28 @@ describe("CourseEditorService — sections", () => {
       expect(sections.map((s) => s.order)).toEqual([0, 1, 2]);
     });
 
-    it("reorders parseable sections and updates paths", async () => {
+    it("reorders real sections and updates paths", async () => {
       const { version } = await createCourseWithVersion();
-      const [s1] = await db()
-        .insert(schema.sections)
-        .values({ repoVersionId: version.id, path: "01-alpha", order: 0 })
-        .returning();
-      const [s2] = await db()
-        .insert(schema.sections)
-        .values({ repoVersionId: version.id, path: "02-beta", order: 1 })
-        .returning();
-      const [s3] = await db()
-        .insert(schema.sections)
-        .values({ repoVersionId: version.id, path: "03-gamma", order: 2 })
-        .returning();
+      const { section: s1 } = await createSectionWithLessons(
+        version.id,
+        "01-alpha",
+        0,
+        [realLesson(1)]
+      );
+      const { section: s2 } = await createSectionWithLessons(
+        version.id,
+        "02-beta",
+        1,
+        [realLesson(1)]
+      );
+      const { section: s3 } = await createSectionWithLessons(
+        version.id,
+        "03-gamma",
+        2,
+        [realLesson(1)]
+      );
 
-      await svc().reorderSections([s3!.id, s1!.id, s2!.id]);
+      await svc().reorderSections([s3.id, s1.id, s2.id]);
 
       const sections = await getSections(version.id);
       expect(sections.map((s) => s.path)).toEqual([

@@ -51,7 +51,12 @@ A lesson that exists in the database but not yet on the file system (`fsStatus =
 _Avoid_: Planned lesson, Draft lesson
 
 **Ghost Section**:
-A section that exists in the database but not yet on the file system.
+A section that exists in the database but not yet on the file system. A section
+is **real** iff it contains at least one real lesson; otherwise it is a ghost.
+Real-ness is derived from its lessons, **never** inferred from the path prefix —
+a ghost section can carry a numbered path (e.g. left over after its last real
+lesson moved out) while having no directory on disk. See `sectionHasRealLessons`
+in `section-path-service.ts`.
 _Avoid_: Planned section
 
 **Ghost Course**:

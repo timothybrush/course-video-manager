@@ -70,6 +70,7 @@ describe("computeSectionRenumberingPlan", () => {
     slugs.map((slug, i) => ({
       id: `section-${i + 1}`,
       path: buildSectionPath(i + 1, slug),
+      hasRealLessons: true,
     }));
 
   it("returns empty array for empty sections", () => {
@@ -163,6 +164,25 @@ describe("computeSectionRenumberingPlan", () => {
     // section-1 stays 01-intro (no change)
     expect(plan.find((r) => r.id === "section-1")).toBeUndefined();
     expect(plan).toHaveLength(3);
+  });
+
+  it("skips ghost sections even when their path is numbered", () => {
+    // A ghost section can carry a numbered path; real-ness is decided by
+    // hasRealLessons, not by whether the path parses.
+    const sections = [
+      { id: "section-1", path: "01-intro", hasRealLessons: true },
+      { id: "section-2", path: "02-concepts", hasRealLessons: false },
+      { id: "section-3", path: "03-advanced", hasRealLessons: true },
+    ];
+    const plan = computeSectionRenumberingPlan(sections, [
+      "section-3",
+      "section-2",
+      "section-1",
+    ]);
+
+    // The ghost (section-2) must not be renumbered/renamed on disk.
+    expect(plan.find((r) => r.id === "section-2")).toBeUndefined();
+    expect(plan.map((r) => r.id)).toEqual(["section-3", "section-1"]);
   });
 
   it("ignores unknown IDs in newOrderIds", () => {

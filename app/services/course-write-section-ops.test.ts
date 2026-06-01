@@ -393,6 +393,14 @@ describe("CourseWriteService", () => {
         "ghost-lesson",
         2
       );
+      // section2 needs a real lesson to be a real section (real-ness is
+      // derived from real lessons, not from the numbered path).
+      await createRealLesson(
+        section2.id,
+        "02-advanced",
+        "02.01-other-lesson",
+        1
+      );
 
       // Swap sections
       await run(
@@ -429,7 +437,7 @@ describe("CourseWriteService", () => {
       expect(updatedSection2.order).toBe(0);
     });
 
-    it("ghost-only section reorder: skips git mv for ghost section, renames real sections", async () => {
+    it("ghost section reorder: ghost path left untouched, real section renumbered by position", async () => {
       const {
         run,
         createSection,
@@ -480,8 +488,11 @@ describe("CourseWriteService", () => {
       expect(updatedSection1.path).toBe("02-intro");
       expect(updatedSection1.order).toBe(1);
 
+      // The ghost section is not on disk and holds no real lessons, so its
+      // path is left exactly as-is — ghost paths are never renumbered. Only
+      // its order field changes.
       const updatedSection2 = await getSection(section2.id);
-      expect(updatedSection2.path).toBe("01-before-we-start");
+      expect(updatedSection2.path).toBe("02-before-we-start");
       expect(updatedSection2.order).toBe(0);
 
       // DB: real lesson path updated

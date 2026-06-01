@@ -5,14 +5,39 @@
  *   NN = section number (zero-padded to match existing width)
  */
 
+import { toSlug } from "./lesson-path-service";
+
 export type ParsedSectionPath = {
   sectionNumber: number;
   slug: string;
 };
 
+/**
+ * A section is "real" (materialized on disk) iff it contains at least one
+ * real lesson. Real-ness is NEVER inferred from the path prefix: a ghost
+ * section can carry a numbered path (e.g. left over after its last real
+ * lesson moved out) yet have no directory on disk, and an empty numbered
+ * path must not be mistaken for a materialized section.
+ */
+export const sectionHasRealLessons = (
+  lessons: ReadonlyArray<{ fsStatus: string }>
+): boolean => lessons.some((lesson) => lesson.fsStatus !== "ghost");
+
+/**
+ * Derives the slug for a section regardless of whether its path is already
+ * numbered ("02-concepts" → "concepts") or a plain title ("Concepts" →
+ * "concepts").
+ */
+export const sectionSlugFromPath = (sectionPath: string): string => {
+  const parsed = parseSectionPath(sectionPath);
+  if (parsed) return parsed.slug;
+  return toSlug(sectionPath) || "untitled";
+};
+
 export type SectionForReorder = {
   id: string;
   path: string; // directory name like "01-intro"
+  hasRealLessons: boolean; // real-ness, derived from lessons (not the path)
 };
 
 export type SectionRenameEntry = {
@@ -82,17 +107,21 @@ export const computeSectionRenumberingPlan = (
     const section = sectionMap.get(newOrderIds[i]!);
     if (!section) continue;
 
-    const parsed = parseSectionPath(section.path);
-    if (!parsed) continue;
+    // Ghost sections (no real lessons) don't get numbered paths.
+    if (!section.hasRealLessons) continue;
 
     const newSectionNumber = i + 1;
-    const newPath = buildSectionPath(newSectionNumber, parsed.slug);
+    const newPath = buildSectionPath(
+      newSectionNumber,
+      sectionSlugFromPath(section.path)
+    );
     if (newPath !== section.path) {
       renames.push({
         id: section.id,
         oldPath: section.path,
         newPath,
-        oldSectionNumber: parsed.sectionNumber,
+        oldSectionNumber:
+          parseSectionPath(section.path)?.sectionNumber ?? newSectionNumber,
         newSectionNumber,
       });
     }

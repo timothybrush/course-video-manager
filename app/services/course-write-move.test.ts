@@ -176,270 +176,271 @@ describe("CourseWriteService", () => {
     }
   });
 
-  describe("reorderLessons", () => {
-    it("reorders real lessons: renames dirs on disk and updates DB paths and order", async () => {
+  describe("moveToSection", () => {
+    it("moves a real lesson: directory moved, source renumbered, DB updated", async () => {
       const { run, createSection, createRealLesson, getLesson } = await setup();
 
-      const section = await createSection("01-intro", 1);
+      const section1 = await createSection("01-intro", 1);
+      const section2 = await createSection("02-advanced", 2);
+
       const real1 = await createRealLesson(
-        section.id,
+        section1.id,
         "01-intro",
         "01.01-first",
         1
       );
       const real2 = await createRealLesson(
-        section.id,
+        section1.id,
         "01-intro",
         "01.02-second",
         2
       );
       const real3 = await createRealLesson(
-        section.id,
+        section1.id,
         "01-intro",
         "01.03-third",
         3
       );
+      // Target section has one existing lesson
+      await createRealLesson(section2.id, "02-advanced", "02.01-existing", 1);
 
-      // Reverse order: third, second, first
+      // Move real2 from section1 to section2
       await run(
         Effect.gen(function* () {
           const service = yield* CourseWriteService;
-          return yield* service.reorderLessons(section.id, [
-            real3.id,
-            real2.id,
-            real1.id,
-          ]);
+          return yield* service.moveToSection(real2.id, section2.id);
         })
       );
 
-      // Filesystem: dirs renamed to match new order
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-third"))).toBe(
-        true
-      );
+      // Lesson directory moved to target section with correct numbering
+      expect(
+        fs.existsSync(path.join(tempDir, "02-advanced", "02.02-second"))
+      ).toBe(true);
+      // Old location gone
       expect(
         fs.existsSync(path.join(tempDir, "01-intro", "01.02-second"))
-      ).toBe(true);
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.03-first"))).toBe(
+      ).toBe(false);
+
+      // Source section renumbered: third lesson closes the gap (01.03 → 01.02)
+      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-first"))).toBe(
         true
       );
-
-      // Old paths gone
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-first"))).toBe(
-        false
+      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.02-third"))).toBe(
+        true
       );
       expect(fs.existsSync(path.join(tempDir, "01-intro", "01.03-third"))).toBe(
         false
       );
 
-      // DB paths updated
-      const updated1 = await getLesson(real1.id);
-      expect(updated1.path).toBe("01.03-first");
-      expect(updated1.order).toBe(2);
+      // DB: moved lesson updated
+      const movedLesson = await getLesson(real2.id);
+      expect(movedLesson.sectionId).toBe(section2.id);
+      expect(movedLesson.path).toBe("02.02-second");
 
-      const updated2 = await getLesson(real2.id);
-      expect(updated2.path).toBe("01.02-second");
-      expect(updated2.order).toBe(1);
+      // DB: source section renumbered
+      const updatedReal3 = await getLesson(real3.id);
+      expect(updatedReal3.path).toBe("01.02-third");
 
-      const updated3 = await getLesson(real3.id);
-      expect(updated3.path).toBe("01.01-third");
-      expect(updated3.order).toBe(0);
+      // DB: first lesson unchanged
+      const updatedReal1 = await getLesson(real1.id);
+      expect(updatedReal1.path).toBe("01.01-first");
     });
 
-    it("reorder with mixed ghost + real: only real lessons renamed on disk, all get updated order", async () => {
+    it("moves a ghost lesson: DB-only update, no filesystem ops", async () => {
+      const { run, createSection, createGhostLesson, getLesson } =
+        await setup();
+
+      const section1 = await createSection("01-intro", 1);
+      const section2 = await createSection("02-advanced", 2);
+
+      const ghost = await createGhostLesson(
+        section1.id,
+        "Ghost Lesson",
+        "ghost-lesson",
+        1
+      );
+
+      await run(
+        Effect.gen(function* () {
+          const service = yield* CourseWriteService;
+          return yield* service.moveToSection(ghost.id, section2.id);
+        })
+      );
+
+      // DB: moved to target section
+      const movedLesson = await getLesson(ghost.id);
+      expect(movedLesson.sectionId).toBe(section2.id);
+      expect(movedLesson.fsStatus).toBe("ghost");
+      expect(movedLesson.path).toBe("ghost-lesson"); // path unchanged for ghost
+    });
+
+    it("materializes ghost target section when moving a real lesson into it", async () => {
       const {
         run,
         createSection,
+        createGhostSection,
         createRealLesson,
-        createGhostLesson,
         getLesson,
+        getSection,
       } = await setup();
 
-      const section = await createSection("01-intro", 1);
+      const section1 = await createSection("01-intro", 1);
+      const ghostSection = await createGhostSection("Advanced Topics", 2);
+
       const real1 = await createRealLesson(
-        section.id,
+        section1.id,
         "01-intro",
         "01.01-first",
         1
       );
-      const ghost = await createGhostLesson(
-        section.id,
-        "Ghost Lesson",
-        "ghost-lesson",
-        2
-      );
-      const real2 = await createRealLesson(
-        section.id,
-        "01-intro",
-        "01.02-third",
-        3
-      );
 
-      // New order: real2, ghost, real1
       await run(
         Effect.gen(function* () {
           const service = yield* CourseWriteService;
-          return yield* service.reorderLessons(section.id, [
-            real2.id,
-            ghost.id,
-            real1.id,
-          ]);
+          return yield* service.moveToSection(real1.id, ghostSection.id);
         })
       );
 
-      // Real lessons swapped on disk
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-third"))).toBe(
+      // Ghost section should be materialized with a directory on disk.
+      // Source section reverted to ghost (lost its only real lesson),
+      // so renumbering shifts target from 02 → 01.
+      const updatedSection = await getSection(ghostSection.id);
+      expect(updatedSection.path).toBe("01-advanced-topics");
+      expect(fs.existsSync(path.join(tempDir, "01-advanced-topics"))).toBe(
         true
       );
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.02-first"))).toBe(
-        true
-      );
 
-      // DB paths updated for real lessons
-      const updatedReal1 = await getLesson(real1.id);
-      expect(updatedReal1.path).toBe("01.02-first");
-      expect(updatedReal1.order).toBe(2);
-
-      const updatedReal2 = await getLesson(real2.id);
-      expect(updatedReal2.path).toBe("01.01-third");
-      expect(updatedReal2.order).toBe(0);
-
-      // Ghost lesson: no filesystem change, order updated
-      const updatedGhost = await getLesson(ghost.id);
-      expect(updatedGhost.path).toBe("ghost-lesson"); // unchanged
-      expect(updatedGhost.order).toBe(1);
-    });
-
-    it("no-op when order hasn't changed", async () => {
-      const { run, createSection, createRealLesson, getLesson } = await setup();
-
-      const section = await createSection("01-intro", 1);
-      const real1 = await createRealLesson(
-        section.id,
-        "01-intro",
-        "01.01-first",
-        1
-      );
-      const real2 = await createRealLesson(
-        section.id,
-        "01-intro",
-        "01.02-second",
-        2
-      );
-
-      const result = await run(
-        Effect.gen(function* () {
-          const service = yield* CourseWriteService;
-          return yield* service.reorderLessons(section.id, [
-            real1.id,
-            real2.id,
-          ]);
-        })
-      );
-
-      expect(result.renames).toHaveLength(0);
-
-      // Filesystem unchanged
-      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-first"))).toBe(
-        true
-      );
+      // Lesson should be moved into the materialized section
       expect(
-        fs.existsSync(path.join(tempDir, "01-intro", "01.02-second"))
+        fs.existsSync(path.join(tempDir, "01-advanced-topics", "01.01-first"))
       ).toBe(true);
 
-      // DB paths unchanged
-      const updated1 = await getLesson(real1.id);
-      expect(updated1.path).toBe("01.01-first");
-
-      const updated2 = await getLesson(real2.id);
-      expect(updated2.path).toBe("01.02-second");
+      const movedLesson = await getLesson(real1.id);
+      expect(movedLesson.sectionId).toBe(ghostSection.id);
+      expect(movedLesson.path).toBe("01.01-first");
     });
-  });
 
-  describe("reorderLessons (ghost-only section)", () => {
-    it("reorders all-ghost lessons: all order values updated correctly", async () => {
-      const { run, createSection, createGhostLesson, getLesson } =
-        await setup();
+    it("materializes ghost target section keeping numbering when source stays real", async () => {
+      const {
+        run,
+        createSection,
+        createGhostSection,
+        createRealLesson,
+        getLesson,
+        getSection,
+      } = await setup();
 
-      const section = await createSection("01-intro", 1);
-      const g1 = await createGhostLesson(section.id, "Alpha", "alpha", 0);
-      const g2 = await createGhostLesson(section.id, "Beta", "beta", 1);
-      const g3 = await createGhostLesson(section.id, "Gamma", "gamma", 2);
-      const g4 = await createGhostLesson(section.id, "Delta", "delta", 3);
+      const section1 = await createSection("01-intro", 1);
+      const ghostSection = await createGhostSection("Advanced Topics", 2);
 
-      // Reverse the order
-      await run(
-        Effect.gen(function* () {
-          const service = yield* CourseWriteService;
-          return yield* service.reorderLessons(section.id, [
-            g4.id,
-            g3.id,
-            g2.id,
-            g1.id,
-          ]);
-        })
+      const real1 = await createRealLesson(
+        section1.id,
+        "01-intro",
+        "01.01-first",
+        1
       );
-
-      const updatedG1 = await getLesson(g1.id);
-      expect(updatedG1.order).toBe(3);
-
-      const updatedG2 = await getLesson(g2.id);
-      expect(updatedG2.order).toBe(2);
-
-      const updatedG3 = await getLesson(g3.id);
-      expect(updatedG3.order).toBe(1);
-
-      const updatedG4 = await getLesson(g4.id);
-      expect(updatedG4.order).toBe(0);
-    });
-
-    it("reorders a single ghost lesson (batch with one element)", async () => {
-      const { run, createSection, createGhostLesson, getLesson } =
-        await setup();
-
-      const section = await createSection("01-intro", 1);
-      const g1 = await createGhostLesson(section.id, "Only", "only", 5);
+      await createRealLesson(section1.id, "01-intro", "01.02-second", 2);
 
       await run(
         Effect.gen(function* () {
           const service = yield* CourseWriteService;
-          return yield* service.reorderLessons(section.id, [g1.id]);
+          return yield* service.moveToSection(real1.id, ghostSection.id);
         })
       );
 
-      const updated = await getLesson(g1.id);
-      expect(updated.order).toBe(0);
+      // Source still has a real lesson, so no revert — ghost materializes as 02
+      const updatedSection = await getSection(ghostSection.id);
+      expect(updatedSection.path).toBe("02-advanced-topics");
+      expect(fs.existsSync(path.join(tempDir, "02-advanced-topics"))).toBe(
+        true
+      );
+
+      expect(
+        fs.existsSync(path.join(tempDir, "02-advanced-topics", "02.01-first"))
+      ).toBe(true);
+
+      const movedLesson = await getLesson(real1.id);
+      expect(movedLesson.sectionId).toBe(ghostSection.id);
+      expect(movedLesson.path).toBe("02.01-first");
     });
-  });
 
-  describe("addGhostLesson (adjacent insertion)", () => {
-    it("inserts before the first ghost lesson and shifts others", async () => {
-      const { run, createSection, createGhostLesson, getLesson } =
-        await setup();
+    it("materializes ghost target section even when its path is already numbered", async () => {
+      const {
+        run,
+        createSection,
+        createGhostSection,
+        createRealLesson,
+        getLesson,
+        getSection,
+      } = await setup();
 
-      const section = await createSection("01-intro", 1);
-      const g1 = await createGhostLesson(section.id, "First", "first", 0);
-      const g2 = await createGhostLesson(section.id, "Second", "second", 1);
+      const section1 = await createSection("01-intro", 1);
+      // A ghost section can carry a numbered path (e.g. left over after its
+      // last real lesson moved out) while having no directory on disk. It is
+      // still a ghost — real-ness is "has at least one real lesson", not "path
+      // happens to parse as NN-slug".
+      const ghostSection = await createGhostSection("02-concepts", 2);
 
-      const result = await run(
+      const real1 = await createRealLesson(
+        section1.id,
+        "01-intro",
+        "01.01-first",
+        1
+      );
+      // Keep a second real lesson so the source stays real and the target
+      // ghost section keeps its 02 number.
+      await createRealLesson(section1.id, "01-intro", "01.02-second", 2);
+
+      await run(
         Effect.gen(function* () {
           const service = yield* CourseWriteService;
-          return yield* service.addGhostLesson(section.id, "Zeroth", {
-            adjacentLessonId: g1.id,
-            position: "before",
-          });
+          return yield* service.moveToSection(real1.id, ghostSection.id);
         })
       );
 
-      // The new lesson should have the order of the first lesson (0)
-      const newLesson = await getLesson(result.lessonId);
-      expect(newLesson.order).toBe(0);
+      // The directory must be materialized on disk for the git mv to land.
+      const updatedSection = await getSection(ghostSection.id);
+      expect(fs.existsSync(path.join(tempDir, updatedSection.path))).toBe(true);
+      expect(
+        fs.existsSync(path.join(tempDir, updatedSection.path, "02.01-first"))
+      ).toBe(true);
 
-      // Existing lessons should have been shifted up
-      const updatedG1 = await getLesson(g1.id);
-      expect(updatedG1.order).toBe(1);
+      const movedLesson = await getLesson(real1.id);
+      expect(movedLesson.sectionId).toBe(ghostSection.id);
+      expect(movedLesson.path).toBe("02.01-first");
+    });
 
-      const updatedG2 = await getLesson(g2.id);
-      expect(updatedG2.order).toBe(2);
+    it("moves a real lesson to an empty section", async () => {
+      const { run, createSection, createRealLesson, getLesson } = await setup();
+
+      const section1 = await createSection("01-intro", 1);
+      const section2 = await createSection("02-advanced", 2);
+
+      const real1 = await createRealLesson(
+        section1.id,
+        "01-intro",
+        "01.01-only-lesson",
+        1
+      );
+
+      await run(
+        Effect.gen(function* () {
+          const service = yield* CourseWriteService;
+          return yield* service.moveToSection(real1.id, section2.id);
+        })
+      );
+
+      // Source section reverts to ghost (last real lesson moved out),
+      // so 02-advanced renumbers to 01-advanced, lesson path follows
+      expect(
+        fs.existsSync(path.join(tempDir, "01-advanced", "01.01-only-lesson"))
+      ).toBe(true);
+      // Source section directory deleted
+      expect(fs.existsSync(path.join(tempDir, "01-intro"))).toBe(false);
+
+      const movedLesson = await getLesson(real1.id);
+      expect(movedLesson.sectionId).toBe(section2.id);
+      expect(movedLesson.path).toBe("01.01-only-lesson");
     });
   });
 });

@@ -283,6 +283,7 @@ export const createLessonSectionOperations = (db: DrizzleDB) => {
     return yield* makeDbCall(() =>
       db.query.sections.findMany({
         where: inArray(sections.id, ids as string[]),
+        with: { lessons: true },
       })
     );
   });
@@ -300,6 +301,26 @@ export const createLessonSectionOperations = (db: DrizzleDB) => {
       );
     }
   );
+
+  /**
+   * Like getSectionsByRepoVersionId, but each section carries its lessons.
+   * Used to determine section real-ness, which is derived from whether a
+   * section contains at least one real lesson — never from its path prefix.
+   */
+  const getSectionsWithLessonsByRepoVersionId = Effect.fn(
+    "getSectionsWithLessonsByRepoVersionId"
+  )(function* (repoVersionId: string) {
+    return yield* makeDbCall(() =>
+      db.query.sections.findMany({
+        where: and(
+          eq(sections.repoVersionId, repoVersionId),
+          isNull(sections.archivedAt)
+        ),
+        orderBy: asc(sections.order),
+        with: { lessons: true },
+      })
+    );
+  });
 
   const updateLessonOrder = Effect.fn("updateLessonOrder")(function* (
     lessonId: string,
@@ -381,6 +402,7 @@ export const createLessonSectionOperations = (db: DrizzleDB) => {
     updateSectionDescription,
     getSectionsByIds,
     getSectionsByRepoVersionId,
+    getSectionsWithLessonsByRepoVersionId,
     updateLessonOrder,
     batchUpdateLessonOrders,
     batchUpdateSectionOrders,

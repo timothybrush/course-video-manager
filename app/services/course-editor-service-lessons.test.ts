@@ -576,16 +576,23 @@ describe("CourseEditorService — lessons", () => {
   describe("create-on-disk", () => {
     it("materializes a ghost lesson to disk", async () => {
       const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const [section] = await db()
-        .insert(schema.sections)
-        .values({
-          repoVersionId: version.id,
-          path: "01-introduction",
-          order: 0,
-        })
-        .returning();
+      // Section is already real because it holds a real lesson, so no section
+      // materialization (cascade) should occur when the ghost lesson lands.
+      const { section } = await createSectionWithLessons(
+        version.id,
+        "01-introduction",
+        0,
+        [
+          {
+            path: "01.01-existing",
+            title: "Existing",
+            fsStatus: "real",
+            order: 1,
+          },
+        ]
+      );
 
-      const l = await svc().addGhostLesson(section!.id, "My Lesson");
+      const l = await svc().addGhostLesson(section.id, "My Lesson");
       const result = await svc().createOnDisk(l.lessonId);
 
       expect(result).toMatchObject({ success: true, path: expect.any(String) });
@@ -598,7 +605,7 @@ describe("CourseEditorService — lessons", () => {
 
     it("returns sectionPath when ghost section is materialized", async () => {
       const { version } = await createCourseWithVersion("/tmp/test-repo");
-      // Ghost section (no numeric prefix = parseSectionPath returns null)
+      // Ghost section: it holds no real lessons (its path prefix is irrelevant)
       const [section] = await db()
         .insert(schema.sections)
         .values({

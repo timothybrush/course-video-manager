@@ -11,7 +11,13 @@ import {
   parseLessonPath,
   buildLessonPath,
 } from "./lesson-path-service";
-import { parseSectionPath, titleFromSlug } from "./section-path-service";
+import {
+  parseSectionPath,
+  titleFromSlug,
+  buildSectionPath,
+  sectionHasRealLessons,
+  sectionSlugFromPath,
+} from "./section-path-service";
 import { createSectionOps } from "./course-write-service.helpers";
 import { createMaterializeOps } from "./course-write-materialize-ops";
 import { CourseWriteError } from "./course-write-service.types";
@@ -423,20 +429,23 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
         const sourceParsed = parseSectionPath(sourceSectionPath);
         const sourceSectionNumber = sourceParsed?.sectionNumber ?? 1;
 
-        // If target section is ghost, materialize it
-        let targetParsed = parseSectionPath(targetSectionPath);
+        // Real-ness comes from real lessons, never the path prefix (a ghost
+        // can carry a numbered path with no dir). Materialize a ghost target.
+        const targetIsGhost = !sectionHasRealLessons(targetLessons);
         let targetSectionMaterialized = false;
-        if (!targetParsed) {
+        if (targetIsGhost) {
           const allSections =
-            yield* lessonSectionOps.getSectionsByRepoVersionId(repoVersionId);
+            yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
+              repoVersionId
+            );
           const posIdx = allSections.findIndex((s) => s.id === targetSectionId);
           let realBefore = 0;
           for (let i = 0; i < posIdx; i++) {
-            if (parseSectionPath(allSections[i]!.path)) realBefore++;
+            if (sectionHasRealLessons(allSections[i]!.lessons)) realBefore++;
           }
           const sectionNumber = realBefore + 1;
-          const sectionSlug = toSlug(targetSectionPath) || "untitled";
-          targetSectionPath = `${String(sectionNumber).padStart(2, "0")}-${sectionSlug}`;
+          const sectionSlug = sectionSlugFromPath(targetSectionPath);
+          targetSectionPath = buildSectionPath(sectionNumber, sectionSlug);
           yield* lessonSectionOps.updateSectionPath(
             targetSectionId,
             targetSectionPath
@@ -445,12 +454,11 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
             nodePath.join(repoPath, targetSectionPath),
             { recursive: true }
           );
-          targetParsed = parseSectionPath(targetSectionPath);
           targetSectionMaterialized = true;
         }
-        const targetSectionNumber = targetParsed?.sectionNumber ?? 1;
+        const targetSectionNumber =
+          parseSectionPath(targetSectionPath)?.sectionNumber ?? 1;
 
-        // Compute new path in target section
         const lessonParsed = parseLessonPath(lesson.path);
         const slug = lessonParsed?.slug ?? lesson.path;
         const targetRealLessons = targetLessons.filter(
@@ -463,7 +471,6 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
           slug
         );
 
-        // Move the directory via git mv
         yield* repoWrite.moveLessonToSection({
           repoPath,
           sourceSectionPath,
@@ -472,7 +479,6 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
           newLessonDirName: newLessonPath,
         });
 
-        // Update DB: move to target section with new path
         yield* lessonSectionOps.updateLesson(lessonId, {
           sectionId: targetSectionId,
           path: newLessonPath,

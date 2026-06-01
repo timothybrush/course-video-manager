@@ -3,7 +3,7 @@ import { FileSystem } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
 import path from "node:path";
 import { CourseOperationsService } from "./db-course-operations.server";
-import { parseSectionPath } from "./section-path-service";
+import { sectionHasRealLessons } from "./section-path-service";
 
 export class CourseRepoSyncError extends Data.TaggedError(
   "CourseRepoSyncError"
@@ -58,15 +58,11 @@ export class CourseRepoSyncValidationService extends Effect.Service<CourseRepoSy
           {
             const version = latestVersion;
             for (const section of version.sections) {
-              const parsed = parseSectionPath(section.path);
-              if (!parsed) continue; // ghost section — no directory expected
-
-              // Skip sections with no real lessons — they may not have a
-              // directory on disk yet (e.g. ghost sections with numbered paths).
-              const hasRealLessons = section.lessons.some(
-                (l) => l.fsStatus === "real"
-              );
-              if (!hasRealLessons) continue;
+              // Only real sections (those with at least one real lesson) have a
+              // directory on disk. Real-ness is derived from lessons, never
+              // from the path prefix — a ghost section can carry a numbered
+              // path yet have no directory.
+              if (!sectionHasRealLessons(section.lessons)) continue;
 
               const sectionDir = path.join(repoPath!, section.path);
               const sectionExists = yield* fs.exists(sectionDir);
@@ -120,10 +116,11 @@ export class CourseRepoSyncValidationService extends Effect.Service<CourseRepoSy
               .readDirectory(repoPath)
               .pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
 
+            // A disk directory is an orphan only if NO database section is
+            // tracked at that path. Real-ness doesn't matter here — the
+            // question is whether the DB accounts for the directory at all.
             const expectedSectionDirs = new Set(
-              version.sections
-                .filter((s) => parseSectionPath(s.path) !== null)
-                .map((s) => s.path)
+              version.sections.map((s) => s.path)
             );
 
             for (const entry of diskSections) {

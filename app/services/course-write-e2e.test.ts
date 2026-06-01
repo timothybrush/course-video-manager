@@ -264,9 +264,10 @@ describe("CourseWriteService", () => {
         })
       );
 
-      // Verify ghost section DB path updated
+      // Reordering does not renumber a ghost section (no real lessons, not on
+      // disk) — its path is left untouched until it is materialized below.
       const reorderedSection2 = await getSection(section2.id);
-      expect(reorderedSection2.path).toBe("01-before-we-start");
+      expect(reorderedSection2.path).toBe("02-before-we-start");
 
       // Materialize ghost lesson in the reordered section
       const materializeResult = await run(

@@ -9,6 +9,8 @@ import {
   parseSectionPath,
   buildSectionPath,
   computeSectionRenumberingPlan,
+  sectionHasRealLessons,
+  sectionSlugFromPath,
 } from "./section-path-service";
 import { CourseWriteError } from "./course-write-service.types";
 
@@ -73,7 +75,8 @@ export function createSectionOps(
     repoVersionId: string,
     repoPath: string
   ) {
-    const allSections = yield* db.getSectionsByRepoVersionId(repoVersionId);
+    const allSections =
+      yield* db.getSectionsWithLessonsByRepoVersionId(repoVersionId);
 
     const sectionRenames: Array<{
       id: string;
@@ -82,17 +85,20 @@ export function createSectionOps(
       newSectionNumber: number;
     }> = [];
 
-    // Only real (parseable) sections get sequential numbers;
-    // ghost sections are skipped and don't reserve a number slot.
+    // Only real sections (those with at least one real lesson) get sequential
+    // numbers; ghost sections are skipped and don't reserve a number slot.
+    // Real-ness is derived from lessons, never from the path prefix.
     let realNumber = 0;
     for (let i = 0; i < allSections.length; i++) {
       const section = allSections[i]!;
-      const parsed = parseSectionPath(section.path);
-      if (!parsed) continue; // skip ghost sections (unparseable paths)
+      if (!sectionHasRealLessons(section.lessons)) continue;
 
       realNumber++;
-      if (parsed.sectionNumber !== realNumber) {
-        const newPath = buildSectionPath(realNumber, parsed.slug);
+      const newPath = buildSectionPath(
+        realNumber,
+        sectionSlugFromPath(section.path)
+      );
+      if (newPath !== section.path) {
         sectionRenames.push({
           id: section.id,
           oldPath: section.path,
@@ -194,6 +200,7 @@ export function createSectionOps(
     const sectionsForReorder = allSections.map((s) => ({
       id: s.id,
       path: s.path,
+      hasRealLessons: sectionHasRealLessons(s.lessons),
     }));
 
     // Get repo path from the first section's hierarchy
