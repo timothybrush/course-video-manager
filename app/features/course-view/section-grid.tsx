@@ -2,24 +2,21 @@ import { AddGhostLessonModal } from "@/components/add-ghost-lesson-modal";
 import { ArchiveSectionModal } from "@/components/archive-section-modal";
 import { type DependencyLessonItem } from "@/components/dependency-selector";
 import { Badge } from "@/components/ui/badge";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { SortableLessonItem } from "./sortable-lesson-item";
 import { SortableSectionItem } from "./sortable-section-item";
 import { SectionDescriptionEditor } from "./section-description-editor";
+import { SectionTitleRow } from "./section-title-row";
+import { SectionContextMenuItems } from "./section-context-menu";
 import {
-  useSectionTitleEditor,
-  SectionTitleEditor,
-} from "./section-title-editor";
-import { filterLessons, calcSectionDuration } from "./section-grid-utils";
+  filterLessons,
+  calcSectionDuration,
+  computeSectionDependencyRuns,
+} from "./section-grid-utils";
+import { CompactLessonList, runSpacingClass } from "./dep-group-spine";
 import { DependencyDragProvider } from "./dependency-drag-context";
 import { type LoaderData } from "./course-view-types";
 
@@ -35,68 +32,9 @@ import {
   verticalListSortingStrategy,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
-import {
-  Archive,
-  ChevronRight,
-  ClipboardCopy,
-  Ghost,
-  GripVertical,
-  PencilIcon,
-  Plus,
-} from "lucide-react";
+import { ChevronRight, Ghost, GripVertical } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useNavigate, useFetcher } from "react-router";
-
-function SectionTitleRow({
-  section,
-  isGhostSection,
-  showGhostStyle,
-  isReadOnly,
-  editSectionId,
-  dispatch,
-  submitEvent,
-}: {
-  section: { id: string; path: string };
-  isGhostSection: boolean;
-  showGhostStyle: boolean;
-  isReadOnly: boolean;
-  editSectionId: string | null;
-  dispatch: (action: courseViewReducer.Action) => void;
-  submitEvent: (event: CourseEditorEvent) => void;
-}) {
-  const {
-    editingTitle,
-    titleValue,
-    setTitleValue,
-    saveTitle,
-    cancelEditing,
-    startEditingTitle,
-    pathPrefix,
-  } = useSectionTitleEditor({
-    sectionId: section.id,
-    sectionPath: section.path,
-    isGhostSection,
-    dispatch,
-    submitEvent,
-    editSectionId,
-  });
-
-  return (
-    <SectionTitleEditor
-      sectionPath={section.path}
-      isGhostSection={isGhostSection}
-      showGhostStyle={showGhostStyle}
-      isReadOnly={isReadOnly}
-      editingTitle={editingTitle}
-      titleValue={titleValue}
-      pathPrefix={pathPrefix}
-      onTitleValueChange={setTitleValue}
-      onCancel={cancelEditing}
-      onSave={saveTitle}
-      onStartEditing={startEditingTitle}
-    />
-  );
-}
 
 export function SectionGrid({
   currentCourse,
@@ -282,6 +220,15 @@ export function SectionGrid({
 
               const sectionDuration = calcSectionDuration(lessons);
 
+              // Dependency Group runs + spine pairs. Only in compact view, and
+              // suppressed under any active filter (the rendered list no longer
+              // reflects true adjacency). See CONTEXT.md / docs/adr/0010.
+              const { runs, spinePairs } = computeSectionDependencyRuns(
+                lessons,
+                filteredLessons,
+                viewMode === "compact" && !hasActiveFilters
+              );
+
               const isGhostSection =
                 lessons.length === 0 ||
                 lessons.every((l) => l.fsStatus === "ghost");
@@ -376,7 +323,8 @@ export function SectionGrid({
                             </div>
                             {(!collapsedSections.has(section.id) ||
                               searchQuery) && (
-                              <div
+                              <CompactLessonList
+                                pairs={spinePairs}
                                 className={
                                   viewMode === "compact" ? "px-2 py-1" : "p-2"
                                 }
@@ -399,111 +347,71 @@ export function SectionGrid({
                                           No matching lessons
                                         </p>
                                       )}
-                                    {filteredLessons.map((lesson, li) => (
-                                      <SortableLessonItem
-                                        key={lesson.id}
-                                        lesson={lesson}
-                                        lessonIndex={li}
-                                        section={section}
-                                        data={data}
-                                        navigate={navigate}
-                                        allFlatLessons={allFlatLessons}
-                                        addVideoToLessonId={addVideoToLessonId}
-                                        convertToGhostLessonId={
-                                          convertToGhostLessonId
-                                        }
-                                        deleteLessonId={deleteLessonId}
-                                        createOnDiskLessonId={
-                                          createOnDiskLessonId
-                                        }
-                                        dispatch={dispatch}
-                                        submitEvent={submitEvent}
-                                        startExportUpload={startExportUpload}
-                                        revealVideoFetcher={revealVideoFetcher}
-                                        deleteVideoFileFetcher={
-                                          deleteVideoFileFetcher
-                                        }
-                                        submitDeleteVideo={submitDeleteVideo}
-                                        allSections={currentCourse.sections}
-                                        dependencyMap={dependencyMap}
-                                        isGhostCourse={isGhostCourse}
-                                        compact={viewMode === "compact"}
-                                      />
+                                    {/* Contiguous Dependency Group runs: spacing
+                                        separates blocks, the measured overlay
+                                        draws the icon-to-icon dashed lines. */}
+                                    {runs.map((run) => (
+                                      <div
+                                        key={run.lessons[0]!.id}
+                                        className={runSpacingClass(
+                                          run.lessons.length > 1
+                                        )}
+                                      >
+                                        {run.lessons.map((lesson, idx) => (
+                                          <SortableLessonItem
+                                            key={lesson.id}
+                                            lesson={lesson}
+                                            lessonIndex={run.startIndex + idx}
+                                            section={section}
+                                            data={data}
+                                            navigate={navigate}
+                                            allFlatLessons={allFlatLessons}
+                                            addVideoToLessonId={
+                                              addVideoToLessonId
+                                            }
+                                            convertToGhostLessonId={
+                                              convertToGhostLessonId
+                                            }
+                                            deleteLessonId={deleteLessonId}
+                                            createOnDiskLessonId={
+                                              createOnDiskLessonId
+                                            }
+                                            dispatch={dispatch}
+                                            submitEvent={submitEvent}
+                                            startExportUpload={
+                                              startExportUpload
+                                            }
+                                            revealVideoFetcher={
+                                              revealVideoFetcher
+                                            }
+                                            deleteVideoFileFetcher={
+                                              deleteVideoFileFetcher
+                                            }
+                                            submitDeleteVideo={
+                                              submitDeleteVideo
+                                            }
+                                            allSections={currentCourse.sections}
+                                            dependencyMap={dependencyMap}
+                                            isGhostCourse={isGhostCourse}
+                                            compact={viewMode === "compact"}
+                                          />
+                                        ))}
+                                      </div>
                                     ))}
                                   </SortableContext>
                                 </DndContext>
-                              </div>
+                              </CompactLessonList>
                             )}
                           </div>
                         </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          {!isReadOnly && (
-                            <>
-                              <ContextMenuItem
-                                onSelect={() =>
-                                  dispatch({
-                                    type: "set-add-lesson-section-id",
-                                    sectionId: section.id,
-                                  })
-                                }
-                              >
-                                <Plus className="w-4 h-4" />
-                                Add Lesson
-                              </ContextMenuItem>
-                              <ContextMenuItem
-                                onSelect={() =>
-                                  dispatch({
-                                    type: "set-edit-section-id",
-                                    sectionId: section.id,
-                                  })
-                                }
-                              >
-                                <PencilIcon className="w-4 h-4" />
-                                Rename
-                              </ContextMenuItem>
-                            </>
-                          )}
-                          {lessons.length > 0 && (
-                            <ContextMenuItem
-                              onSelect={() =>
-                                dispatch({
-                                  type: "open-copy-section-transcript",
-                                  sectionPath: section.path,
-                                  sectionDescription:
-                                    section.description ?? undefined,
-                                  lessons,
-                                })
-                              }
-                            >
-                              <ClipboardCopy className="w-4 h-4" />
-                              Copy Section Transcript
-                            </ContextMenuItem>
-                          )}
-                          {!isReadOnly && isGhostSection && (
-                            <>
-                              <ContextMenuSeparator />
-                              <ContextMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onSelect={() => {
-                                  if (lessons.length === 0) {
-                                    submitEvent({
-                                      type: "archive-section",
-                                      sectionId: section.id,
-                                    });
-                                  } else {
-                                    dispatch({
-                                      type: "set-archive-section-id",
-                                      sectionId: section.id,
-                                    });
-                                  }
-                                }}
-                              >
-                                <Archive className="w-4 h-4" />
-                                Archive Section
-                              </ContextMenuItem>
-                            </>
-                          )}
-                        </ContextMenuContent>
+                        <SectionContextMenuItems
+                          section={section}
+                          lessons={lessons}
+                          isReadOnly={isReadOnly}
+                          isGhostSection={isGhostSection}
+                          dispatch={dispatch}
+                          submitEvent={submitEvent}
+                        />
                       </ContextMenu>
                       <AddGhostLessonModal
                         sectionId={section.id}

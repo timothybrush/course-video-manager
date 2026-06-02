@@ -251,3 +251,17 @@ _Avoid_: Delete, Remove
 
 **ARCHIVE Section**:
 A special section directory whose name ends in `ARCHIVE`, filtered out of the default course view.
+
+### Dependencies
+
+**Lesson Dependency**:
+A directed edge from one **Lesson** to an earlier one it builds on, stored as a list of lesson IDs on `lesson.dependencies`. Conceptually points backward (a lesson depends on prerequisites above it); a dependency on a _later_ lesson is an **Order Violation**, warned-about but not blocked. Cycles are blocked at creation.
+_Avoid_: Prerequisite link, Edge (unqualified)
+
+**Order Violation**:
+A persisted state where a **Lesson** depends on another lesson ordered _after_ it (within a section, or in a later section). Surfaced as a non-blocking warning on reorder and as a per-lesson indicator; never prevented, so violations can exist in saved state.
+_Avoid_: Broken dependency, Invalid order
+
+**Dependency Group**:
+A maximal run of _contiguous_ lessons within a single **Section**, in display order, chained by **Lesson Dependencies**. Built by walking a section's lessons top-to-bottom: the next lesson joins the current group iff it has a **direct** dependency on any lesson already in the group; otherwise the current group closes and the next lesson begins a new one. Purely a **within-section**, **contiguous**, **directed-backward** view of relatedness — a dependency that spans a gap (a non-member lesson interrupts) or points forward (an **Order Violation**) is _not_ represented. Surfaced in the compact course view as dashed lines connecting adjacent lesson-type icons; a group of one shows no line. **Ghost Lessons** participate as ordinary members. Suppressed entirely whenever a search or filter is active (the rendered list no longer reflects true adjacency). Read-only visual grouping — distinct from **Section** (the durable, directory-backed grouping).
+_Avoid_: Dependency block, Cluster, Chain, Lesson group

@@ -310,6 +310,7 @@ export function SortableLessonItem({
                   </button>
                 )}
                 <button
+                  data-dep-icon={lesson.id}
                   className={cn(
                     "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-colors",
                     currentIcon === "code"
