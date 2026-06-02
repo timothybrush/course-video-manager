@@ -6,13 +6,20 @@ import {
 } from "./course-repo-sync-validation";
 
 /**
- * Builds the post-write validation helpers used by CourseWriteService.
+ * Builds validation helpers used by CourseWriteService.
  *
- * `withPostValidation` runs sync validation AFTER the operation completes,
- * scoped to a single course. Pre-validation was removed because it doubled
- * filesystem I/O for every request — extremely slow on WSL 2 where each fs
- * call crosses the Linux/Windows bridge (~100ms+ per call). Validation is
- * scoped to the touched repo for the same reason.
+ * Every filesystem-touching write runs both a pre-flight gate and a post-write
+ * validation. The pre-flight refuses to act on an already-divergent repo; the
+ * post-write catches divergence the write's own logic might introduce. This
+ * accepts two full repo scans per filesystem write as the cost of both
+ * guarantees.
+ *
+ * Always-FS operations use `withPreAndPostValidation`; conditionally-FS
+ * operations (delete, rename, move, convert-to-ghost) call `runValidation`
+ * directly inside their filesystem-touch branches so ghost-only edits pay
+ * nothing.
+ *
+ * Validation is scoped to the touched repo to avoid O(courses) FS traversals.
  */
 export function createValidationHelpers(
   lessonSectionOps: LessonSectionOperationsService,
@@ -31,13 +38,14 @@ export function createValidationHelpers(
       })
     );
 
-  const withPostValidation = <A, E1, E2, R1, R2>(
+  const withPreAndPostValidation = <A, E1, E2, R1, R2>(
     resolveRepoPath: Effect.Effect<string | null, E1, R1>,
     effect: Effect.Effect<A, E2, R2>
   ): Effect.Effect<A, E1 | E2 | CourseRepoSyncError, R1 | R2> =>
     Effect.gen(function* () {
-      const result = yield* effect;
       const repoPath = yield* resolveRepoPath;
+      yield* runValidation(repoPath);
+      const result = yield* effect;
       yield* runValidation(repoPath);
       return result;
     });
@@ -54,7 +62,7 @@ export function createValidationHelpers(
 
   return {
     runValidation,
-    withPostValidation,
+    withPreAndPostValidation,
     repoPathForSection,
     repoPathForLesson,
   };
