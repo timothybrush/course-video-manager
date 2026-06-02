@@ -188,6 +188,21 @@ export function buildLessonDropEvent(opts: {
       : null;
   }
 
+  // Cross-section move. A multi-lesson selection moves as one contiguous block,
+  // ordered by the lessons' position in the source section so their relative
+  // order survives the move.
+  if (bulkDragIds && bulkDragIds.size > 1) {
+    const lessonIds = source.lessons
+      .filter((l) => bulkDragIds.has(l.id))
+      .map((l) => l.id);
+    return {
+      type: "move-lessons-to-section",
+      lessonIds,
+      targetSectionId: drop.targetSectionId,
+      beforeLessonId: drop.beforeLessonId,
+    };
+  }
+
   return {
     type: "move-lesson-to-section",
     lessonId,

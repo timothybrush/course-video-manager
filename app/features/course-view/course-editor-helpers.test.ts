@@ -312,16 +312,32 @@ describe("buildLessonDropEvent", () => {
     });
   });
 
-  it("returns move-lesson-to-section for cross-section drops", () => {
+  it("returns move-lesson-to-section for a single cross-section drop", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s2", beforeLessonId: "y" },
+      bulkDragIds: null,
+    });
+    expect(result).toEqual({
+      type: "move-lesson-to-section",
+      lessonId: "c",
+      targetSectionId: "s2",
+      beforeLessonId: "y",
+    });
+  });
+
+  it("returns move-lessons-to-section for a multi-select cross-section drop", () => {
     const result = buildLessonDropEvent({
       sections,
       lessonId: "c",
       drop: { targetSectionId: "s2", beforeLessonId: "y" },
       bulkDragIds: new Set(["a", "c"]),
     });
+    // The whole selection moves, ordered by position in the source section.
     expect(result).toEqual({
-      type: "move-lesson-to-section",
-      lessonId: "c",
+      type: "move-lessons-to-section",
+      lessonIds: ["a", "c"],
       targetSectionId: "s2",
       beforeLessonId: "y",
     });

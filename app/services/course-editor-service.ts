@@ -105,6 +105,17 @@ export type CourseEditorEvent =
       beforeLessonId?: string | null;
     }
   | {
+      type: "move-lessons-to-section";
+      lessonIds: string[];
+      targetSectionId: string;
+      /**
+       * Drop anchor: place the moved block immediately before this lesson in
+       * the target section. `null`/absent appends to the end of the target.
+       * Never one of `lessonIds`.
+       */
+      beforeLessonId?: string | null;
+    }
+  | {
       type: "convert-to-ghost";
       lessonId: string;
     }
@@ -203,6 +214,12 @@ export interface CourseEditorService {
 
   moveLessonToSection(
     lessonId: string,
+    targetSectionId: string,
+    beforeLessonId?: string | null
+  ): Promise<{ success: true }>;
+
+  moveLessonsToSection(
+    lessonIds: string[],
     targetSectionId: string,
     beforeLessonId?: string | null
   ): Promise<{ success: true }>;
@@ -371,6 +388,19 @@ export function createCourseEditorService(
       return send({
         type: "move-lesson-to-section",
         lessonId,
+        targetSectionId,
+        beforeLessonId,
+      }) as Promise<{ success: true }>;
+    },
+
+    async moveLessonsToSection(
+      lessonIds,
+      targetSectionId,
+      beforeLessonId = null
+    ) {
+      return send({
+        type: "move-lessons-to-section",
+        lessonIds,
         targetSectionId,
         beforeLessonId,
       }) as Promise<{ success: true }>;

@@ -313,6 +313,101 @@ export function planLessonMove(input: LessonMoveInput): LessonMovePlan {
   };
 }
 
+export type LessonsMoveInput = {
+  /** All sections of the version, in section order. */
+  sections: PlannerSection[];
+  /**
+   * Lessons to move, in the order they should land in the target. The caller
+   * passes them in source display order so their relative order is preserved
+   * and they land as one contiguous block at the drop anchor.
+   */
+  lessonIds: string[];
+  targetSectionId: string;
+  /** Drop anchor in the target; `null` appends. Never one of `lessonIds`. */
+  beforeLessonId: string | null;
+};
+
+/**
+ * Plan a bulk cross-section move by folding {@link planLessonMove} over the
+ * selected lessons one at a time, threading the post-move model into the next
+ * step. Each single move reuses the proven placement / renumbering /
+ * materialize / dematerialize cascade; anchoring every lesson at the same
+ * `beforeLessonId` and iterating in target order leaves them contiguous and in
+ * order just before the anchor. fsOps from each step concatenate into one
+ * sequentially-valid script. See
+ * docs/adr/0012-bulk-lesson-reorder-within-section.md.
+ */
+export function planLessonsMove(input: LessonsMoveInput): LessonMovePlan {
+  const { lessonIds, targetSectionId, beforeLessonId } = input;
+
+  let model: PlannerSection[] = input.sections;
+  const fsOps: FsOp[] = [];
+  let moved = false;
+
+  for (const lessonId of lessonIds) {
+    const step = planLessonMove({
+      sections: model,
+      lessonId,
+      targetSectionId,
+      beforeLessonId,
+    });
+    if (step.noop) continue;
+    moved = true;
+    fsOps.push(...step.fsOps);
+    model = applyPlanToModel(model, step);
+  }
+
+  if (!moved) return NOOP;
+
+  return {
+    lessonUpdates: diffLessons(input.sections, model),
+    sectionUpdates: diffSections(input.sections, model),
+    fsOps,
+    noop: false,
+  };
+}
+
+/**
+ * Apply a single plan's data deltas to a planner model, returning the next
+ * model (same section order, lessons re-sorted into display order). fsStatus is
+ * carried over untouched — a move never changes a lesson's filesystem presence.
+ */
+function applyPlanToModel(
+  sections: PlannerSection[],
+  plan: LessonMovePlan
+): PlannerSection[] {
+  const lessonUpdateById = new Map(plan.lessonUpdates.map((u) => [u.id, u]));
+  const sectionPathById = new Map(
+    plan.sectionUpdates.map((u) => [u.id, u.path])
+  );
+
+  // Re-home every lesson under its (possibly updated) section, patching path /
+  // order from the plan.
+  const placed: { lesson: PlannerLesson; sectionId: string }[] = [];
+  for (const s of sections) {
+    for (const l of s.lessons) {
+      const u = lessonUpdateById.get(l.id);
+      placed.push({
+        lesson: {
+          ...l,
+          path: u ? u.path : l.path,
+          order: u ? u.order : l.order,
+        },
+        sectionId: u ? u.sectionId : s.id,
+      });
+    }
+  }
+
+  return sections.map((s) => ({
+    id: s.id,
+    path: sectionPathById.get(s.id) ?? s.path,
+    lessons: placed
+      .filter((p) => p.sectionId === s.id)
+      .map((p) => p.lesson)
+      .sort((a, b) => a.order - b.order),
+  }));
+}
+
 type WorkingSection = {
   id: string;
   path: string;

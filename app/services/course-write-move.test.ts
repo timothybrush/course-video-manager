@@ -443,4 +443,79 @@ describe("CourseWriteService", () => {
       expect(movedLesson.path).toBe("01.01-only-lesson");
     });
   });
+
+  describe("moveLessonsToSection", () => {
+    it("moves a multi-lesson selection into another section as a contiguous block", async () => {
+      const { run, createSection, createRealLesson, getLesson } = await setup();
+
+      const section1 = await createSection("01-intro", 1);
+      const section2 = await createSection("02-advanced", 2);
+
+      const a = await createRealLesson(section1.id, "01-intro", "01.01-a", 1);
+      const b = await createRealLesson(section1.id, "01-intro", "01.02-b", 2);
+      const c = await createRealLesson(section1.id, "01-intro", "01.03-c", 3);
+      await createRealLesson(section2.id, "02-advanced", "02.01-existing", 1);
+
+      // Move the non-contiguous selection {a, c} into section2.
+      await run(
+        Effect.gen(function* () {
+          const service = yield* CourseWriteService;
+          return yield* service.moveLessonsToSection([a.id, c.id], section2.id);
+        })
+      );
+
+      // Both selected lessons landed in the target, numbered as a block after
+      // the existing lesson, preserving their source order (a before c).
+      expect(fs.existsSync(path.join(tempDir, "02-advanced", "02.02-a"))).toBe(
+        true
+      );
+      expect(fs.existsSync(path.join(tempDir, "02-advanced", "02.03-c"))).toBe(
+        true
+      );
+
+      const movedA = await getLesson(a.id);
+      const movedC = await getLesson(c.id);
+      expect(movedA.sectionId).toBe(section2.id);
+      expect(movedA.path).toBe("02.02-a");
+      expect(movedC.sectionId).toBe(section2.id);
+      expect(movedC.path).toBe("02.03-c");
+
+      // The unselected source lesson stayed and renumbered to close the gap.
+      const keptB = await getLesson(b.id);
+      expect(keptB.sectionId).toBe(section1.id);
+      expect(keptB.path).toBe("01.01-b");
+      expect(fs.existsSync(path.join(tempDir, "01-intro", "01.01-b"))).toBe(
+        true
+      );
+    });
+
+    it("dematerializes the source section when the move empties it", async () => {
+      const { run, createSection, createRealLesson, getLesson, getSection } =
+        await setup();
+
+      const section1 = await createSection("01-intro", 1);
+      const section2 = await createSection("02-advanced", 2);
+
+      const a = await createRealLesson(section1.id, "01-intro", "01.01-a", 1);
+      const b = await createRealLesson(section1.id, "01-intro", "01.02-b", 2);
+      await createRealLesson(section2.id, "02-advanced", "02.01-existing", 1);
+
+      await run(
+        Effect.gen(function* () {
+          const service = yield* CourseWriteService;
+          return yield* service.moveLessonsToSection([a.id, b.id], section2.id);
+        })
+      );
+
+      // Source emptied → its directory is gone and section2 renumbers 02 → 01.
+      expect(fs.existsSync(path.join(tempDir, "01-intro"))).toBe(false);
+      const target = await getSection(section2.id);
+      expect(target.path).toBe("01-advanced");
+
+      const movedA = await getLesson(a.id);
+      const movedB = await getLesson(b.id);
+      expect(movedA.sectionId).toBe(section2.id);
+      expect(movedB.sectionId).toBe(section2.id);
+    });
+  });
 });

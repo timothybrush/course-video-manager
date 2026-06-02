@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   planLessonMove,
+  planLessonsMove,
   type FsOp,
   type PlannerSection,
 } from "./lesson-move-planner";
@@ -309,5 +310,156 @@ describe("planLessonMove", () => {
         "renameLessons",
       ]);
     });
+  });
+});
+
+describe("planLessonsMove", () => {
+  it("is a no-op when no lessons are given", () => {
+    const sections: PlannerSection[] = [
+      { id: "s1", path: "01-intro", lessons: [real("a", "01.01-a", 0)] },
+      { id: "s2", path: "02-next", lessons: [] },
+    ];
+    const plan = planLessonsMove({
+      sections,
+      lessonIds: [],
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+    expect(plan.noop).toBe(true);
+  });
+
+  it("moves a whole selection into another section as one block (append)", () => {
+    const sections: PlannerSection[] = [
+      {
+        id: "s1",
+        path: "01-intro",
+        lessons: [
+          real("a", "01.01-a", 0),
+          real("b", "01.02-b", 1),
+          real("c", "01.03-c", 2),
+        ],
+      },
+      {
+        id: "s2",
+        path: "02-advanced",
+        lessons: [real("x", "02.01-x", 0)],
+      },
+    ];
+
+    // Select a and c (non-contiguous), drop at the end of s2.
+    const plan = planLessonsMove({
+      sections,
+      lessonIds: ["a", "c"],
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+
+    const updates = byId(plan.lessonUpdates);
+    // Both selected lessons land in the target...
+    expect(updates.a!.sectionId).toBe("s2");
+    expect(updates.c!.sectionId).toBe("s2");
+    // ...appended after the existing target lesson, in selection order a then c.
+    expect(updates.a!.path).toBe("02.02-a");
+    expect(updates.c!.path).toBe("02.03-c");
+    expect(updates.a!.order).toBeLessThan(updates.c!.order);
+    // x is unchanged (order 0, already first), so it isn't in the diff; the
+    // appended block sorts after it.
+    expect(updates.x).toBeUndefined();
+    expect(updates.a!.order).toBeGreaterThan(0);
+
+    // The unselected source lesson is renumbered to close the gap.
+    expect(updates.b!.sectionId).toBe("s1");
+    expect(updates.b!.path).toBe("01.01-b");
+  });
+
+  it("preserves source display order and lands contiguous before the anchor", () => {
+    const sections: PlannerSection[] = [
+      {
+        id: "s1",
+        path: "01-intro",
+        lessons: [
+          real("a", "01.01-a", 0),
+          real("b", "01.02-b", 1),
+          real("c", "01.03-c", 2),
+        ],
+      },
+      {
+        id: "s2",
+        path: "02-advanced",
+        lessons: [real("x", "02.01-x", 0), real("y", "02.02-y", 1)],
+      },
+    ];
+
+    // Move a, b, c before y. They must land x, a, b, c, y.
+    const plan = planLessonsMove({
+      sections,
+      lessonIds: ["a", "b", "c"],
+      targetSectionId: "s2",
+      beforeLessonId: "y",
+    });
+
+    const updates = byId(plan.lessonUpdates);
+    const order = (id: string) => updates[id]?.order ?? -Infinity;
+    expect(order("x")).toBeLessThan(order("a"));
+    expect(order("a")).toBeLessThan(order("b"));
+    expect(order("b")).toBeLessThan(order("c"));
+    // The anchor y ends up after the whole block.
+    const yOrder = updates.y ? updates.y.order : 1;
+    expect(order("c")).toBeLessThan(yOrder);
+  });
+
+  it("dematerializes the source section when the move empties it", () => {
+    const sections: PlannerSection[] = [
+      {
+        id: "s1",
+        path: "01-intro",
+        lessons: [real("a", "01.01-a", 0), real("b", "01.02-b", 1)],
+      },
+      {
+        id: "s2",
+        path: "02-advanced",
+        lessons: [real("x", "02.01-x", 0)],
+      },
+    ];
+
+    // Move both source lessons out → source has no real lessons left.
+    const plan = planLessonsMove({
+      sections,
+      lessonIds: ["a", "b"],
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+
+    const secUpdates = Object.fromEntries(
+      plan.sectionUpdates.map((s) => [s.id, s.path])
+    );
+    // Source reverts to a plain (ghost) title; target renumbers 02 → 01.
+    expect(secUpdates.s1).toBe("Intro");
+    expect(secUpdates.s2).toBe("01-advanced");
+    expect(plan.fsOps.some((o) => o.kind === "deleteSectionDir")).toBe(true);
+  });
+
+  it("matches a single planLessonMove when the selection is one lesson", () => {
+    const sections: PlannerSection[] = [
+      {
+        id: "s1",
+        path: "01-intro",
+        lessons: [real("a", "01.01-a", 0), real("b", "01.02-b", 1)],
+      },
+      { id: "s2", path: "02-next", lessons: [real("x", "02.01-x", 0)] },
+    ];
+    const single = planLessonMove({
+      sections,
+      lessonId: "a",
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+    const bulk = planLessonsMove({
+      sections,
+      lessonIds: ["a"],
+      targetSectionId: "s2",
+      beforeLessonId: null,
+    });
+    expect(byId(bulk.lessonUpdates)).toEqual(byId(single.lessonUpdates));
   });
 });

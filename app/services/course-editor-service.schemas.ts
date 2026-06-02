@@ -96,6 +96,12 @@ export const CourseEditorEventSchema = Schema.Union(
     beforeLessonId: Schema.optional(Schema.NullOr(nonEmptyString)),
   }),
   Schema.Struct({
+    type: Schema.Literal("move-lessons-to-section"),
+    lessonIds: Schema.Array(nonEmptyString),
+    targetSectionId: nonEmptyString,
+    beforeLessonId: Schema.optional(Schema.NullOr(nonEmptyString)),
+  }),
+  Schema.Struct({
     type: Schema.Literal("convert-to-ghost"),
     lessonId: nonEmptyString,
   }),

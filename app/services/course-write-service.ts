@@ -1,7 +1,6 @@
 import { Effect } from "effect";
 import { FileSystem } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
-import nodePath from "node:path";
 import { CourseOperationsService } from "./db-course-operations.server";
 import { LessonSectionOperationsService } from "./db-lesson-section-operations.server";
 import { CourseRepoWriteService } from "./course-repo-write-service";
@@ -13,7 +12,7 @@ import {
 } from "./lesson-path-service";
 import { parseSectionPath, titleFromSlug } from "./section-path-service";
 import { createSectionOps } from "./course-write-service.helpers";
-import { planLessonMove } from "./lesson-move-planner";
+import { createMoveOps } from "./course-write-move-ops";
 import { createMaterializeOps } from "./course-write-materialize-ops";
 import { CourseWriteError } from "./course-write-service.types";
 import { CourseRepoSyncValidationService } from "./course-repo-sync-validation";
@@ -411,109 +410,12 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
         return { success: true, renames };
       });
 
-      const moveToSection = Effect.fn("moveToSection")(function* (
-        lessonId: string,
-        targetSectionId: string,
-        beforeLessonId: string | null = null
-      ) {
-        const lesson =
-          yield* lessonSectionOps.getLessonWithHierarchyById(lessonId);
-        const repoVersionId = lesson.section.repoVersionId;
-        const repoPath = lesson.section.repoVersion.repo.filePath;
-
-        // The whole cascade — placement, renumbering, materialize/dematerialize
-        // — is computed purely so the client optimistic applier can replay the
-        // identical algorithm. See docs/adr/0011-shared-lesson-move-planner.md.
-        const dbSections =
-          yield* lessonSectionOps.getSectionsWithLessonsByRepoVersionId(
-            repoVersionId
-          );
-        const plan = planLessonMove({
-          sections: dbSections.map((s) => ({
-            id: s.id,
-            path: s.path,
-            lessons: s.lessons.map((l) => ({
-              id: l.id,
-              path: l.path,
-              order: l.order,
-              fsStatus: l.fsStatus,
-            })),
-          })),
-          lessonId,
-          targetSectionId,
-          beforeLessonId,
-        });
-
-        if (plan.noop) return { success: true };
-
-        // Execute the filesystem operations in plan order (each references
-        // paths as they exist at that step). Real moves require a repo path.
-        if (plan.fsOps.length > 0) {
-          if (!repoPath) {
-            return yield* new CourseWriteError({
-              cause: null,
-              message: "Cannot move a real lesson in a course with no path",
-            });
-          }
-          for (const op of plan.fsOps) {
-            switch (op.kind) {
-              case "makeSectionDir":
-                yield* fileSystem.makeDirectory(
-                  nodePath.join(repoPath, op.sectionPath),
-                  { recursive: true }
-                );
-                break;
-              case "deleteSectionDir":
-                yield* repoWrite.deleteSectionDir({
-                  repoPath,
-                  sectionPath: op.sectionPath,
-                });
-                break;
-              case "moveLesson":
-                yield* repoWrite.moveLessonToSection({
-                  repoPath,
-                  sourceSectionPath: op.sourceSectionPath,
-                  targetSectionPath: op.targetSectionPath,
-                  oldLessonDirName: op.oldLessonDirName,
-                  newLessonDirName: op.newLessonDirName,
-                });
-                break;
-              case "renameLessons":
-                yield* repoWrite.renameLessons({
-                  repoPath,
-                  sectionPath: op.sectionPath,
-                  renames: op.renames,
-                });
-                break;
-              case "renameSections":
-                yield* repoWrite.renameSections({
-                  repoPath,
-                  renames: op.renames,
-                });
-                break;
-            }
-          }
-        }
-
-        // Apply the data deltas to the database.
-        for (const u of plan.lessonUpdates) {
-          yield* lessonSectionOps.updateLesson(u.id, {
-            sectionId: u.sectionId,
-            path: u.path,
-          });
-          yield* lessonSectionOps.updateLessonOrder(u.id, u.order);
-        }
-        for (const u of plan.sectionUpdates) {
-          yield* lessonSectionOps.updateSectionPath(u.id, u.path);
-        }
-
-        // Only real (filesystem-touching) moves need repo validation.
-        if (plan.fsOps.length > 0 && repoPath) {
-          yield* runValidation(repoPath);
-        }
-
-        return { success: true };
-      });
+      const { moveToSection, moveLessonsToSection } = createMoveOps(
+        lessonSectionOps,
+        repoWrite,
+        fileSystem,
+        runValidation
+      );
 
       const archiveSection = Effect.fn("archiveSection")(function* (
         sectionId: string
@@ -585,6 +487,7 @@ export class CourseWriteService extends Effect.Service<CourseWriteService>()(
         deleteLesson,
         renameLesson,
         moveToSection,
+        moveLessonsToSection,
       };
     }),
     dependencies: [

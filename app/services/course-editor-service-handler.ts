@@ -154,6 +154,14 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
         );
       }
 
+      case "move-lessons-to-section": {
+        return yield* service.moveLessonsToSection(
+          event.lessonIds,
+          event.targetSectionId,
+          event.beforeLessonId ?? null
+        );
+      }
+
       case "convert-to-ghost": {
         return yield* service.convertToGhost(event.lessonId);
       }

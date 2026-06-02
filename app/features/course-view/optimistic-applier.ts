@@ -1,5 +1,8 @@
 import type { CourseEditorEvent } from "@/services/course-editor-service";
-import { planLessonMove } from "@/services/lesson-move-planner";
+import {
+  planLessonMove,
+  planLessonsMove,
+} from "@/services/lesson-move-planner";
 import type { LoaderData, Lesson, Section } from "./course-view-types";
 
 /**
@@ -41,6 +44,8 @@ function entityIdForEvent(event: CourseEditorEvent): string {
       return "batch";
     case "reorder-lessons":
       return event.sectionId;
+    case "move-lessons-to-section":
+      return event.targetSectionId;
     case "add-ghost-lesson":
     case "create-real-lesson":
       return event.sectionId;
@@ -112,6 +117,8 @@ export function applyOptimisticEvent(
       return applyReorderLessons(loaderData, event);
     case "move-lesson-to-section":
       return applyMoveLessonToSection(loaderData, event);
+    case "move-lessons-to-section":
+      return applyMoveLessonsToSection(loaderData, event);
     default:
       return loaderData;
   }
@@ -307,6 +314,20 @@ function applyReorderLessons(
   };
 }
 
+/** Course sections in the shape the move planners expect. */
+function toPlannerSections(course: NonNullable<LoaderData["selectedCourse"]>) {
+  return course.sections.map((s) => ({
+    id: s.id,
+    path: s.path,
+    lessons: s.lessons.map((l) => ({
+      id: l.id,
+      path: l.path,
+      order: l.order,
+      fsStatus: l.fsStatus,
+    })),
+  }));
+}
+
 function applyMoveLessonToSection(
   loaderData: LoaderData,
   event: Extract<CourseEditorEvent, { type: "move-lesson-to-section" }>
@@ -314,77 +335,120 @@ function applyMoveLessonToSection(
   const course = loaderData.selectedCourse;
   if (!course) return loaderData;
 
-  const { lessonId, targetSectionId } = event;
   const beforeLessonId = event.beforeLessonId ?? null;
-
-  // Replay the exact server cascade purely: the moved lesson's new path/order,
-  // source/target renumbering, and section materialize/dematerialize path
-  // changes. See docs/adr/0011-shared-lesson-move-planner.md.
   const plan = planLessonMove({
-    sections: course.sections.map((s) => ({
-      id: s.id,
-      path: s.path,
-      lessons: s.lessons.map((l) => ({
-        id: l.id,
-        path: l.path,
-        order: l.order,
-        fsStatus: l.fsStatus,
-      })),
-    })),
-    lessonId,
-    targetSectionId,
+    sections: toPlannerSections(course),
+    lessonId: event.lessonId,
+    targetSectionId: event.targetSectionId,
     beforeLessonId,
   });
-  if (plan.noop) return loaderData;
 
-  const movedLesson = course.sections
-    .flatMap((s) => s.lessons)
-    .find((l) => l.id === lessonId);
-  if (!movedLesson) return loaderData;
+  return applyMovePlanToLoader(
+    loaderData,
+    plan,
+    [event.lessonId],
+    event.targetSectionId,
+    beforeLessonId
+  );
+}
+
+function applyMoveLessonsToSection(
+  loaderData: LoaderData,
+  event: Extract<CourseEditorEvent, { type: "move-lessons-to-section" }>
+): LoaderData {
+  const course = loaderData.selectedCourse;
+  if (!course) return loaderData;
+
+  const beforeLessonId = event.beforeLessonId ?? null;
+  const plan = planLessonsMove({
+    sections: toPlannerSections(course),
+    lessonIds: event.lessonIds,
+    targetSectionId: event.targetSectionId,
+    beforeLessonId,
+  });
+
+  return applyMovePlanToLoader(
+    loaderData,
+    plan,
+    event.lessonIds,
+    event.targetSectionId,
+    beforeLessonId
+  );
+}
+
+/**
+ * Replay a move plan onto loader data. The moved lessons are dropped from their
+ * current sections and re-inserted as one contiguous block (in
+ * `orderedLessonIds` order) at the drop anchor in the target; every other
+ * lesson/section is patched per the plan's path/order/renumber deltas.
+ * Untouched sections keep their reference so the measured dep-group spine
+ * avoids re-measuring. See docs/adr/0011-shared-lesson-move-planner.md and
+ * docs/adr/0012-bulk-lesson-reorder-within-section.md.
+ */
+function applyMovePlanToLoader(
+  loaderData: LoaderData,
+  plan: ReturnType<typeof planLessonMove>,
+  orderedLessonIds: string[],
+  targetSectionId: string,
+  beforeLessonId: string | null
+): LoaderData {
+  const course = loaderData.selectedCourse;
+  if (!course || plan.noop) return loaderData;
 
   const lessonUpdateById = new Map(plan.lessonUpdates.map((u) => [u.id, u]));
   const sectionPathById = new Map(
     plan.sectionUpdates.map((u) => [u.id, u.path])
   );
+
+  // Lessons that actually landed in the target, in insertion order.
+  const movedIds = orderedLessonIds.filter(
+    (id) => lessonUpdateById.get(id)?.sectionId === targetSectionId
+  );
+  const movedSet = new Set(movedIds);
+
   // Patch a lesson's path/order from the plan; section membership is encoded by
   // which section array the lesson sits in, so it isn't patched here.
-  const patch = (l: typeof movedLesson) => {
+  const patch = (l: Lesson): Lesson => {
     const u = lessonUpdateById.get(l.id);
     return u ? { ...l, path: u.path, order: u.order } : l;
   };
 
+  const allLessons = course.sections.flatMap((s) => s.lessons);
+  const movedBlock = movedIds
+    .map((id) => allLessons.find((l) => l.id === id))
+    .filter((l): l is Lesson => Boolean(l))
+    .map(patch);
+
   const sections = course.sections.map((section) => {
-    const hadMoved = section.lessons.some((l) => l.id === lessonId);
+    const hadMoved = section.lessons.some((l) => movedSet.has(l.id));
     const isTarget = section.id === targetSectionId;
     const newPath = sectionPathById.get(section.id);
     const hasPatchedLesson = section.lessons.some(
-      (l) => l.id !== lessonId && lessonUpdateById.has(l.id)
+      (l) => !movedSet.has(l.id) && lessonUpdateById.has(l.id)
     );
-    // Sections the cascade doesn't touch keep their reference (cheap, and the
-    // measured dep-group spine relies on stable refs to avoid re-measuring).
+    // Sections the cascade doesn't touch keep their reference.
     if (!hadMoved && !isTarget && newPath === undefined && !hasPatchedLesson) {
       return section;
     }
 
-    // Drop the moved lesson from wherever it currently lives.
-    let lessons = section.lessons.filter((l) => l.id !== lessonId);
+    // Drop the moved lessons from wherever they currently live.
+    let lessons = section.lessons.filter((l) => !movedSet.has(l.id));
 
-    // Insert it into the target at the drop anchor (display order = array
-    // order; null anchor appends), matching the insertion-line position.
-    if (section.id === targetSectionId) {
-      const patchedMoved = patch(movedLesson);
+    // Insert the moved block into the target at the drop anchor (display order
+    // = array order; null/missing anchor appends), matching the insertion line.
+    if (isTarget) {
       const idx =
         beforeLessonId !== null
           ? lessons.findIndex((l) => l.id === beforeLessonId)
           : -1;
       lessons =
         idx === -1
-          ? [...lessons, patchedMoved]
-          : [...lessons.slice(0, idx), patchedMoved, ...lessons.slice(idx)];
+          ? [...lessons, ...movedBlock]
+          : [...lessons.slice(0, idx), ...movedBlock, ...lessons.slice(idx)];
     }
 
     // Apply path/order patches to the rest (source renumber, target shifts).
-    lessons = lessons.map((l) => (l.id === lessonId ? l : patch(l)));
+    lessons = lessons.map((l) => (movedSet.has(l.id) ? l : patch(l)));
 
     return newPath !== undefined
       ? { ...section, path: newPath, lessons }

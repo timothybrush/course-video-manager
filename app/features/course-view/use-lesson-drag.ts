@@ -16,13 +16,14 @@ import {
 /**
  * Drives lesson and section dragging within the course view's single
  * DndContext. Within-section drops become a `reorder-lessons`; cross-section
- * drops become a `move-lesson-to-section` anchored at the drop position.
- * Section drags are delegated to `onSectionDragEnd`. The returned
- * `dropIndicator` powers the insertion line, `activeLesson` powers the overlay.
+ * drops become a `move-lesson-to-section` (or `move-lessons-to-section` for a
+ * multi-lesson selection) anchored at the drop position. Section drags are
+ * delegated to `onSectionDragEnd`. The returned `dropIndicator` powers the
+ * insertion line, `activeLesson` powers the overlay.
  *
  * When a multi-lesson selection exists, dragging a selected lesson's grip
- * moves the whole set; dragging an unselected lesson clears the selection
- * and degrades to single-drag.
+ * moves the whole set — within or across sections; dragging an unselected
+ * lesson clears the selection and degrades to single-drag.
  */
 export function useLessonDrag(opts: {
   sections: Section[];

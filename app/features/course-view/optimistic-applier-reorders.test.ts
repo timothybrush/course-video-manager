@@ -457,6 +457,86 @@ describe("applyOptimisticEvent — reorders", () => {
     });
   });
 
+  describe("move-lessons-to-section", () => {
+    it("moves a whole multi-lesson selection into another section as a block", () => {
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "a", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "b", path: "01.02-b", order: 1 }),
+        makeLesson({ id: "c", path: "01.03-c", order: 2 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "x", path: "02.01-x", order: 0 }),
+      ]);
+      const loaderData = makeLoaderData([section1, section2]);
+
+      const event: CourseEditorEvent = {
+        type: "move-lessons-to-section",
+        lessonIds: ["a", "c"],
+        targetSectionId: "s2",
+      };
+
+      const result = applyOptimisticEvent(loaderData, event);
+
+      // Both selected lessons land in the target, appended as a block in
+      // selection order; the unselected source lesson stays and renumbers.
+      const source = result.selectedCourse!.sections[0]!;
+      const target = result.selectedCourse!.sections[1]!;
+      expect(source.lessons.map((l) => l.id)).toEqual(["b"]);
+      expect(source.lessons[0]!.path).toBe("01.01-b");
+      expect(target.lessons.map((l) => l.id)).toEqual(["x", "a", "c"]);
+      expect(target.lessons[1]!.path).toBe("02.02-a");
+      expect(target.lessons[2]!.path).toBe("02.03-c");
+    });
+
+    it("inserts the block before the drop anchor", () => {
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "a", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "b", path: "01.02-b", order: 1 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "x", path: "02.01-x", order: 0 }),
+        makeLesson({ id: "y", path: "02.02-y", order: 1 }),
+      ]);
+      const loaderData = makeLoaderData([section1, section2]);
+
+      const event: CourseEditorEvent = {
+        type: "move-lessons-to-section",
+        lessonIds: ["a", "b"],
+        targetSectionId: "s2",
+        beforeLessonId: "y",
+      };
+
+      const result = applyOptimisticEvent(loaderData, event);
+
+      const target = result.selectedCourse!.sections[1]!;
+      expect(target.lessons.map((l) => l.id)).toEqual(["x", "a", "b", "y"]);
+    });
+
+    it("does not mutate the original loaderData", () => {
+      const section1 = makeSection({ id: "s1", path: "01-intro" }, [
+        makeLesson({ id: "a", path: "01.01-a", order: 0 }),
+        makeLesson({ id: "b", path: "01.02-b", order: 1 }),
+      ]);
+      const section2 = makeSection({ id: "s2", path: "02-next" }, [
+        makeLesson({ id: "x", path: "02.01-x", order: 0 }),
+      ]);
+      const loaderData = makeLoaderData([section1, section2]);
+
+      applyOptimisticEvent(loaderData, {
+        type: "move-lessons-to-section",
+        lessonIds: ["a", "b"],
+        targetSectionId: "s2",
+      });
+
+      expect(
+        loaderData.selectedCourse!.sections[0]!.lessons.map((l) => l.id)
+      ).toEqual(["a", "b"]);
+      expect(
+        loaderData.selectedCourse!.sections[1]!.lessons.map((l) => l.id)
+      ).toEqual(["x"]);
+    });
+  });
+
   describe("defensive handling", () => {
     it("reorder-sections: handles duplicate sectionIds gracefully", () => {
       const section1 = makeSection({ id: "s1" });

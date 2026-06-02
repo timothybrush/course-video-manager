@@ -16,5 +16,5 @@ The drop always **collapses** a non-contiguous selection into a contiguous block
 
 ## Consequences
 
-- Cross-section bulk move is a separate future feature, not an extension of this one. It would require a new event (`move-lessons-to-section`) and a multi-lesson planner.
+- Cross-section bulk move was originally deferred as a separate future feature. It has since been implemented — see ADR 0013, which adds the `move-lessons-to-section` event and a multi-lesson planner. The within-section / collapse-to-contiguous behaviour described here is unchanged; only the cross-section restriction is lifted.
 - The v1 drag preview shows a single-lesson reflow rather than a multi-lesson gap. The committed result is correct; only the mid-drag animation is approximate.
