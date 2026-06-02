@@ -49,9 +49,10 @@ export function createMoveOps(
     repoPath: string
   ) => Effect.Effect<unknown, CourseRepoSyncError>
 ) {
-  // Run the plan's fsOps in order (each references paths as they exist at that
-  // step), apply its DB deltas, then validate when the filesystem was touched.
-  // Real moves need a repo path.
+  // Pre-flight repo-sync gate (#966) before touching the filesystem, then run
+  // the plan's fsOps in order (each references paths as they exist at that
+  // step), apply its DB deltas, and validate again when the filesystem was
+  // touched. Real moves need a repo path.
   const executeMovePlan = Effect.fn("executeMovePlan")(function* (
     plan: LessonMovePlan,
     repoPath: string | null
@@ -65,6 +66,7 @@ export function createMoveOps(
           message: "Cannot move a real lesson in a course with no path",
         });
       }
+      yield* runValidation(repoPath);
       for (const op of plan.fsOps) {
         switch (op.kind) {
           case "makeSectionDir":
