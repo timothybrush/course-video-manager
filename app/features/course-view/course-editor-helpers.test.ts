@@ -3,6 +3,7 @@ import {
   resolveLessonDrop,
   computeReorderIds,
   computeBulkReorderIds,
+  buildLessonDropEvent,
   computeFsStatusCounts,
   computeCourseStats,
 } from "./course-editor-helpers";
@@ -251,6 +252,151 @@ describe("computeBulkReorderIds", () => {
     expect(
       computeBulkReorderIds(lessons, new Set(["a", "b"]), "unknown")
     ).toEqual(["c", "d", "e", "a", "b"]);
+  });
+});
+
+describe("buildLessonDropEvent", () => {
+  const sections = [
+    {
+      id: "s1",
+      lessons: [
+        { id: "a" },
+        { id: "b" },
+        { id: "c" },
+        { id: "d" },
+        { id: "e" },
+      ],
+    },
+    { id: "s2", lessons: [{ id: "x" }, { id: "y" }] },
+  ];
+
+  it("bulk-reorders all selected lessons when bulkDragIds has multiple IDs", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s1", beforeLessonId: "e" },
+      bulkDragIds: new Set(["a", "c"]),
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["b", "d", "a", "c", "e"],
+    });
+  });
+
+  it("single-reorders when bulkDragIds is null", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s1", beforeLessonId: "e" },
+      bulkDragIds: null,
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["a", "b", "d", "c", "e"],
+    });
+  });
+
+  it("single-reorders when bulkDragIds has only one ID", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s1", beforeLessonId: "e" },
+      bulkDragIds: new Set(["c"]),
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["a", "b", "d", "c", "e"],
+    });
+  });
+
+  it("returns move-lesson-to-section for cross-section drops", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s2", beforeLessonId: "y" },
+      bulkDragIds: new Set(["a", "c"]),
+    });
+    expect(result).toEqual({
+      type: "move-lesson-to-section",
+      lessonId: "c",
+      targetSectionId: "s2",
+      beforeLessonId: "y",
+    });
+  });
+
+  it("returns null when source section is not found", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "unknown",
+      drop: { targetSectionId: "s1", beforeLessonId: "a" },
+      bulkDragIds: null,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when within-section reorder is a no-op", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "a",
+      drop: { targetSectionId: "s1", beforeLessonId: "b" },
+      bulkDragIds: null,
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when bulk reorder is a no-op", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "a",
+      drop: { targetSectionId: "s1", beforeLessonId: "c" },
+      bulkDragIds: new Set(["a", "b"]),
+    });
+    expect(result).toBeNull();
+  });
+
+  it("appends to end of section for single reorder", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "a",
+      drop: { targetSectionId: "s1", beforeLessonId: null },
+      bulkDragIds: null,
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["b", "c", "d", "e", "a"],
+    });
+  });
+
+  it("appends to end of section for bulk reorder", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "a",
+      drop: { targetSectionId: "s1", beforeLessonId: null },
+      bulkDragIds: new Set(["a", "c"]),
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["b", "d", "e", "a", "c"],
+    });
+  });
+
+  it("falls back to single reorder when bulkDragIds is empty", () => {
+    const result = buildLessonDropEvent({
+      sections,
+      lessonId: "c",
+      drop: { targetSectionId: "s1", beforeLessonId: "a" },
+      bulkDragIds: new Set(),
+    });
+    expect(result).toEqual({
+      type: "reorder-lessons",
+      sectionId: "s1",
+      lessonIds: ["c", "a", "b", "d", "e"],
+    });
   });
 });
 
