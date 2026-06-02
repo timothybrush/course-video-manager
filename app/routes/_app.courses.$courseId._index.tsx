@@ -29,7 +29,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { Console, Effect } from "effect";
 import { getGitStatusAsync } from "@/services/git-status-service.server";
 import { AlertTriangle, Plus } from "lucide-react";
-import { Suspense, useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { data, useFetcher, useNavigate, useSubmit } from "react-router";
 import { useEffectReducer } from "use-effect-reducer";
@@ -416,7 +416,7 @@ export default function Component(props: Route.ComponentProps) {
                   />
                 </div>
 
-                <Suspense>
+                <>
                   {loaderData.isLatestVersion && (
                     <div className="mb-14">
                       <NextTodoCard
@@ -507,7 +507,7 @@ export default function Component(props: Route.ComponentProps) {
                       </Button>
                     </div>
                   )}
-                </Suspense>
+                </>
 
                 {loaderData.selectedVersion && loaderData.isLatestVersion && (
                   <CreateSectionModal

@@ -12,17 +12,17 @@ import {
   Combine,
   Download,
   FileVideo,
-  FileX,
   FolderOpen,
   PencilIcon,
   Play,
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { use } from "react";
+import { Suspense } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
 import { useGenerateChaptersAction } from "./generate-chapters-context";
+import { PurgeExportMenuItem, UnexportedDot } from "./export-status";
 import {
   Tooltip,
   TooltipContent,
@@ -53,7 +53,6 @@ function VideoThumbnailItem({
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
 }) {
-  const hasExportedVideoMap = use(data.hasExportedVideoMap);
   const isReadOnly = !data.isLatestVersion;
   const totalDuration = video.totalDuration;
   const openGenerateChapters = useGenerateChaptersAction();
@@ -82,9 +81,12 @@ function VideoThumbnailItem({
                 <FileVideo className="w-6 h-6 text-muted-foreground/40" />
               </div>
             )}
-            {!hasExportedVideoMap[video.id] && (
-              <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
-            )}
+            <Suspense>
+              <UnexportedDot
+                videoId={video.id}
+                hasExportedVideoMap={data.hasExportedVideoMap}
+              />
+            </Suspense>
           </div>
           <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
             <div className="flex items-center gap-1.5">
@@ -196,23 +198,13 @@ function VideoThumbnailItem({
               <ArrowRightLeft className="w-4 h-4" />
               Move to Lesson
             </ContextMenuItem>
-            {hasExportedVideoMap[video.id] && (
-              <ContextMenuItem
-                variant="destructive"
-                onSelect={() => {
-                  deleteVideoFileFetcher.submit(
-                    {},
-                    {
-                      method: "post",
-                      action: `/api/videos/${video.id}/purge-export`,
-                    }
-                  );
-                }}
-              >
-                <FileX className="w-4 h-4" />
-                Purge Export
-              </ContextMenuItem>
-            )}
+            <Suspense>
+              <PurgeExportMenuItem
+                videoId={video.id}
+                hasExportedVideoMap={data.hasExportedVideoMap}
+                deleteVideoFileFetcher={deleteVideoFileFetcher}
+              />
+            </Suspense>
             <ContextMenuItem
               variant="destructive"
               onSelect={() => {

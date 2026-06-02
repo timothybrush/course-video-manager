@@ -4,7 +4,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { cn } from "@/lib/utils";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import {
@@ -12,18 +11,21 @@ import {
   ArrowRightLeft,
   Combine,
   Download,
-  FileVideo,
-  FileX,
   FolderOpen,
   PencilIcon,
   Play,
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { use } from "react";
+import { Suspense } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
 import { useGenerateChaptersAction } from "./generate-chapters-context";
+import {
+  PurgeExportMenuItem,
+  VideoExportIcon,
+  VideoExportIconFallback,
+} from "./export-status";
 
 export function VideoItem({
   video,
@@ -49,7 +51,6 @@ export function VideoItem({
   submitDeleteVideo: (videoId: string) => void;
 }) {
   const openGenerateChapters = useGenerateChaptersAction();
-  const hasExportedVideoMap = use(data.hasExportedVideoMap);
   const totalDuration = video.totalDuration;
   const isLatestVersion = data.isLatestVersion;
   const showWarning =
@@ -65,14 +66,12 @@ export function VideoItem({
           className="flex items-center justify-between text-xs py-1 px-2 rounded hover:bg-muted/50 transition-colors cursor-context-menu w-full text-left"
         >
           <div className="flex items-center gap-1.5 min-w-0">
-            <FileVideo
-              className={cn(
-                "w-3 h-3 shrink-0",
-                hasExportedVideoMap[video.id]
-                  ? "text-muted-foreground"
-                  : "text-red-500"
-              )}
-            />
+            <Suspense fallback={<VideoExportIconFallback />}>
+              <VideoExportIcon
+                videoId={video.id}
+                hasExportedVideoMap={data.hasExportedVideoMap}
+              />
+            </Suspense>
             <span className="truncate text-muted-foreground">{video.path}</span>
           </div>
           <div className="flex items-center gap-2 ml-2 shrink-0">
@@ -172,23 +171,13 @@ export function VideoItem({
           <ArrowRightLeft className="w-4 h-4" />
           Move to Lesson
         </ContextMenuItem>
-        {hasExportedVideoMap[video.id] && (
-          <ContextMenuItem
-            variant="destructive"
-            onSelect={() => {
-              deleteVideoFileFetcher.submit(
-                {},
-                {
-                  method: "post",
-                  action: `/api/videos/${video.id}/purge-export`,
-                }
-              );
-            }}
-          >
-            <FileX className="w-4 h-4" />
-            Purge Export
-          </ContextMenuItem>
-        )}
+        <Suspense>
+          <PurgeExportMenuItem
+            videoId={video.id}
+            hasExportedVideoMap={data.hasExportedVideoMap}
+            deleteVideoFileFetcher={deleteVideoFileFetcher}
+          />
+        </Suspense>
         <ContextMenuItem
           variant="destructive"
           onSelect={() => {

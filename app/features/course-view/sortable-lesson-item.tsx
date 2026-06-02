@@ -26,8 +26,94 @@ import { CSS } from "@dnd-kit/utilities";
 import { Code, Ghost, GripVertical, MessageCircle, Play } from "lucide-react";
 
 import { useLessonDependencyDrag } from "./use-lesson-dependency-drag";
-import { use, useCallback, useRef, useState } from "react";
+import { Suspense, use, useCallback, useRef, useState } from "react";
 import { useNavigate, useFetcher } from "react-router";
+
+/**
+ * Lesson modals whose props depend on the deferred `lessonFsMaps`. Kept in a
+ * dedicated leaf so the `use()` call — and the suspense boundary around it —
+ * sits here rather than at the top of the lesson item. The lesson row renders
+ * immediately from synchronous data; only these (normally closed) modals wait
+ * on the filesystem maps, so the list never flickers while they stream in.
+ */
+function LessonFsModals({
+  lesson,
+  isGhost,
+  lessonFsMaps,
+  addVideoToLessonId,
+  deleteLessonId,
+  convertToGhostLessonId,
+  dispatch,
+  submitEvent,
+}: {
+  lesson: Lesson;
+  isGhost: boolean;
+  lessonFsMaps: LoaderData["lessonFsMaps"];
+  addVideoToLessonId: string | null;
+  deleteLessonId: string | null;
+  convertToGhostLessonId: string | null;
+  dispatch: (action: courseViewReducer.Action) => void;
+  submitEvent: (event: CourseEditorEvent) => void;
+}) {
+  const fsMaps = use(lessonFsMaps);
+  return (
+    <>
+      <AddVideoModal
+        lessonId={lesson.id}
+        videoCount={lesson.videos.length}
+        hasExplainerFolder={fsMaps.hasExplainerFolderMap[lesson.id] ?? false}
+        open={addVideoToLessonId === lesson.id}
+        onOpenChange={(open) => {
+          dispatch({
+            type: "set-add-video-to-lesson-id",
+            lessonId: open ? lesson.id : null,
+          });
+        }}
+      />
+      {!isGhost && (
+        <DeleteLessonModal
+          lessonId={lesson.id}
+          lessonTitle={lesson.path}
+          filesOnDisk={fsMaps.lessonHasFilesMap[lesson.id] ?? []}
+          open={deleteLessonId === lesson.id}
+          onOpenChange={(open) => {
+            dispatch({
+              type: "set-delete-lesson-id",
+              lessonId: open ? lesson.id : null,
+            });
+          }}
+          onDelete={() => {
+            submitEvent({
+              type: "delete-lesson",
+              lessonId: lesson.id,
+            });
+          }}
+        />
+      )}
+      {!isGhost && (
+        <ConvertToGhostModal
+          lessonId={lesson.id}
+          lessonTitle={lesson.path}
+          filesOnDisk={fsMaps.lessonHasFilesMap[lesson.id] ?? []}
+          hasVideos={lesson.videos.length > 0}
+          open={convertToGhostLessonId === lesson.id}
+          onOpenChange={(open) => {
+            dispatch({
+              type: "set-convert-to-ghost-lesson-id",
+              lessonId: open ? lesson.id : null,
+            });
+          }}
+          onConvert={() => {
+            submitEvent({
+              type: "convert-to-ghost",
+              lessonId: lesson.id,
+            });
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 export function SortableLessonItem({
   lesson,
@@ -91,7 +177,6 @@ export function SortableLessonItem({
     opacity: isDragging ? 0.5 : undefined,
   };
 
-  const lessonFsMaps = use(data.lessonFsMaps);
   const isReadOnly = !data.isLatestVersion;
   const isGhost = lesson.fsStatus === "ghost";
   const showGhostStyle = isGhost && !isGhostCourse;
@@ -374,61 +459,18 @@ export function SortableLessonItem({
             startEditingTitle={startEditingTitle}
           />
         </ContextMenu>
-        <AddVideoModal
-          lessonId={lesson.id}
-          videoCount={lesson.videos.length}
-          hasExplainerFolder={
-            lessonFsMaps.hasExplainerFolderMap[lesson.id] ?? false
-          }
-          open={addVideoToLessonId === lesson.id}
-          onOpenChange={(open) => {
-            dispatch({
-              type: "set-add-video-to-lesson-id",
-              lessonId: open ? lesson.id : null,
-            });
-          }}
-        />
-        {!isGhost && (
-          <DeleteLessonModal
-            lessonId={lesson.id}
-            lessonTitle={lesson.path}
-            filesOnDisk={lessonFsMaps.lessonHasFilesMap[lesson.id] ?? []}
-            open={deleteLessonId === lesson.id}
-            onOpenChange={(open) => {
-              dispatch({
-                type: "set-delete-lesson-id",
-                lessonId: open ? lesson.id : null,
-              });
-            }}
-            onDelete={() => {
-              submitEvent({
-                type: "delete-lesson",
-                lessonId: lesson.id,
-              });
-            }}
+        <Suspense>
+          <LessonFsModals
+            lesson={lesson}
+            isGhost={isGhost}
+            lessonFsMaps={data.lessonFsMaps}
+            addVideoToLessonId={addVideoToLessonId}
+            deleteLessonId={deleteLessonId}
+            convertToGhostLessonId={convertToGhostLessonId}
+            dispatch={dispatch}
+            submitEvent={submitEvent}
           />
-        )}
-        {!isGhost && (
-          <ConvertToGhostModal
-            lessonId={lesson.id}
-            lessonTitle={lesson.path}
-            filesOnDisk={lessonFsMaps.lessonHasFilesMap[lesson.id] ?? []}
-            hasVideos={lesson.videos.length > 0}
-            open={convertToGhostLessonId === lesson.id}
-            onOpenChange={(open) => {
-              dispatch({
-                type: "set-convert-to-ghost-lesson-id",
-                lessonId: open ? lesson.id : null,
-              });
-            }}
-            onConvert={() => {
-              submitEvent({
-                type: "convert-to-ghost",
-                lessonId: lesson.id,
-              });
-            }}
-          />
-        )}
+        </Suspense>
         {!compact && (
           <div className="ml-5 mt-3">
             <VideoThumbnailGrid
