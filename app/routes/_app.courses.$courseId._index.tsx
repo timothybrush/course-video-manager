@@ -30,7 +30,7 @@ import { Console, Effect } from "effect";
 import { getGitStatusAsync } from "@/services/git-status-service.server";
 import { AlertTriangle, Plus } from "lucide-react";
 import { useCallback, useContext, useMemo, useState } from "react";
-import { useLocalStorage } from "@/hooks/use-local-storage";
+import { readCookie, useCookieState } from "@/hooks/use-cookie-state";
 import { data, useFetcher, useNavigate, useSubmit } from "react-router";
 import { useEffectReducer } from "use-effect-reducer";
 import type { Route } from "./+types/_app.courses.$courseId._index";
@@ -82,6 +82,11 @@ export const loader = async (args: Route.LoaderArgs) => {
   const { courseId: selectedCourseId } = args.params;
   const url = new URL(args.request.url);
   const selectedVersionId = url.searchParams.get("versionId");
+
+  const viewMode =
+    readCookie(args.request.headers.get("Cookie"), "view-mode") === "compact"
+      ? "compact"
+      : "expanded";
 
   return Effect.gen(function* () {
     const courseOps = yield* CourseOperationsService;
@@ -205,6 +210,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       videoTranscripts,
       gitStatus,
       showMediaFilesList: featureFlags.isEnabled("ENABLE_MEDIA_FILES_LIST"),
+      viewMode,
     };
   }).pipe(
     Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
@@ -283,10 +289,10 @@ export default function Component(props: Route.ComponentProps) {
     searchQuery,
   } = viewState;
 
-  const [viewMode, setViewMode] = useLocalStorage("view-mode", "expanded") as [
-    "expanded" | "compact",
-    (value: "expanded" | "compact") => void,
-  ];
+  const [viewMode, setViewMode] = useCookieState(
+    "view-mode",
+    loaderData.viewMode
+  ) as ["expanded" | "compact", (value: "expanded" | "compact") => void];
 
   const [nextUpDismissed, setNextUpDismissed] = useState(false);
   const { startExportUpload, startBatchExportUpload } =
