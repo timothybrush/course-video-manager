@@ -10,16 +10,12 @@
 // (streamed data, web-font swap, thumbnails still loading), so a one-shot measure
 // finds collapsed rects and draws nothing. The spine handles this with a bounded
 // per-frame settle loop that re-measures until every pair resolves and holds
-// steady, then a ResizeObserver re-measures on later reflows. See docs/adr/0010.
+// steady, then a ResizeObserver re-measures on later reflows, plus a
+// document.fonts.ready re-measure so the web-font swap (which can reflow rows
+// without growing the container) can never leave a line dropped. See docs/adr/0010.
 
 import { cn } from "@/lib/utils";
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 // A Dependency Group reserves whitespace above AND below itself, so the block is
 // separated from whatever precedes and follows it (a lone lesson or another
@@ -41,29 +37,42 @@ type Segment = { x: number; top: number; height: number };
 // `pairs` is [topLessonId, bottomLessonId][]; each id must match a rendered
 // `[data-dep-icon]` element inside the container.
 function MeasuredSpine({
-  containerRef,
   pairs,
   revalidateKey,
 }: {
-  containerRef: RefObject<HTMLDivElement | null>;
   pairs: [string, string][];
   revalidateKey: string;
 }) {
   const [segments, setSegments] = useState<Segment[]>([]);
+  // The overlay measures from its OWN element, not a ref handed down from the
+  // parent list. React attaches host refs and runs layout effects bottom-up, so a
+  // ref on the parent <div> is still null when this child's layout effect fires on
+  // mount — the bug that left the spine unmeasured on first load. This element's
+  // ref, by contrast, is attached before this component's own layout effect runs.
+  // The overlay is `absolute inset-0`, so its box equals the list container's and
+  // its parentElement IS that container (where the icons live).
+  const overlayRef = useRef<HTMLDivElement>(null);
   const pairsKey = pairs.map((p) => p.join(">")).join("|");
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const overlay = overlayRef.current;
+    const container = overlay?.parentElement ?? null;
+    if (!overlay || !container) return;
 
     let cancelled = false;
     let settleRaf = 0;
     let scheduled = 0;
 
     // Compute the segments for the current layout. A pair resolves only when
-    // both icons are present and there is a positive gap between them.
+    // both icons are present and there is a positive gap between them. Coords are
+    // rounded to whole pixels: a dashed left-border drawn at a subpixel top/height
+    // can land a gap (not a dash) in a short segment and read as a missing line.
     const computeSegments = (): Segment[] => {
-      const base = container.getBoundingClientRect();
+      // Base off the overlay, not the container: the segments are absolutely
+      // positioned within the overlay, so their coords are relative to the
+      // overlay's box. (The overlay is inset by the container's padding, so using
+      // the container's box here also skewed every segment by that padding.)
+      const base = overlay.getBoundingClientRect();
       const next: Segment[] = [];
       for (const [a, b] of pairs) {
         const ea = container.querySelector(
@@ -75,25 +84,29 @@ function MeasuredSpine({
         if (!ea || !eb) continue;
         const ra = ea.getBoundingClientRect();
         const rb = eb.getBoundingClientRect();
-        const x = ra.left + ra.width / 2 - base.left;
-        const top = ra.bottom - base.top;
-        const height = rb.top - base.top - top;
+        const x = Math.round(ra.left + ra.width / 2 - base.left);
+        const top = Math.round(ra.bottom - base.top);
+        const height = Math.round(rb.top - base.top) - top;
         if (height > 0) next.push({ x, top, height });
       }
       return next;
     };
 
     // Only push to state when the result actually changed, so the settle loop
-    // and the observers below don't trigger needless re-renders.
+    // and the observers below don't trigger needless re-renders. Returns whether
+    // this measurement changed the rendered segments — the settle loop reads that
+    // directly rather than re-comparing `lastSerialized`, which an observer-driven
+    // apply() running in the same frame can mutate out from under it.
     let lastSerialized = "";
-    const apply = (): Segment[] => {
+    const apply = (): { next: Segment[]; changed: boolean } => {
       const next = computeSegments();
       const serialized = JSON.stringify(next);
-      if (serialized !== lastSerialized) {
+      const changed = serialized !== lastSerialized;
+      if (changed) {
         lastSerialized = serialized;
         setSegments(next);
       }
-      return next;
+      return { next, changed };
     };
 
     // First-load settle loop. A single measure routinely runs before the rows
@@ -109,11 +122,9 @@ function MeasuredSpine({
     let stableFrames = 0;
     const settle = () => {
       if (cancelled) return;
-      const before = lastSerialized;
-      const next = apply();
+      const { next, changed } = apply();
       const resolvedAll = next.length === pairs.length;
-      stableFrames =
-        resolvedAll && lastSerialized === before ? stableFrames + 1 : 0;
+      stableFrames = resolvedAll && !changed ? stableFrames + 1 : 0;
       frames += 1;
       if (stableFrames < 3 && frames < SETTLE_CAP) {
         settleRaf = requestAnimationFrame(settle);
@@ -123,15 +134,38 @@ function MeasuredSpine({
 
     // Coalesce observer-driven re-measures into a single frame so a burst of
     // reflows only measures once. These cover changes after the initial settle:
-    // a title rewraps, the window resizes, a late image shifts the rows.
+    // a title rewraps, the window resizes, a late image shifts the rows. Guard on
+    // `scheduled` rather than cancelling the pending frame — under a continuous
+    // reflow (a CSS height transition, images streaming in) a cancel-and-reschedule
+    // keeps deferring the measure indefinitely and the line never updates.
     const scheduleMeasure = () => {
-      cancelAnimationFrame(scheduled);
-      scheduled = requestAnimationFrame(() => apply());
+      if (scheduled) return;
+      scheduled = requestAnimationFrame(() => {
+        scheduled = 0;
+        apply();
+      });
     };
 
     const ro = new ResizeObserver(scheduleMeasure);
+    // The container observer catches reflow-driven repositioning: any row whose
+    // height changes (a title wrap, a late image) also changes the container's
+    // box. Observing the icons additionally catches a change to an icon's own box.
     ro.observe(container);
+    for (const [a, b] of pairs) {
+      const ea = container.querySelector(`[data-dep-icon="${CSS.escape(a)}"]`);
+      const eb = container.querySelector(`[data-dep-icon="${CSS.escape(b)}"]`);
+      if (ea) ro.observe(ea);
+      if (eb) ro.observe(eb);
+    }
     window.addEventListener("resize", scheduleMeasure);
+    // The web font swapping in reflows rows after first paint but doesn't always
+    // grow the container, so the ResizeObserver can miss it and leave a line
+    // anchored to the pre-swap layout. Re-measure once fonts settle.
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        if (!cancelled) scheduleMeasure();
+      });
+    }
     return () => {
       cancelled = true;
       cancelAnimationFrame(settleRaf);
@@ -144,10 +178,10 @@ function MeasuredSpine({
     // spinePairs and the container box unchanged, so neither pairsKey nor the
     // ResizeObserver would otherwise fire. See docs/adr/0010.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, pairsKey, revalidateKey]);
+  }, [pairsKey, revalidateKey]);
 
   return (
-    <div className="pointer-events-none absolute inset-0">
+    <div ref={overlayRef} className="pointer-events-none absolute inset-0">
       {segments.map((s, i) => (
         <span
           key={i}
@@ -173,16 +207,11 @@ export function CompactLessonList({
   className?: string;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
   return (
-    <div ref={ref} className={cn("relative", className)}>
+    <div className={cn("relative", className)}>
       {children}
       {pairs.length > 0 && (
-        <MeasuredSpine
-          containerRef={ref}
-          pairs={pairs}
-          revalidateKey={revalidateKey}
-        />
+        <MeasuredSpine pairs={pairs} revalidateKey={revalidateKey} />
       )}
     </div>
   );
