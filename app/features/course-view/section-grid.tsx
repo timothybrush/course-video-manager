@@ -34,7 +34,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useLessonDrag } from "./use-lesson-drag";
 import { ChevronRight, Ghost, GripVertical } from "lucide-react";
-import { Fragment, useState, useCallback } from "react";
+import { Fragment, useCallback } from "react";
 import { useNavigate, useFetcher } from "react-router";
 import { useLessonSelectionClear } from "./use-lesson-selection-clear";
 
@@ -63,6 +63,8 @@ export function SectionGrid({
   createOnDiskLessonId,
   editDescriptionLessonId,
   archiveSectionId,
+  collapsedSections,
+  toggleSection,
   lessonSelection,
   dispatch,
   submitEvent,
@@ -104,6 +106,8 @@ export function SectionGrid({
   createOnDiskLessonId: string | null;
   editDescriptionLessonId: string | null;
   archiveSectionId: string | null;
+  collapsedSections: Set<string>;
+  toggleSection: (sectionId: string) => void;
   lessonSelection: courseViewReducer.LessonSelection;
   dispatch: (action: courseViewReducer.Action) => void;
   submitEvent: (event: CourseEditorEvent) => void;
@@ -113,39 +117,6 @@ export function SectionGrid({
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
 }) {
-  const COLLAPSED_SECTIONS_KEY = "collapsed-sections";
-
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    () => {
-      if (typeof localStorage === "undefined") return new Set();
-      try {
-        const stored = localStorage.getItem(COLLAPSED_SECTIONS_KEY);
-        if (stored) return new Set(JSON.parse(stored) as string[]);
-      } catch {}
-      return new Set();
-    }
-  );
-
-  const toggleSection = useCallback((sectionId: string) => {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
-      if (typeof localStorage !== "undefined") {
-        try {
-          localStorage.setItem(
-            COLLAPSED_SECTIONS_KEY,
-            JSON.stringify([...next])
-          );
-        } catch {}
-      }
-      return next;
-    });
-  }, []);
-
   const displaySections = currentCourse.sections;
 
   // Build flat lessons list for dependency selector
