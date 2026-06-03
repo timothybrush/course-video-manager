@@ -30,6 +30,64 @@ function statusMessage(status: number): string {
   }
 }
 
+function buildErrorPipeline<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  errorMap: Record<string, number>,
+  customErrors?: Partial<Record<string, number>>
+): Effect.Effect<A, never, R> {
+  return effect.pipe(
+    Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
+    Effect.catchAll((error: NoInfer<E>) => {
+      const tag =
+        error != null &&
+        typeof error === "object" &&
+        "_tag" in error &&
+        typeof (error as Record<string, unknown>)._tag === "string"
+          ? ((error as Record<string, unknown>)._tag as string)
+          : undefined;
+      const isCustomMapped =
+        tag !== undefined && customErrors != null && tag in customErrors;
+      const status =
+        tag !== undefined && tag in errorMap ? errorMap[tag]! : 500;
+      const message =
+        isCustomMapped &&
+        error != null &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof (error as Record<string, unknown>).message === "string" &&
+        (error as Record<string, unknown>).message !== ""
+          ? ((error as Record<string, unknown>).message as string)
+          : statusMessage(status);
+      return Effect.die(data(message, { status }));
+    })
+  ) as Effect.Effect<A, never, R>;
+}
+
+interface MakeLoaderConfig<A, E, R> {
+  errors?: { [K in ErrorTags<E>]?: number };
+  effect: (ctx: {
+    params: Record<string, string | undefined>;
+  }) => Effect.Effect<A, E, R>;
+}
+
+export function makeLoader<A, E, R>(
+  config: MakeLoaderConfig<A, E, R>,
+  runtime: ManagedRuntime.ManagedRuntime<any, any> = runtimeLive
+): (args: { params: Record<string, string | undefined> }) => Promise<A> {
+  const errorMap: Record<string, number> = {
+    ParseError: 400,
+    NotFoundError: 404,
+    ...config.errors,
+  };
+
+  return (args) => {
+    const effect = config.effect({ params: args.params });
+    return runtime.runPromise(
+      buildErrorPipeline(effect, errorMap, config.errors)
+    );
+  };
+}
+
 export function makeAction<A, E, R>(
   config: MakeActionConfig<A, E, R>,
   runtime: ManagedRuntime.ManagedRuntime<any, any> = runtimeLive
@@ -60,33 +118,8 @@ export function makeAction<A, E, R>(
       effect = effect.pipe(withDatabaseDump) as typeof effect;
     }
 
-    const pipeline = effect.pipe(
-      Effect.tapErrorCause((e) => Console.dir(e, { depth: null })),
-      Effect.catchAll((error: NoInfer<E>) => {
-        const tag =
-          error != null &&
-          typeof error === "object" &&
-          "_tag" in error &&
-          typeof (error as Record<string, unknown>)._tag === "string"
-            ? ((error as Record<string, unknown>)._tag as string)
-            : undefined;
-        const isCustomMapped =
-          tag !== undefined && config.errors != null && tag in config.errors;
-        const status =
-          tag !== undefined && tag in errorMap ? errorMap[tag]! : 500;
-        const message =
-          isCustomMapped &&
-          error != null &&
-          typeof error === "object" &&
-          "message" in error &&
-          typeof (error as Record<string, unknown>).message === "string" &&
-          (error as Record<string, unknown>).message !== ""
-            ? ((error as Record<string, unknown>).message as string)
-            : statusMessage(status);
-        return Effect.die(data(message, { status }));
-      })
+    return runtime.runPromise(
+      buildErrorPipeline(effect, errorMap, config.errors)
     );
-
-    return runtime.runPromise(pipeline as Effect.Effect<A, never, R>);
   };
 }
