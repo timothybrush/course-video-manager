@@ -114,6 +114,12 @@ _Avoid_: Pending clip, Temporary clip
 The ordered text projection of a **Video** — its **Clips** and **Chapters** interleaved in timeline order. The unit of comparison for changelog diffs and the format shipped as `{video}.transcript.md` during **Publish**. Changes to either Clips or Chapters are first-class changes to the Transcript: a Chapter rename, insertion, deletion, or reorder is a Transcript change in the same sense that editing a Clip's text is. Rendered with each Chapter as a `## <name>` header between paragraphs of clip text.
 _Avoid_: Clip text (only covers Clips), Joined clips, Caption (reserved for the per-clip transcription product)
 
+### Video planning
+
+**Segment**:
+A single film-time planning unit of a **Video**, classified by its **job** — what it does for the viewer. A Video's plan is an ordered sequence of Segments, authored _before_ the video is recorded; planning a video means choosing "one of these, then one of these". A first-class entity that belongs to a **Video** (not the **Lesson** or **Pitch**), so each Video carries its own plan and duplicating a Video copies its Segments. A Segment can be **moved between Videos** by dragging it from one video's plan into another's (reassigning its parent), but Videos themselves are not reordered — they sort alphabetically by name. Deliberately **distinct from a Chapter**: a Chapter is a recorded-timeline grouping that maps 1:1 to YouTube and groups **Clips**; a Segment is the _intended_ structure and need not correspond to any Chapter or Clip. The two are separate views — "what I planned to shoot" vs "what I shot". Five kinds, drawn from the Mise en Place glossary: **Definition**, **Walkthrough**, **Playthrough**, **Quest**, **Reaction**.
+_Avoid_: Chapter (the recorded YouTube grouping), Beat (the app's `beatType` means pause length; also a narrative-unit synonym rejected upstream), Section (course Section), Block, Unit
+
 ### Video warnings
 
 **Video Warning**:
