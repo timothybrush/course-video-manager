@@ -9,6 +9,7 @@ import {
   courses,
   courseVersions,
   sections,
+  segments,
   thumbnails,
   videos,
 } from "@/db/schema";
@@ -353,6 +354,9 @@ export const createVersionOperations = (db: DrizzleDB) => {
                       orderBy: asc(chapters.order),
                       where: eq(chapters.archived, false),
                     },
+                    segments: {
+                      orderBy: asc(segments.order),
+                    },
                     thumbnails: true,
                   },
                 },
@@ -452,6 +456,19 @@ export const createVersionOperations = (db: DrizzleDB) => {
                     name: section.name,
                     order: section.order,
                     archived: false,
+                  }))
+                )
+              );
+            }
+
+            if (sourceVideo.segments.length > 0) {
+              yield* makeDbCall(() =>
+                db.insert(segments).values(
+                  sourceVideo.segments.map((segment) => ({
+                    videoId: newVideo.id,
+                    kind: segment.kind,
+                    title: segment.title,
+                    order: segment.order,
                   }))
                 )
               );

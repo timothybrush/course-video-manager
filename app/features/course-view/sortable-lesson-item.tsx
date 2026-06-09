@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { LessonTitleEditor, useLessonTitleEditor } from "./lesson-title-editor";
 import { LessonContextMenuContent } from "./lesson-context-menu";
+import { LessonSegmentTree } from "./lesson-segment-tree";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { VideoThumbnailGrid } from "./video-thumbnail-grid";
@@ -96,7 +97,6 @@ function LessonFsModals({
           lessonId={lesson.id}
           lessonTitle={lesson.path}
           filesOnDisk={fsMaps.lessonHasFilesMap[lesson.id] ?? []}
-          hasVideos={lesson.videos.length > 0}
           open={convertToGhostLessonId === lesson.id}
           onOpenChange={(open) => {
             dispatch({
@@ -521,8 +521,24 @@ export function SortableLessonItem({
               revealVideoFetcher={revealVideoFetcher}
               deleteVideoFileFetcher={deleteVideoFileFetcher}
               submitDeleteVideo={submitDeleteVideo}
+              submitEvent={submitEvent}
             />
           </div>
+        )}
+        {compact && (
+          <LessonSegmentTree
+            lesson={lesson}
+            isReadOnly={isReadOnly}
+            submitEvent={submitEvent}
+            section={section}
+            data={data}
+            navigate={navigate}
+            dispatch={dispatch}
+            startExportUpload={startExportUpload}
+            revealVideoFetcher={revealVideoFetcher}
+            deleteVideoFileFetcher={deleteVideoFileFetcher}
+            submitDeleteVideo={submitDeleteVideo}
+          />
         )}
         <CreateOnDiskModal
           lessonId={lesson.id}

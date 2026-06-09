@@ -5,8 +5,10 @@
  * ClipService pattern. Discriminated union events, transport abstraction,
  * HTTP transport for production, direct transport for tests.
  *
- * Covers 4 section events + 13 lesson events = 17 total event types.
+ * Covers 4 section events + 13 lesson events + segment events.
  */
+
+import type { SegmentKind } from "@/features/segments/segment-kinds";
 
 // ============================================================================
 // Event Types
@@ -128,6 +130,36 @@ export type CourseEditorEvent =
       type: "set-lesson-authoring-status";
       lessonId: string;
       status: "todo" | "done";
+    }
+  // --- Segment events ---
+  | {
+      type: "create-segment";
+      videoId: string;
+      kind: SegmentKind;
+    }
+  | {
+      type: "rename-segment";
+      segmentId: string;
+      title: string;
+    }
+  | {
+      type: "set-segment-kind";
+      segmentId: string;
+      kind: SegmentKind;
+    }
+  | {
+      type: "delete-segment";
+      segmentId: string;
+    }
+  | {
+      type: "move-segment";
+      segmentId: string;
+      targetVideoId: string;
+      /**
+       * Drop anchor: place the moved Segment immediately before this one in the
+       * target Video. `null`/absent appends to the target's end.
+       */
+      beforeSegmentId?: string | null;
     };
 
 // ============================================================================
@@ -240,6 +272,27 @@ export interface CourseEditorService {
   setLessonAuthoringStatus(
     lessonId: string,
     status: "todo" | "done"
+  ): Promise<{ success: true }>;
+
+  // Segment operations
+  createSegment(
+    videoId: string,
+    kind: SegmentKind
+  ): Promise<{ success: true; segmentId: string }>;
+
+  renameSegment(segmentId: string, title: string): Promise<{ success: true }>;
+
+  setSegmentKind(
+    segmentId: string,
+    kind: SegmentKind
+  ): Promise<{ success: true }>;
+
+  deleteSegment(segmentId: string): Promise<{ success: true }>;
+
+  moveSegment(
+    segmentId: string,
+    targetVideoId: string,
+    beforeSegmentId?: string | null
   ): Promise<{ success: true }>;
 }
 
@@ -432,6 +485,47 @@ export function createCourseEditorService(
         type: "set-lesson-authoring-status",
         lessonId,
         status,
+      }) as Promise<{ success: true }>;
+    },
+
+    // --- Segment operations ---
+    async createSegment(videoId, kind) {
+      return send({
+        type: "create-segment",
+        videoId,
+        kind,
+      }) as Promise<{ success: true; segmentId: string }>;
+    },
+
+    async renameSegment(segmentId, title) {
+      return send({
+        type: "rename-segment",
+        segmentId,
+        title,
+      }) as Promise<{ success: true }>;
+    },
+
+    async setSegmentKind(segmentId, kind) {
+      return send({
+        type: "set-segment-kind",
+        segmentId,
+        kind,
+      }) as Promise<{ success: true }>;
+    },
+
+    async deleteSegment(segmentId) {
+      return send({
+        type: "delete-segment",
+        segmentId,
+      }) as Promise<{ success: true }>;
+    },
+
+    async moveSegment(segmentId, targetVideoId, beforeSegmentId = null) {
+      return send({
+        type: "move-segment",
+        segmentId,
+        targetVideoId,
+        beforeSegmentId,
       }) as Promise<{ success: true }>;
     },
   };

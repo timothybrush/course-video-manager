@@ -2,7 +2,7 @@ import {
   DrizzleService,
   type DrizzleDB,
 } from "@/services/drizzle-service.server";
-import { clips, pitches, videos } from "@/db/schema";
+import { clips, pitches, segments, videos } from "@/db/schema";
 import {
   NotFoundError,
   UnknownDBServiceError,
@@ -180,6 +180,16 @@ export const createPitchOperations = (db: DrizzleDB) => {
               clips: {
                 orderBy: asc(clips.order),
                 where: eq(clips.archived, false),
+              },
+              segments: {
+                columns: {
+                  id: true,
+                  kind: true,
+                  title: true,
+                  order: true,
+                  videoId: true,
+                },
+                orderBy: asc(segments.order),
               },
             },
           },

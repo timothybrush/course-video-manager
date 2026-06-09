@@ -6,3 +6,4 @@ export type Section = NonNullable<
 >["sections"][number];
 export type Lesson = Section["lessons"][number];
 export type Video = Lesson["videos"][number];
+export type Segment = Video["segments"][number];

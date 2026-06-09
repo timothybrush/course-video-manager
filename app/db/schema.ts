@@ -246,6 +246,26 @@ export const chapters = createTable("chapter", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const segments = createTable("segment", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  // Mutable on purpose: dragging a Segment into another Video reassigns this FK.
+  videoId: varchar("video_id", { length: 255 })
+    .references(() => videos.id, { onDelete: "cascade" })
+    .notNull(),
+  kind: text("kind").notNull().default("definition"),
+  title: text("title").notNull().default(""),
+  order: varcharCollateC("order").notNull(),
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export namespace DB {
   export interface Clip extends Omit<InferSelectModel<typeof clips>, "id"> {
     id: DatabaseId;
@@ -279,12 +299,20 @@ export const pitchesRelations = relations(pitches, ({ many }) => ({
   deliverablesPitches: many(deliverablesPitches),
 }));
 
+export const segmentsRelations = relations(segments, ({ one }) => ({
+  video: one(videos, {
+    fields: [segments.videoId],
+    references: [videos.id],
+  }),
+}));
+
 export const videosRelations = relations(videos, ({ one, many }) => ({
   lesson: one(lessons, { fields: [videos.lessonId], references: [lessons.id] }),
   pitch: one(pitches, { fields: [videos.pitchId], references: [pitches.id] }),
   clips: many(clips),
   chapters: many(chapters),
   thumbnails: many(thumbnails),
+  segments: many(segments),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one, many }) => ({

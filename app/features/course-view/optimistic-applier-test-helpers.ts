@@ -24,6 +24,7 @@ export function makeVideo(
     updatedAt: new Date(),
     clipCount: 0,
     warnings: [],
+    segments: [],
     ...overrides,
   };
 }

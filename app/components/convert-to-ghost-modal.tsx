@@ -19,14 +19,12 @@ export function ConvertToGhostModal(props: {
   lessonId: string;
   lessonTitle: string;
   filesOnDisk: { path: string; size: number }[];
-  hasVideos: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConvert: () => void;
 }) {
   const openRepoFetcher = useFetcher();
   const hasFiles = props.filesOnDisk.length > 0;
-  const canConvert = !props.hasVideos;
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -83,15 +81,6 @@ export function ConvertToGhostModal(props: {
               </div>
             </div>
           )}
-          {props.hasVideos && (
-            <div className="flex items-start gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded-md p-3">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                This lesson has videos attached. Remove them before converting
-                to ghost.
-              </span>
-            </div>
-          )}
           <div className="flex justify-end space-x-2">
             <Button
               variant="outline"
@@ -101,7 +90,6 @@ export function ConvertToGhostModal(props: {
               Cancel
             </Button>
             <Button
-              disabled={!canConvert}
               variant={hasFiles ? "destructive" : "default"}
               onClick={() => {
                 props.onConvert();

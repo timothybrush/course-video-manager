@@ -9,6 +9,7 @@
 import { Effect } from "effect";
 import { CourseWriteService } from "./course-write-service";
 import { LessonSectionOperationsService } from "./db-lesson-section-operations.server";
+import { SegmentOperationsService } from "./db-segment-operations.server";
 import { toSlug } from "./lesson-path-service";
 import { sectionHasRealLessons } from "./section-path-service";
 import {
@@ -25,6 +26,7 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
   function* (event: CourseEditorEvent) {
     const service = yield* CourseWriteService;
     const lessonSectionOps = yield* LessonSectionOperationsService;
+    const segmentOps = yield* SegmentOperationsService;
 
     switch (event.type) {
       // --- Section events ---
@@ -177,6 +179,39 @@ export const handleCourseEditorEvent = Effect.fn("handleCourseEditorEvent")(
         yield* lessonSectionOps.updateLesson(event.lessonId, {
           authoringStatus: event.status,
         });
+        return { success: true };
+      }
+
+      // --- Segment events ---
+      case "create-segment": {
+        const segment = yield* segmentOps.createSegment(
+          event.videoId,
+          event.kind
+        );
+        return { success: true, segmentId: segment.id };
+      }
+
+      case "rename-segment": {
+        yield* segmentOps.renameSegment(event.segmentId, event.title.trim());
+        return { success: true };
+      }
+
+      case "set-segment-kind": {
+        yield* segmentOps.setSegmentKind(event.segmentId, event.kind);
+        return { success: true };
+      }
+
+      case "delete-segment": {
+        yield* segmentOps.deleteSegment(event.segmentId);
+        return { success: true };
+      }
+
+      case "move-segment": {
+        yield* segmentOps.moveSegment(
+          event.segmentId,
+          event.targetVideoId,
+          event.beforeSegmentId ?? null
+        );
         return { success: true };
       }
 

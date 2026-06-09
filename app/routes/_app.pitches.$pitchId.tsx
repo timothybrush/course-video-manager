@@ -33,8 +33,11 @@ import {
   Youtube,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MarkdownMonacoEditor } from "@/components/markdown-monaco-editor";
-import { Link, useFetcher, useNavigate, useSearchParams } from "react-router";
+import { Link, useFetcher, useSearchParams, useSubmit } from "react-router";
+import { courseEditorFetcherKeyForEvent } from "@/features/course-view/optimistic-applier";
+import type { CourseEditorEvent } from "@/services/course-editor-service";
+import { SegmentDndProvider } from "@/features/segments/segment-dnd-context";
+import { PitchVideoSegments } from "@/features/segments/pitch-video-segments";
 import { pitchBackLink } from "@/features/pitches/pitch-back-link";
 import { X_POST_CHARACTER_LIMIT } from "@/features/pitches/x-character-count";
 import type { Route } from "./+types/_app.pitches.$pitchId";
@@ -49,6 +52,13 @@ interface PitchVideo {
   path: string;
   firstClipId: string | null;
   totalDuration: number;
+  segments: {
+    id: string;
+    videoId: string;
+    kind: string;
+    title: string;
+    order: string;
+  }[];
 }
 
 export const loader = makeLoader({
@@ -78,6 +88,7 @@ export const loader = makeLoader({
           (acc, c) => acc + (c.sourceEndTime - c.sourceStartTime),
           0
         ),
+        segments: v.segments,
       }));
 
       return {
@@ -203,7 +214,6 @@ function ChannelSection({
 
 export default function PitchDetailRoute(props: Route.ComponentProps) {
   const { pitch: initialPitch, videos, hasExportedVideoMap } = props.loaderData;
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const backLink = pitchBackLink(searchParams.get("from"));
   const deleteFetcher = useFetcher();
@@ -213,7 +223,6 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
 
   const [title, setTitle] = useState(initialPitch.title);
   const [description, setDescription] = useState(initialPitch.description);
-  const [contentPlan, setContentPlan] = useState(initialPitch.contentPlan);
   const [youtubeTitle, setYoutubeTitle] = useState(initialPitch.youtubeTitle);
   const [youtubeThumbnailDescription, setYoutubeThumbnailDescription] =
     useState(initialPitch.youtubeThumbnailDescription);
@@ -226,13 +235,21 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
   const effort = (Number(effortFetcher.formData?.get("value")) ||
     initialPitch.effort) as Effort;
 
-  const { save, saveImmediate, saveState } = usePitchAutoSave(initialPitch.id);
+  const { save, saveState } = usePitchAutoSave(initialPitch.id);
 
-  useEffect(() => {
-    if (createVideoFetcher.state === "idle" && createVideoFetcher.data?.id) {
-      navigate(`/videos/${createVideoFetcher.data.id}/edit`);
-    }
-  }, [createVideoFetcher.state, createVideoFetcher.data, navigate]);
+  const submit = useSubmit();
+  const submitEvent = useCallback(
+    (event: CourseEditorEvent) => {
+      submit(event, {
+        method: "post",
+        encType: "application/json",
+        action: "/api/course-editor",
+        navigate: false,
+        fetcherKey: courseEditorFetcherKeyForEvent(event),
+      });
+    },
+    [submit]
+  );
 
   const handleFieldChange = (field: string, value: string) => {
     save(field, value);
@@ -347,23 +364,16 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Content Plan</Label>
-            <div className="border rounded-md overflow-hidden">
-              <MarkdownMonacoEditor
-                height="300px"
-                value={contentPlan}
-                onChange={(next) => {
-                  setContentPlan(next);
-                  handleFieldChange("contentPlan", next);
-                }}
-                onSave={(formatted) => {
-                  setContentPlan(formatted);
-                  saveImmediate("contentPlan", formatted);
-                }}
-              />
+          {initialPitch.contentPlan.trim() && (
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">
+                Content Plan (legacy — read-only)
+              </Label>
+              <div className="border rounded-md bg-muted/30 p-3 text-sm whitespace-pre-wrap font-mono text-muted-foreground">
+                {initialPitch.contentPlan}
+              </div>
             </div>
-          </div>
+          )}
 
           <ChannelSection icon={<Video className="size-4" />} title="Videos">
             {videos.length === 0 ? (
@@ -371,41 +381,60 @@ export default function PitchDetailRoute(props: Route.ComponentProps) {
                 No videos yet. Click "Add video" below to create one.
               </p>
             ) : (
-              <div className="flex flex-wrap gap-4">
-                {videos.map((video) => (
-                  <Link
-                    key={video.id}
-                    to={`/videos/${video.id}/edit`}
-                    className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
-                  >
-                    <div className="relative aspect-video w-32 bg-muted">
-                      {video.firstClipId ? (
-                        <img
-                          src={`/clips/${video.firstClipId}/first-frame`}
-                          alt={video.path}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center border-r">
-                          <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+              <SegmentDndProvider
+                videos={videos.map((v) => ({ id: v.id, segments: v.segments }))}
+                onMove={(drop) =>
+                  submitEvent({
+                    type: "move-segment",
+                    segmentId: drop.segmentId,
+                    targetVideoId: drop.targetVideoId,
+                    beforeSegmentId: drop.beforeSegmentId,
+                  })
+                }
+              >
+                <div className="space-y-5">
+                  {videos.map((video) => (
+                    <div key={video.id} className="space-y-2">
+                      <Link
+                        to={`/videos/${video.id}/edit`}
+                        className="text-left items-center group/thumb bg-muted rounded overflow-hidden inline-flex hover:ring-1 hover:ring-foreground/20 transition-all"
+                      >
+                        <div className="relative aspect-video w-32 bg-muted">
+                          {video.firstClipId ? (
+                            <img
+                              src={`/clips/${video.firstClipId}/first-frame`}
+                              alt={video.path}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center border-r">
+                              <FileVideo className="w-6 h-6 text-muted-foreground/40" />
+                            </div>
+                          )}
+                          {!hasExportedVideoMap[video.id] && (
+                            <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
+                          )}
                         </div>
-                      )}
-                      {!hasExportedVideoMap[video.id] && (
-                        <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-red-500" />
-                      )}
+                        <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
+                          <span className="text-xs truncate text-foreground transition-colors">
+                            {video.path || "Untitled"}
+                          </span>
+                          <span className="text-xs font-mono mt-0.5">
+                            {formatSecondsToTimeCode(video.totalDuration)}
+                          </span>
+                        </div>
+                      </Link>
+                      <div className="pl-1">
+                        <PitchVideoSegments
+                          video={video}
+                          submitEvent={submitEvent}
+                        />
+                      </div>
                     </div>
-                    <div className="py-1 px-6 flex flex-col items-center text-muted-foreground">
-                      <span className="text-xs truncate text-foreground transition-colors">
-                        {video.path || "Untitled"}
-                      </span>
-                      <span className="text-xs font-mono mt-0.5">
-                        {formatSecondsToTimeCode(video.totalDuration)}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </SegmentDndProvider>
             )}
             <div className="pt-2">
               <Button

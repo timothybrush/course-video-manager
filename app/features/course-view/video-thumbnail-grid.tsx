@@ -1,28 +1,13 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
-import {
-  AlertTriangle,
-  ArrowRightLeft,
-  Combine,
-  Download,
-  FileVideo,
-  FolderOpen,
-  PencilIcon,
-  Play,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, FileVideo } from "lucide-react";
 import { Suspense } from "react";
 import { Link, useNavigate, useFetcher } from "react-router";
 import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
-import { useGenerateChaptersAction } from "./generate-chapters-context";
-import { PurgeExportMenuItem, UnexportedDot } from "./export-status";
+import { UnexportedDot } from "./export-status";
+import { VideoContextMenuItems } from "./video-context-menu";
+import type { CourseEditorEvent } from "@/services/course-editor-service";
 import {
   Tooltip,
   TooltipContent,
@@ -41,6 +26,7 @@ function VideoThumbnailItem({
   revealVideoFetcher,
   deleteVideoFileFetcher,
   submitDeleteVideo,
+  submitEvent,
 }: {
   video: Video;
   section: Section;
@@ -52,14 +38,13 @@ function VideoThumbnailItem({
   revealVideoFetcher: ReturnType<typeof useFetcher>;
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
+  submitEvent: (event: CourseEditorEvent) => void;
 }) {
   const isReadOnly = !data.isLatestVersion;
   const totalDuration = video.totalDuration;
-  const openGenerateChapters = useGenerateChaptersAction();
   const showWarning =
     !isReadOnly &&
     video.warnings.some((w) => w.kind === "missingOpeningChapter");
-  const canGenerateChapters = !isReadOnly && video.clipCount > 0;
 
   return (
     <ContextMenu>
@@ -112,111 +97,19 @@ function VideoThumbnailItem({
           </div>
         </Link>
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          onSelect={() => {
-            dispatch({
-              type: "open-video-player",
-              videoId: video.id,
-              videoPath: `${section.path}/${lesson.path}/${video.path}`,
-            });
-          }}
-        >
-          <Play className="w-4 h-4" />
-          Play Video
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            startExportUpload(
-              video.id,
-              `${section.path}/${lesson.path}/${video.path}`
-            );
-          }}
-        >
-          <Download className="w-4 h-4" />
-          Export
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => {
-            navigate(`/videos/concatenate?initial=${video.id}`);
-          }}
-        >
-          <Combine className="w-4 h-4" />
-          Create Concatenated Video
-        </ContextMenuItem>
-        {canGenerateChapters && (
-          <ContextMenuItem
-            onSelect={() => {
-              openGenerateChapters({
-                videoId: video.id,
-                videoLabel: `${section.path}/${lesson.path}/${video.path}`,
-              });
-            }}
-          >
-            <Sparkles className="w-4 h-4" />
-            Generate Chapters
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem
-          onSelect={() => {
-            revealVideoFetcher.submit(
-              {},
-              {
-                method: "post",
-                action: `/api/videos/${video.id}/reveal`,
-              }
-            );
-          }}
-        >
-          <FolderOpen className="w-4 h-4" />
-          Reveal in File System
-        </ContextMenuItem>
-        {!isReadOnly && (
-          <>
-            <ContextMenuItem
-              onSelect={() => {
-                dispatch({
-                  type: "open-rename-video",
-                  videoId: video.id,
-                  videoPath: video.path,
-                });
-              }}
-            >
-              <PencilIcon className="w-4 h-4" />
-              Rename
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() => {
-                dispatch({
-                  type: "open-move-video",
-                  videoId: video.id,
-                  videoPath: video.path,
-                  currentLessonId: lesson.id,
-                });
-              }}
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              Move to Lesson
-            </ContextMenuItem>
-            <Suspense>
-              <PurgeExportMenuItem
-                videoId={video.id}
-                hasExportedVideoMap={data.hasExportedVideoMap}
-                deleteVideoFileFetcher={deleteVideoFileFetcher}
-              />
-            </Suspense>
-            <ContextMenuItem
-              variant="destructive"
-              onSelect={() => {
-                submitDeleteVideo(video.id);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
+      <VideoContextMenuItems
+        video={video}
+        section={section}
+        lesson={lesson}
+        data={data}
+        navigate={navigate}
+        dispatch={dispatch}
+        startExportUpload={startExportUpload}
+        revealVideoFetcher={revealVideoFetcher}
+        deleteVideoFileFetcher={deleteVideoFileFetcher}
+        submitDeleteVideo={submitDeleteVideo}
+        submitEvent={submitEvent}
+      />
     </ContextMenu>
   );
 }
@@ -232,6 +125,7 @@ export function VideoThumbnailGrid({
   revealVideoFetcher,
   deleteVideoFileFetcher,
   submitDeleteVideo,
+  submitEvent,
 }: {
   videos: Video[];
   section: Section;
@@ -243,6 +137,7 @@ export function VideoThumbnailGrid({
   revealVideoFetcher: ReturnType<typeof useFetcher>;
   deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
   submitDeleteVideo: (videoId: string) => void;
+  submitEvent: (event: CourseEditorEvent) => void;
 }) {
   if (videos.length === 0) return null;
 
@@ -261,6 +156,7 @@ export function VideoThumbnailGrid({
           revealVideoFetcher={revealVideoFetcher}
           deleteVideoFileFetcher={deleteVideoFileFetcher}
           submitDeleteVideo={submitDeleteVideo}
+          submitEvent={submitEvent}
         />
       ))}
     </div>

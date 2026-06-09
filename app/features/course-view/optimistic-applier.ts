@@ -3,7 +3,13 @@ import {
   planLessonMove,
   planLessonsMove,
 } from "@/services/lesson-move-planner";
-import type { LoaderData, Lesson, Section } from "./course-view-types";
+import type {
+  LoaderData,
+  Lesson,
+  Section,
+  Segment,
+  Video,
+} from "./course-view-types";
 
 /**
  * Fetcher key convention: `course-editor:<event-type>:<entity-id>`.
@@ -61,6 +67,13 @@ function entityIdForEvent(event: CourseEditorEvent): string {
     case "create-on-disk":
     case "set-lesson-authoring-status":
       return event.lessonId;
+    case "create-segment":
+      return event.videoId;
+    case "rename-segment":
+    case "set-segment-kind":
+    case "delete-segment":
+    case "move-segment":
+      return event.segmentId;
   }
 }
 
@@ -119,6 +132,18 @@ export function applyOptimisticEvent(
       return applyMoveLessonToSection(loaderData, event);
     case "move-lessons-to-section":
       return applyMoveLessonsToSection(loaderData, event);
+    case "rename-segment":
+      return withPatchedSegment(loaderData, event.segmentId, () => ({
+        title: event.title,
+      }));
+    case "set-segment-kind":
+      return withPatchedSegment(loaderData, event.segmentId, () => ({
+        kind: event.kind,
+      }));
+    case "delete-segment":
+      return applyDeleteSegment(loaderData, event.segmentId);
+    case "move-segment":
+      return applyMoveSegment(loaderData, event);
     default:
       return loaderData;
   }
@@ -480,6 +505,163 @@ function withPatchedLesson(
         return { ...lesson, ...patchFn(lesson) };
       }
       return lesson;
+    });
+    return sectionChanged ? { ...section, lessons } : section;
+  });
+
+  if (!found) return loaderData;
+
+  return {
+    ...loaderData,
+    selectedCourse: { ...course, sections },
+  };
+}
+
+/**
+ * Patch a single Segment in place, walking sections → lessons → videos →
+ * segments and rebuilding only the branches that change (reference equality is
+ * preserved for everything else, like the lesson/section helpers).
+ */
+function withPatchedSegment(
+  loaderData: LoaderData,
+  segmentId: string,
+  patchFn: (segment: Segment) => Partial<Segment>
+): LoaderData {
+  return withMappedVideoSegments(loaderData, (video) => {
+    const idx = video.segments.findIndex((s) => s.id === segmentId);
+    if (idx === -1) return null;
+    const segments = video.segments.map((s) =>
+      s.id === segmentId ? { ...s, ...patchFn(s) } : s
+    );
+    return { ...video, segments };
+  });
+}
+
+function applyDeleteSegment(
+  loaderData: LoaderData,
+  segmentId: string
+): LoaderData {
+  return withMappedVideoSegments(loaderData, (video) => {
+    if (!video.segments.some((s) => s.id === segmentId)) return null;
+    return {
+      ...video,
+      segments: video.segments.filter((s) => s.id !== segmentId),
+    };
+  });
+}
+
+/**
+ * Move a Segment within or across Videos: drop it from its source Video and
+ * splice it into the target before `beforeSegmentId` (or append). Display order
+ * is array order; the server recomputes the fractional key on revalidation.
+ */
+/**
+ * Unlike `reorder-lessons` (which carries the full ordered id list, per ADR
+ * 0002), a segment move carries a single `beforeSegmentId` anchor — deliberately
+ * mirroring the cross-parent lesson move (ADR 0011/0013) since a move can
+ * reassign the segment to a different Video. The applier splices the moved
+ * segment in front of that anchor (or appends when null).
+ */
+function applyMoveSegment(
+  loaderData: LoaderData,
+  event: Extract<CourseEditorEvent, { type: "move-segment" }>
+): LoaderData {
+  const course = loaderData.selectedCourse;
+  if (!course) return loaderData;
+
+  const { segmentId, targetVideoId } = event;
+  const beforeSegmentId = event.beforeSegmentId ?? null;
+
+  // Find the segment being moved across all videos.
+  let moved: Segment | undefined;
+  for (const section of course.sections) {
+    for (const lesson of section.lessons) {
+      for (const video of lesson.videos) {
+        const found = video.segments.find((s) => s.id === segmentId);
+        if (found) moved = found;
+      }
+    }
+  }
+  if (!moved) return loaderData;
+
+  const movedInTarget: Segment = { ...moved, videoId: targetVideoId };
+
+  const remapVideo = (video: Video): Video => {
+    const isSource = video.segments.some((s) => s.id === segmentId);
+    const isTarget = video.id === targetVideoId;
+    if (!isSource && !isTarget) return video;
+
+    let segments = video.segments.filter((s) => s.id !== segmentId);
+    if (isTarget) {
+      const idx =
+        beforeSegmentId !== null
+          ? segments.findIndex((s) => s.id === beforeSegmentId)
+          : -1;
+      segments =
+        idx === -1
+          ? [...segments, movedInTarget]
+          : [...segments.slice(0, idx), movedInTarget, ...segments.slice(idx)];
+    }
+    return { ...video, segments };
+  };
+
+  let changed = false;
+  const sections = course.sections.map((section) => {
+    let sectionChanged = false;
+    const lessons = section.lessons.map((lesson) => {
+      let lessonChanged = false;
+      const videos = lesson.videos.map((video) => {
+        const next = remapVideo(video);
+        if (next !== video) {
+          lessonChanged = true;
+          sectionChanged = true;
+          changed = true;
+        }
+        return next;
+      });
+      return lessonChanged ? { ...lesson, videos } : lesson;
+    });
+    return sectionChanged ? { ...section, lessons } : section;
+  });
+
+  if (!changed) return loaderData;
+
+  return {
+    ...loaderData,
+    selectedCourse: { ...course, sections },
+  };
+}
+
+/**
+ * Walk to the first Video whose `mapVideo` returns a changed video (non-null)
+ * and rebuild just that branch. Returns `loaderData` unchanged if no video is
+ * touched, so unrelated sections keep their reference.
+ */
+function withMappedVideoSegments(
+  loaderData: LoaderData,
+  mapVideo: (video: Video) => Video | null
+): LoaderData {
+  const course = loaderData.selectedCourse;
+  if (!course) return loaderData;
+
+  let found = false;
+  const sections = course.sections.map((section) => {
+    if (found) return section;
+    let sectionChanged = false;
+    const lessons = section.lessons.map((lesson) => {
+      if (found) return lesson;
+      let lessonChanged = false;
+      const videos = lesson.videos.map((video) => {
+        if (found) return video;
+        const next = mapVideo(video);
+        if (next === null) return video;
+        found = true;
+        lessonChanged = true;
+        return next;
+      });
+      if (!lessonChanged) return lesson;
+      sectionChanged = true;
+      return { ...lesson, videos };
     });
     return sectionChanged ? { ...section, lessons } : section;
   });

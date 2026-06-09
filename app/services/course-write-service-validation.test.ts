@@ -16,6 +16,7 @@ import type { CourseEditorService } from "./course-editor-service";
 import { DrizzleService } from "./drizzle-service.server";
 import { CourseOperationsService } from "./db-course-operations.server";
 import { LessonSectionOperationsService } from "./db-lesson-section-operations.server";
+import { SegmentOperationsService } from "./db-segment-operations.server";
 import { CourseWriteService } from "./course-write-service";
 import { CourseRepoWriteService } from "./course-repo-write-service";
 import {
@@ -42,7 +43,8 @@ function setup() {
     const testDrizzleLayer = Layer.succeed(DrizzleService, testDb as any);
     const testDbFunctionsLayer = Layer.mergeAll(
       CourseOperationsService.Default,
-      LessonSectionOperationsService.Default
+      LessonSectionOperationsService.Default,
+      SegmentOperationsService.Default
     ).pipe(Layer.provide(testDrizzleLayer));
 
     const mockRepoWriteLayer = Layer.succeed(CourseRepoWriteService, {
@@ -339,7 +341,8 @@ describe("pre-flight validation gate (PRD #952)", () => {
     const testDrizzleLayer = Layer.succeed(DrizzleService, divergentDb as any);
     const testDbFunctionsLayer = Layer.mergeAll(
       CourseOperationsService.Default,
-      LessonSectionOperationsService.Default
+      LessonSectionOperationsService.Default,
+      SegmentOperationsService.Default
     ).pipe(Layer.provide(testDrizzleLayer));
 
     const mockRepoWriteLayer = Layer.succeed(CourseRepoWriteService, {

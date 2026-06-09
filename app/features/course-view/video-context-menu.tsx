@@ -1,0 +1,175 @@
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
+import { courseViewReducer } from "@/features/course-view/course-view-reducer";
+import {
+  ArrowRightLeft,
+  Combine,
+  Download,
+  FolderOpen,
+  PencilIcon,
+  Play,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import { Suspense } from "react";
+import type { useNavigate, useFetcher } from "react-router";
+import type { LoaderData, Section, Lesson, Video } from "./course-view-types";
+import { useGenerateChaptersAction } from "./generate-chapters-context";
+import { PurgeExportMenuItem } from "./export-status";
+import { AddSegmentSubMenu } from "@/features/segments/segment-menu-items";
+import type { CourseEditorEvent } from "@/services/course-editor-service";
+
+/**
+ * The full set of video context-menu items, shared between the expanded
+ * thumbnail grid and the compact segment tree so right-clicking a Video offers
+ * the same actions in both views. Wrap in a `<ContextMenu>`/`<ContextMenuTrigger>`
+ * at the call site.
+ */
+export function VideoContextMenuItems({
+  video,
+  section,
+  lesson,
+  data,
+  navigate,
+  dispatch,
+  startExportUpload,
+  revealVideoFetcher,
+  deleteVideoFileFetcher,
+  submitDeleteVideo,
+  submitEvent,
+}: {
+  video: Video;
+  section: Section;
+  lesson: Lesson;
+  data: LoaderData;
+  navigate: ReturnType<typeof useNavigate>;
+  dispatch: (action: courseViewReducer.Action) => void;
+  startExportUpload: (videoId: string, path: string) => void;
+  revealVideoFetcher: ReturnType<typeof useFetcher>;
+  deleteVideoFileFetcher: ReturnType<typeof useFetcher>;
+  submitDeleteVideo: (videoId: string) => void;
+  submitEvent: (event: CourseEditorEvent) => void;
+}) {
+  const openGenerateChapters = useGenerateChaptersAction();
+  const isReadOnly = !data.isLatestVersion;
+  const canGenerateChapters = !isReadOnly && video.clipCount > 0;
+
+  return (
+    <ContextMenuContent>
+      <ContextMenuItem
+        onSelect={() => {
+          dispatch({
+            type: "open-video-player",
+            videoId: video.id,
+            videoPath: `${section.path}/${lesson.path}/${video.path}`,
+          });
+        }}
+      >
+        <Play className="w-4 h-4" />
+        Play Video
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          startExportUpload(
+            video.id,
+            `${section.path}/${lesson.path}/${video.path}`
+          );
+        }}
+      >
+        <Download className="w-4 h-4" />
+        Export
+      </ContextMenuItem>
+      <ContextMenuItem
+        onSelect={() => {
+          navigate(`/videos/concatenate?initial=${video.id}`);
+        }}
+      >
+        <Combine className="w-4 h-4" />
+        Create Concatenated Video
+      </ContextMenuItem>
+      {canGenerateChapters && (
+        <ContextMenuItem
+          onSelect={() => {
+            openGenerateChapters({
+              videoId: video.id,
+              videoLabel: `${section.path}/${lesson.path}/${video.path}`,
+            });
+          }}
+        >
+          <Sparkles className="w-4 h-4" />
+          Generate Chapters
+        </ContextMenuItem>
+      )}
+      <ContextMenuItem
+        onSelect={() => {
+          revealVideoFetcher.submit(
+            {},
+            {
+              method: "post",
+              action: `/api/videos/${video.id}/reveal`,
+            }
+          );
+        }}
+      >
+        <FolderOpen className="w-4 h-4" />
+        Reveal in File System
+      </ContextMenuItem>
+      {!isReadOnly && (
+        <>
+          <AddSegmentSubMenu
+            onAdd={(kind) =>
+              submitEvent({
+                type: "create-segment",
+                videoId: video.id,
+                kind,
+              })
+            }
+          />
+          <ContextMenuItem
+            onSelect={() => {
+              dispatch({
+                type: "open-rename-video",
+                videoId: video.id,
+                videoPath: video.path,
+              });
+            }}
+          >
+            <PencilIcon className="w-4 h-4" />
+            Rename
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => {
+              dispatch({
+                type: "open-move-video",
+                videoId: video.id,
+                videoPath: video.path,
+                currentLessonId: lesson.id,
+              });
+            }}
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            Move to Lesson
+          </ContextMenuItem>
+          <Suspense>
+            <PurgeExportMenuItem
+              videoId={video.id}
+              hasExportedVideoMap={data.hasExportedVideoMap}
+              deleteVideoFileFetcher={deleteVideoFileFetcher}
+            />
+          </Suspense>
+          <ContextMenuItem
+            variant="destructive"
+            onSelect={() => {
+              submitDeleteVideo(video.id);
+            }}
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </ContextMenuItem>
+        </>
+      )}
+    </ContextMenuContent>
+  );
+}

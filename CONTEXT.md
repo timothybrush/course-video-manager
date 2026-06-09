@@ -48,6 +48,12 @@ _Avoid_: Version number, Build version
 
 **Ghost Lesson**:
 A lesson that exists in the database but not yet on the file system (`fsStatus = "ghost"`).
+A Ghost Lesson is a full planning and recording workspace: it can hold **Videos**
+(and their **Segments** and **Clips**) exactly as a real lesson can. These are
+DB-only planning structures — recording into them touches no filesystem, and they
+are never written to disk until the lesson is **Materialized** (Publish skips
+ghosts). **Dematerializing** a real lesson back to a ghost deletes only its on-disk
+directory; its Videos, Segments, and Clips are preserved.
 _Avoid_: Planned lesson, Draft lesson
 
 **Ghost Section**:
