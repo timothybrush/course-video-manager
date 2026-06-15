@@ -26,7 +26,7 @@ import {
   CircleIcon,
   Plus,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/_app._index";
 
@@ -107,19 +107,44 @@ function formatDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function groupByMonth(items: DeliverableWithLinks[]): {
+  label: string;
+  items: DeliverableWithLinks[];
+}[] {
+  const groups: { label: string; items: DeliverableWithLinks[] }[] = [];
+  for (const d of items) {
+    const [y, m] = d.date.split("-").map(Number);
+    const date = new Date(y!, m! - 1, 1);
+    const label = date.toLocaleDateString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      last.items.push(d);
+    } else {
+      groups.push({ label, items: [d] });
+    }
+  }
+  return groups;
+}
+
 function HistoryDisclosure({
   items,
   todayStr,
+  overdueCutoffStr,
   allCourses,
   allPitches,
 }: {
   items: DeliverableWithLinks[];
   todayStr: string;
+  overdueCutoffStr: string;
   allCourses: CourseOption[];
   allPitches: PitchOption[];
 }) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
+  const monthGroups = groupByMonth(items);
   return (
     <div className="mb-5">
       <button
@@ -135,20 +160,46 @@ function HistoryDisclosure({
         {items.length} earlier — shipped &amp; cancelled
       </button>
       {open && (
-        <ul className="space-y-2 mt-2">
-          {items.map((d) => (
-            <DeliverableCard
-              key={d.id}
-              d={d}
-              todayStr={todayStr}
-              allCourses={allCourses}
-              allPitches={allPitches}
-            />
+        <div className="space-y-6 mt-2">
+          {monthGroups.map((mg) => (
+            <div key={mg.label}>
+              <header className="flex items-center gap-3 mb-2">
+                <span className="size-2 inline-block rounded-full border border-muted-foreground/40" />
+                <h3 className="text-[11px] uppercase tracking-wider font-medium text-muted-foreground">
+                  {mg.label}
+                </h3>
+                <div className="h-px flex-1 bg-border" />
+              </header>
+              <ul className="space-y-2">
+                {mg.items.map((d) => (
+                  <DeliverableCard
+                    key={d.id}
+                    d={d}
+                    todayStr={todayStr}
+                    overdueCutoffStr={overdueCutoffStr}
+                    allCourses={allCourses}
+                    allPitches={allPitches}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
+}
+
+const BUFFER_STORAGE_KEY = "deliverables-calendar-overdue-buffer-weeks";
+const BUFFER_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+
+function readBufferFromStorage(): number {
+  if (typeof window === "undefined") return 0;
+  const raw = localStorage.getItem(BUFFER_STORAGE_KEY);
+  if (raw === null) return 0;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 8) return 0;
+  return parsed;
 }
 
 export default function DeliverablesCalendarPage() {
@@ -159,10 +210,26 @@ export default function DeliverablesCalendarPage() {
     | { kind: "day"; mondayStr: string; dateStr: string }
     | null
   >(null);
+  const [bufferWeeks, setBufferWeeks] = useState(0);
+
+  useEffect(() => {
+    setBufferWeeks(readBufferFromStorage());
+  }, []);
+
+  const handleBufferChange = (n: number) => {
+    setBufferWeeks(n);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(BUFFER_STORAGE_KEY, String(n));
+    }
+  };
 
   const today = new Date();
   const todayWeek = isoWeek(today);
   const todayStr = formatDateStr(today);
+
+  const overdueCutoffDate = new Date(today);
+  overdueCutoffDate.setDate(overdueCutoffDate.getDate() + bufferWeeks * 7);
+  const overdueCutoffStr = formatDateStr(overdueCutoffDate);
 
   const deliverablesWithLinks: DeliverableWithLinks[] = deliverables.map(
     (d) => ({
@@ -174,7 +241,7 @@ export default function DeliverablesCalendarPage() {
   const { pastHistory, weekGroups } = groupDeliverables(
     deliverablesWithLinks,
     today,
-    { minWeeksAhead: 11 }
+    { minWeeksAhead: 11, overdueCutoffStr }
   );
 
   return (
@@ -186,6 +253,20 @@ export default function DeliverablesCalendarPage() {
             Week {todayWeek.week}
           </span>
           <div className="flex-1" />
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Buffer:
+            <select
+              value={bufferWeeks}
+              onChange={(e) => handleBufferChange(Number(e.target.value))}
+              className="text-xs rounded border border-border bg-background px-1.5 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {BUFFER_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === 1 ? "week" : "weeks"}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button
             variant="outline"
             size="sm"
@@ -212,6 +293,7 @@ export default function DeliverablesCalendarPage() {
           <HistoryDisclosure
             items={pastHistory}
             todayStr={todayStr}
+            overdueCutoffStr={overdueCutoffStr}
             allCourses={courses}
             allPitches={pitches}
           />
@@ -289,6 +371,7 @@ export default function DeliverablesCalendarPage() {
                             key={d.id}
                             d={d}
                             todayStr={todayStr}
+                            overdueCutoffStr={overdueCutoffStr}
                             allCourses={courses}
                             allPitches={pitches}
                             onAddNewForDate={(dateStr) =>

@@ -213,16 +213,20 @@ function PitchContextMenu({
 export function DeliverableCard({
   d,
   todayStr,
+  overdueCutoffStr,
   allCourses,
   allPitches,
   onAddNewForDate,
 }: {
   d: DeliverableForCard;
   todayStr: string;
+  /** YYYY-MM-DD cutoff — items with date < this are treated as overdue. Defaults to todayStr. */
+  overdueCutoffStr?: string;
   allCourses: CourseOption[];
   allPitches: PitchOption[];
   onAddNewForDate?: (dateStr: string) => void;
 }) {
+  overdueCutoffStr ??= todayStr;
   const [editing, setEditing] = useState(false);
   const linkFetcher = useFetcher();
   const statusFetcher = useFetcher();
@@ -257,7 +261,7 @@ export function DeliverableCard({
   }
 
   const day = parseDate(d.date);
-  const overdue = d.status === "planned" && d.date < todayStr;
+  const overdue = d.status === "planned" && d.date < overdueCutoffStr;
   const cancelled = d.status === "cancelled";
   const done = d.status === "done";
 

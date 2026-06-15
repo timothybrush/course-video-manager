@@ -41,10 +41,11 @@ function formatDate(d: Date): string {
 export function groupDeliverables<T extends DeliverableForGrouping>(
   deliverables: T[],
   today: Date,
-  options: { minWeeksAhead?: number } = {}
+  options: { minWeeksAhead?: number; overdueCutoffStr?: string } = {}
 ): GroupedDeliverables<T> {
   const active = deliverables.filter((d) => !d.archived);
   const todayStr = formatDate(today);
+  const overdueCutoffStr = options.overdueCutoffStr ?? todayStr;
   const todayWeek = isoWeek(today);
 
   const pastHistory: T[] = [];
@@ -101,7 +102,7 @@ export function groupDeliverables<T extends DeliverableForGrouping>(
       byWeek.set(key, group);
     }
     group.items.push(d);
-    if (d.status === "planned" && d.date < todayStr) {
+    if (d.status === "planned" && d.date < overdueCutoffStr) {
       group.overdueCount++;
     }
   }
