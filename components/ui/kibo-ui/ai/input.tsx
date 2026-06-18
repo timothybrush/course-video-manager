@@ -188,6 +188,7 @@ export const AIInputButton = ({
 
 export type AIInputSubmitProps = ComponentProps<typeof Button> & {
   status?: "submitted" | "streaming" | "ready" | "error";
+  onStop?: () => void;
 };
 
 export const AIInputSubmit = ({
@@ -195,10 +196,13 @@ export const AIInputSubmit = ({
   variant = "default",
   size = "icon",
   status,
+  onStop,
   children,
   ...props
 }: AIInputSubmitProps) => {
   let Icon = <SendIcon />;
+
+  const isActive = status === "submitted" || status === "streaming";
 
   if (status === "submitted") {
     Icon = <Loader2Icon className="animate-spin" />;
@@ -212,8 +216,9 @@ export const AIInputSubmit = ({
     <Button
       className={cn("gap-1.5 rounded-lg rounded-br-xl", className)}
       size={size}
-      type="submit"
+      type={isActive && onStop ? "button" : "submit"}
       variant={variant}
+      onClick={isActive && onStop ? onStop : undefined}
       {...props}
     >
       {children ?? Icon}
