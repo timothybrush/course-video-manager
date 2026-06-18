@@ -8,23 +8,19 @@ import type {
   ClipReducerAction,
   ClipReducerEffect,
   ClipReducerState,
-  ChapterOnDatabase,
-  ChapterOptimisticallyAdded,
   DatabaseId,
   FrontendInsertionPoint,
-  RecordingSession,
-  TimelineItem,
 } from "./clip-state-reducer.types";
-import { createFrontendId, createSessionId } from "./clip-state-reducer.types";
-import {
-  archiveClips,
-  handleAddChapterAt,
-  handleChaptersReplaced,
-  handleNewDatabaseClips,
-  handleNewOptimisticClipDetected,
-} from "./clip-state-reducer.helpers";
+import { archiveClips } from "./clip-state-reducer.helpers";
 import { handleAddEffectClipAt } from "./clip-state-reducer-effect-clip-helpers";
-import { handleClipAudioWindowClosed } from "./clip-state-reducer-snapshot-pinning.helpers";
+import {
+  handleRecordingAction,
+  isRecordingAction,
+} from "./clip-state-reducer-recording";
+import {
+  handleChapterAction,
+  isChapterAction,
+} from "./clip-state-reducer-chapters";
 
 export namespace clipStateReducer {
   export type State = ClipReducerState;
@@ -41,93 +37,15 @@ export const clipStateReducer: EffectReducer<
   action: clipStateReducer.Action,
   exec
 ): clipStateReducer.State => {
+  if (isRecordingAction(action)) {
+    return handleRecordingAction(state, action, exec);
+  }
+
+  if (isChapterAction(action)) {
+    return handleChapterAction(state, action, exec);
+  }
+
   switch (action.type) {
-    case "recording-started": {
-      const nextDisplayNumber =
-        state.sessions.length > 0
-          ? Math.max(...state.sessions.map((s) => s.displayNumber)) + 1
-          : 1;
-
-      const newSession: RecordingSession = {
-        id: createSessionId(),
-        displayNumber: nextDisplayNumber,
-        status: "recording",
-        outputPath: action.outputPath,
-        startedAt: Date.now(),
-        pauseLength: action.pauseLength,
-      };
-
-      exec({
-        type: "start-session-polling",
-        sessionId: newSession.id,
-        outputPath: action.outputPath,
-        pauseLength: action.pauseLength,
-      });
-
-      exec({
-        type: "scroll-to-insertion-point",
-      });
-
-      return {
-        ...state,
-        sessions: [...state.sessions, newSession],
-      };
-    }
-    case "recording-stopped": {
-      const activeSession = state.sessions.find(
-        (s) => s.status === "recording"
-      );
-      if (!activeSession) {
-        return state;
-      }
-
-      exec({
-        type: "start-session-timeout",
-        sessionId: activeSession.id,
-      });
-
-      return {
-        ...state,
-        sessions: state.sessions.map((s) =>
-          s.id === activeSession.id ? { ...s, status: "polling" } : s
-        ),
-      };
-    }
-    case "session-polling-complete": {
-      const session = state.sessions.find((s) => s.id === action.sessionId);
-      if (!session || session.status === "done") {
-        return state;
-      }
-
-      const allSessionsDone = state.sessions.every((s) =>
-        s.id === action.sessionId ? true : s.status === "done"
-      );
-
-      if (allSessionsDone) {
-        exec({ type: "revalidate-loader" });
-      }
-
-      return {
-        ...state,
-        sessions: state.sessions.map((s) =>
-          s.id === action.sessionId ? { ...s, status: "done" } : s
-        ),
-        items: state.items.map((item) => {
-          if (
-            item.type === "optimistically-added" &&
-            item.sessionId === action.sessionId &&
-            !item.shouldArchive
-          ) {
-            return { ...item, isOrphaned: true };
-          }
-          return item;
-        }),
-      };
-    }
-    case "new-optimistic-clip-detected":
-      return handleNewOptimisticClipDetected(state, action, exec);
-    case "new-database-clips":
-      return handleNewDatabaseClips(state, action, exec);
     case "clips-deleted": {
       const { items, clipsToArchive, chaptersToArchive, insertionPoint } =
         archiveClips(state.items, action.clipIds, state.insertionPoint);
@@ -459,109 +377,6 @@ export const clipStateReducer: EffectReducer<
         items: newItems,
       };
     }
-    case "add-chapter": {
-      const newFrontendId = createFrontendId();
-      const newChapter: ChapterOptimisticallyAdded = {
-        type: "chapter-optimistically-added",
-        frontendId: newFrontendId,
-        name: action.name,
-        insertionOrder: state.insertionOrder + 1,
-      };
-
-      let newInsertionPoint: FrontendInsertionPoint = {
-        type: "after-chapter",
-        frontendChapterId: newFrontendId,
-      };
-
-      let newItems: TimelineItem[];
-      if (state.insertionPoint.type === "end") {
-        // Append to end
-        newItems = [...state.items, newChapter];
-      } else if (state.insertionPoint.type === "start") {
-        // Insert at start
-        newItems = [newChapter, ...state.items];
-      } else if (state.insertionPoint.type === "after-clip") {
-        const targetClipId = state.insertionPoint.frontendClipId;
-        const insertionPointIndex = state.items.findIndex(
-          (c) => c.frontendId === targetClipId
-        );
-        if (insertionPointIndex === -1) {
-          throw new Error("Target clip not found when inserting chapter after");
-        }
-        newItems = [
-          ...state.items.slice(0, insertionPointIndex + 1),
-          newChapter,
-          ...state.items.slice(insertionPointIndex + 1),
-        ];
-      } else {
-        // after-chapter
-        const targetChapterId = state.insertionPoint.frontendChapterId;
-        const insertionPointIndex = state.items.findIndex(
-          (c) => c.frontendId === targetChapterId
-        );
-        if (insertionPointIndex === -1) {
-          throw new Error(
-            "Target chapter not found when inserting chapter after"
-          );
-        }
-        newItems = [
-          ...state.items.slice(0, insertionPointIndex + 1),
-          newChapter,
-          ...state.items.slice(insertionPointIndex + 1),
-        ];
-      }
-
-      exec({
-        type: "create-chapter",
-        frontendId: newFrontendId,
-        name: action.name,
-        insertionPoint: state.insertionPoint,
-      });
-
-      exec({
-        type: "scroll-to-insertion-point",
-      });
-
-      return {
-        ...state,
-        items: newItems,
-        insertionOrder: state.insertionOrder + 1,
-        insertionPoint: newInsertionPoint,
-      };
-    }
-    case "update-chapter": {
-      const chapter = state.items.find(
-        (item) => item.frontendId === action.chapterId
-      );
-      if (
-        !chapter ||
-        (chapter.type !== "chapter-on-database" &&
-          chapter.type !== "chapter-optimistically-added")
-      ) {
-        return state;
-      }
-
-      // Only fire effect for database chapters
-      if (chapter.type === "chapter-on-database") {
-        exec({
-          type: "update-chapter",
-          chapterId: chapter.databaseId,
-          name: action.name,
-        });
-      }
-
-      return {
-        ...state,
-        items: state.items.map((item) => {
-          if (item.frontendId === action.chapterId) {
-            return { ...item, name: action.name };
-          }
-          return item;
-        }),
-      };
-    }
-    case "add-chapter-at":
-      return handleAddChapterAt(state, action, exec);
     case "add-effect-clip-at":
       return handleAddEffectClipAt(state, action, exec);
     case "effect-clip-created": {
@@ -594,29 +409,6 @@ export const clipStateReducer: EffectReducer<
         }),
       };
     }
-    case "chapter-created": {
-      return {
-        ...state,
-        items: state.items.map((item) => {
-          if (
-            item.frontendId === action.frontendId &&
-            item.type === "chapter-optimistically-added"
-          ) {
-            const onDatabase: ChapterOnDatabase = {
-              type: "chapter-on-database",
-              frontendId: item.frontendId,
-              databaseId: action.databaseId,
-              name: item.name,
-              insertionOrder: item.insertionOrder,
-            };
-            return onDatabase;
-          }
-          return item;
-        }),
-      };
-    }
-    case "chapters-replaced":
-      return handleChaptersReplaced(state, action);
     case "restore-clip": {
       const item = state.items.find((c) => c.frontendId === action.clipId);
 
@@ -717,9 +509,6 @@ export const clipStateReducer: EffectReducer<
           timestamp: Date.now(),
         },
       };
-    }
-    case "clip-audio-window-closed": {
-      return handleClipAudioWindowClosed(state, action);
     }
     case "update-clip-diagram-pin": {
       return {
