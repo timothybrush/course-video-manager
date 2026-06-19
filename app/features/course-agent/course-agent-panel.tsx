@@ -20,10 +20,12 @@ import {
   ArchiveRestore,
   Check,
   ChevronDown,
+  Copy,
   MessageSquarePlus,
   X,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { useRevalidator } from "react-router";
@@ -45,6 +47,7 @@ import {
   loadArchived,
   saveArchived,
 } from "./thread-storage";
+import { formatTranscript } from "./format-transcript";
 import {
   asVfsToolPart,
   asWriteToolPart,
@@ -364,12 +367,27 @@ export function CourseAgentPanel({
           )}
         </div>
 
-        <button
-          className="ml-auto rounded p-1 hover:bg-muted"
-          onClick={onClose}
-        >
-          <X className="size-4" />
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            title="Copy transcript"
+            className="rounded p-1 hover:bg-muted"
+            onClick={async () => {
+              const text = formatTranscript(messages);
+              if (!text) return;
+              try {
+                await navigator.clipboard.writeText(text);
+                toast("Chat transcript copied to clipboard");
+              } catch {
+                toast.error("Failed to copy to clipboard");
+              }
+            }}
+          >
+            <Copy className="size-4" />
+          </button>
+          <button className="rounded p-1 hover:bg-muted" onClick={onClose}>
+            <X className="size-4" />
+          </button>
+        </div>
       </div>
 
       {/* conversation */}
