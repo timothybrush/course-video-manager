@@ -33,7 +33,7 @@ const TOOL_ICON: Record<ToolName, LucideIcon> = {
 export function CourseToolCall({ part }: { part: ToolPart }) {
   const Icon = TOOL_ICON[part.tool];
   return (
-    <AITool className="mb-2 w-full">
+    <AITool className="my-3 w-full">
       <CollapsibleTrigger className="group flex w-full items-start gap-2 p-3 text-left">
         {/* mt-0.5 nudges the icon onto the first text line — align-top, not -middle */}
         <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

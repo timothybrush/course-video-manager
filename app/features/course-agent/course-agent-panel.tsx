@@ -368,38 +368,40 @@ export function CourseAgentPanel({
                 </AIMessage>
               );
             }
-            const textParts = m.parts.filter(
-              (p): p is { type: "text"; text: string } => p.type === "text"
-            );
-            const text = textParts.map((p) => p.text).join("\n\n");
             return (
               <AIMessage from="assistant" key={m.id}>
                 <div className="w-full">
                   {m.parts.map((p, i) => {
-                    if (p.type === "dynamic-tool" && isVfsTool(p.toolName)) {
-                      const input = p.input as
-                        | Record<string, string>
-                        | undefined;
-                      const pathArg = input?.path ?? input?.pattern ?? "";
-                      return (
-                        <CourseToolCall
+                    if (p.type === "text") {
+                      return p.text ? (
+                        <AIResponse
                           key={i}
-                          part={{
-                            type: "tool",
-                            tool: p.toolName as "ls" | "tree" | "cat" | "grep",
-                            command: `${p.toolName} ${pathArg}`.trim(),
-                            output:
-                              p.state === "output-available"
-                                ? String(p.output)
-                                : "Running...",
-                            touched: [],
-                          }}
-                        />
-                      );
+                          imageBasePath=""
+                          className="text-sm"
+                        >
+                          {p.text}
+                        </AIResponse>
+                      ) : null;
                     }
-                    return null;
+                    const vfs = asVfsToolPart(p);
+                    if (!vfs) return null;
+                    const pathArg = vfs.input?.path ?? vfs.input?.pattern ?? "";
+                    return (
+                      <CourseToolCall
+                        key={i}
+                        part={{
+                          type: "tool",
+                          tool: vfs.toolName,
+                          command: `${vfs.toolName} ${pathArg}`.trim(),
+                          output:
+                            vfs.state === "output-available"
+                              ? String(vfs.output)
+                              : "Running...",
+                          touched: [],
+                        }}
+                      />
+                    );
                   })}
-                  {text && <AIResponse imageBasePath="">{text}</AIResponse>}
                 </div>
               </AIMessage>
             );
@@ -439,9 +441,44 @@ export function CourseAgentPanel({
   );
 }
 
-const VFS_TOOLS = new Set(["ls", "tree", "cat", "grep"]);
-function isVfsTool(name: string): boolean {
-  return VFS_TOOLS.has(name);
+const VFS_TOOLS = ["ls", "tree", "cat", "grep"] as const;
+type VfsToolName = (typeof VFS_TOOLS)[number];
+
+function isVfsTool(name: string): name is VfsToolName {
+  return (VFS_TOOLS as readonly string[]).includes(name);
+}
+
+type NormalizedVfsToolPart = {
+  toolName: VfsToolName;
+  state: string;
+  input: Record<string, string> | undefined;
+  output: unknown;
+};
+
+// Static tools registered on the agent stream as typed parts (`tool-ls`, …);
+// dynamic tools arrive as `dynamic-tool` with a `toolName` field. Normalize both.
+function asVfsToolPart(
+  part: UIMessage["parts"][number]
+): NormalizedVfsToolPart | null {
+  let toolName: string | undefined;
+  if (part.type === "dynamic-tool") {
+    toolName = part.toolName;
+  } else if (part.type.startsWith("tool-")) {
+    toolName = part.type.slice("tool-".length);
+  }
+  if (!toolName || !isVfsTool(toolName)) return null;
+
+  const p = part as {
+    state?: string;
+    input?: Record<string, string>;
+    output?: unknown;
+  };
+  return {
+    toolName,
+    state: p.state ?? "",
+    input: p.input,
+    output: p.output,
+  };
 }
 
 function extractUsageFromMessage(

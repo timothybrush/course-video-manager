@@ -304,6 +304,15 @@ export default function Component(props: Route.ComponentProps) {
                     archiveCourseFetcher={archiveCourseFetcher}
                     gitPushFetcher={gitPushFetcher}
                     handleBatchExport={handleBatchExport}
+                    onOpenAgentPanel={() =>
+                      setSearchParams(
+                        (prev) => {
+                          prev.set("agentPanel", "true");
+                          return prev;
+                        },
+                        { replace: true, preventScrollReset: true }
+                      )
+                    }
                   />
                   {courseWarningCount > 0 && (
                     <span
