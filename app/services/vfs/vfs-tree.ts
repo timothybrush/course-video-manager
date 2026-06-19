@@ -24,6 +24,14 @@ export type VfsDirNode = {
   name: string;
   children: Map<string, VfsNode>;
   ghost?: boolean;
+  /**
+   * Sort key for section/lesson directories, derived from the database
+   * `order` field. When set, the tree renderer orders siblings by this
+   * instead of alphabetically, so ghost entries (which carry un-numbered
+   * paths) appear inline in their proper position rather than sorted to
+   * the bottom.
+   */
+  order?: number;
 };
 
 export type VfsNode = VfsLeafNode | VfsDirNode;
@@ -34,11 +42,12 @@ export type VfsLookupResult =
   | { type: "not-found"; path: string }
   | { type: "root"; node: VfsDirNode };
 
-const mkDir = (name: string, ghost?: boolean): VfsDirNode => ({
+const mkDir = (name: string, ghost?: boolean, order?: number): VfsDirNode => ({
   kind: "dir",
   name,
   children: new Map(),
   ...(ghost ? { ghost: true } : {}),
+  ...(order !== undefined ? { order } : {}),
 });
 
 const mkFile = (name: string, data: VfsLeafNode["data"]): VfsLeafNode => ({
@@ -92,7 +101,11 @@ export const buildVfsTree = (courses: CourseEntry[]): VfsDirNode => {
     courseDir.children.set("sections", sectionsDir);
 
     for (const section of course.sections) {
-      const sectionDir = mkDir(section.path, section.ghost);
+      const sectionDir = mkDir(
+        section.path,
+        section.ghost,
+        section.sectionLeaf.order
+      );
       sectionsDir.children.set(section.path, sectionDir);
 
       sectionDir.children.set(
@@ -104,7 +117,11 @@ export const buildVfsTree = (courses: CourseEntry[]): VfsDirNode => {
       sectionDir.children.set("lessons", lessonsDir);
 
       for (const lesson of section.lessons) {
-        const lessonDir = mkDir(lesson.path, lesson.ghost);
+        const lessonDir = mkDir(
+          lesson.path,
+          lesson.ghost,
+          lesson.lessonLeaf.order
+        );
         lessonsDir.children.set(lesson.path, lessonDir);
 
         lessonDir.children.set(

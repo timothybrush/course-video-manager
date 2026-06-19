@@ -201,7 +201,7 @@ describe("vfsTree", () => {
     expect(result).toContain("[output truncated");
   });
 
-  it("sorts entries alphabetically", () => {
+  it("orders sections by their database order, not alphabetically", () => {
     const root = buildVfsTree([
       makeCourseEntry({
         sections: [
@@ -237,6 +237,60 @@ describe("vfsTree", () => {
     const alphaIdx = lines.findIndex((l) => l.includes("01-alpha/"));
     const betaIdx = lines.findIndex((l) => l.includes("02-beta/"));
     expect(alphaIdx).toBeLessThan(betaIdx);
+  });
+
+  it("places a ghost section inline in its proper order, not at the end", () => {
+    // Ghost sections carry un-numbered paths, which would sort to the bottom
+    // alphabetically. They must instead appear in their `order` position.
+    const root = buildVfsTree([
+      makeCourseEntry({
+        sections: [
+          {
+            path: "01-intro",
+            sectionLeaf: {
+              id: "s1",
+              slug: "intro",
+              description: "",
+              order: 1,
+              real: true,
+            },
+            ghost: false,
+            lessons: [],
+          },
+          {
+            path: "planned",
+            sectionLeaf: {
+              id: "s2",
+              slug: "planned",
+              description: "",
+              order: 2,
+              real: false,
+            },
+            ghost: true,
+            lessons: [],
+          },
+          {
+            path: "03-outro",
+            sectionLeaf: {
+              id: "s3",
+              slug: "outro",
+              description: "",
+              order: 3,
+              real: true,
+            },
+            ghost: false,
+            lessons: [],
+          },
+        ],
+      }),
+    ]);
+    const result = vfsTree(root, "/courses/my-course/sections");
+    const lines = result.split("\n");
+    const introIdx = lines.findIndex((l) => l.includes("01-intro/"));
+    const ghostIdx = lines.findIndex((l) => l.includes("planned/"));
+    const outroIdx = lines.findIndex((l) => l.includes("03-outro/"));
+    expect(introIdx).toBeLessThan(ghostIdx);
+    expect(ghostIdx).toBeLessThan(outroIdx);
   });
 
   it("uses correct tree connectors (├── and └──)", () => {
