@@ -4,7 +4,7 @@ import type { UIMessage } from "ai";
 
 function makeMsg(
   role: "user" | "assistant",
-  parts: Array<{ type: string; state?: string }>
+  parts: Array<{ type: string; state?: string; approval?: unknown }>
 ): UIMessage {
   return {
     id: "msg-1",
@@ -75,6 +75,38 @@ describe("courseAgentSendAutomaticallyWhen", () => {
           makeMsg("assistant", [
             { type: "tool-write", state: "output-available" },
             { type: "tool-edit", state: "output-denied" },
+          ]),
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it("returns true after the user approves a write (approval-responded)", () => {
+    expect(
+      courseAgentSendAutomaticallyWhen({
+        messages: [
+          makeMsg("assistant", [
+            {
+              type: "tool-write",
+              state: "approval-responded",
+              approval: { id: "appr-1", approved: true },
+            },
+          ]),
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it("returns true after the user denies a write (approval-responded)", () => {
+    expect(
+      courseAgentSendAutomaticallyWhen({
+        messages: [
+          makeMsg("assistant", [
+            {
+              type: "tool-write",
+              state: "approval-responded",
+              approval: { id: "appr-1", approved: false },
+            },
           ]),
         ],
       })
