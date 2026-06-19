@@ -38,3 +38,32 @@ export class CannotArchiveLessonVideoError extends Data.TaggedError(
   videoId: string;
   lessonId: string;
 }> {}
+
+export class CourseNameTakenError extends Data.TaggedError(
+  "CourseNameTakenError"
+)<{
+  name: string;
+  slug: string;
+  message: string;
+}> {}
+
+export class SectionPathTakenError extends Data.TaggedError(
+  "SectionPathTakenError"
+)<{
+  path: string;
+  message: string;
+}> {}
+
+export class LessonPathTakenError extends Data.TaggedError(
+  "LessonPathTakenError"
+)<{
+  path: string;
+  message: string;
+}> {}
+
+export class VideoPathTakenError extends Data.TaggedError(
+  "VideoPathTakenError"
+)<{
+  path: string;
+  message: string;
+}> {}
