@@ -21,6 +21,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  LoaderIcon,
   MessageSquarePlus,
   X,
   XCircle,
@@ -38,7 +39,7 @@ import {
   type WriteResult,
   type CourseAgentUIMessage,
 } from "./types";
-import { ApprovalCard, InvalidEditLine } from "./approval-card";
+import { ApprovalCard, RejectedCard, InvalidEditLine } from "./approval-card";
 import { findAppliedToolCallIds } from "./revalidation-trigger";
 import {
   type StoredThread,
@@ -52,6 +53,8 @@ import {
   asVfsToolPart,
   asWriteToolPart,
   extractUsageFromMessage,
+  vfsToolIsStreaming,
+  writeToolStreamingLabel,
 } from "./tool-part-helpers";
 
 function updatedLabel(ts: number): string {
@@ -492,6 +495,13 @@ export function CourseAgentPanel({
                       }
 
                       if (writeTool.state === "output-denied") {
+                        if (proposed) {
+                          return (
+                            <div key={i} className="my-3">
+                              <RejectedCard proposed={proposed} />
+                            </div>
+                          );
+                        }
                         return (
                           <div
                             key={i}
@@ -503,25 +513,37 @@ export function CourseAgentPanel({
                         );
                       }
 
-                      // input-streaming / input-available / approval-responded — nothing to render
+                      const streamingLabel = writeToolStreamingLabel(
+                        writeTool.toolName,
+                        writeTool.state
+                      );
+                      if (streamingLabel) {
+                        return (
+                          <div
+                            key={i}
+                            className="my-2 flex items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                          >
+                            <LoaderIcon className="size-3.5 animate-spin" />
+                            <span>{streamingLabel}</span>
+                          </div>
+                        );
+                      }
                       return null;
                     }
 
                     const vfs = asVfsToolPart(p);
                     if (!vfs) return null;
+                    const streaming = vfsToolIsStreaming(vfs.state);
                     const pathArg = vfs.input?.path ?? vfs.input?.pattern ?? "";
                     return (
                       <CourseToolCall
                         key={i}
+                        streaming={streaming}
                         part={{
                           type: "tool",
                           tool: vfs.toolName,
                           command: `${vfs.toolName} ${pathArg}`.trim(),
-                          output:
-                            vfs.state === "output-available"
-                              ? String(vfs.output)
-                              : "Running...",
-                          touched: [],
+                          output: streaming ? "" : String(vfs.output),
                         }}
                       />
                     );
