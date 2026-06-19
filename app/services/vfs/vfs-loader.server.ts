@@ -16,15 +16,16 @@ import {
   NotFoundError,
   UnknownDBServiceError,
 } from "@/services/db-service-errors";
-import { asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { Effect } from "effect";
+import type { ArchivedEntity, EntityType } from "./derive-diff-types";
 import {
   generateCourseLeaf,
   generateSectionLeaf,
   generateLessonLeaf,
   generateVideoLeaf,
-  generateSegmentsLeaf,
-  generateTimelineLeaf,
+  generateSortedSegments,
+  generateSortedTimelineItems,
 } from "./vfs-leaves";
 import { buildVfsTree, type CourseEntry } from "./vfs-tree";
 import { sectionHasRealLessons } from "@/services/section-path-service";
@@ -50,6 +51,7 @@ const loadCourseForVfs = (
           slug: true,
           memory: true,
           archived: true,
+          filePath: true,
         },
         with: {
           versions: {
@@ -78,6 +80,7 @@ const loadCourseForVfs = (
                             orderBy: asc(chapters.order),
                           },
                           segments: {
+                            where: eq(segments.archived, false),
                             orderBy: asc(segments.order),
                           },
                         },
@@ -182,7 +185,6 @@ const courseToEntry = (course: {
         id: section.id,
         path: section.path,
         description: section.description,
-        order: section.order,
         lessons: section.lessons,
       }),
       ghost: !sectionHasRealLessons(section.lessons),
@@ -198,32 +200,23 @@ const courseToEntry = (course: {
           dependencies: lesson.dependencies,
           authoringStatus: lesson.authoringStatus,
           fsStatus: lesson.fsStatus,
-          order: lesson.order,
         }),
         ghost: lesson.fsStatus === "ghost",
-        videos: lesson.videos.map((video) => {
-          const liveClips = video.clips.filter((c) => !c.archived);
-          const liveChapters = video.chapters.filter((c) => !c.archived);
-          const hasTimeline = liveClips.length > 0 || liveChapters.length > 0;
-
-          return {
+        videos: lesson.videos.map((video) => ({
+          path: video.path,
+          videoLeaf: generateVideoLeaf({
+            id: video.id,
             path: video.path,
-            videoLeaf: generateVideoLeaf({
-              id: video.id,
-              path: video.path,
-              originalFootagePath: video.originalFootagePath,
-              clips: video.clips,
-              chapters: video.chapters,
-            }),
-            segmentsLeaf:
-              video.segments.length > 0
-                ? generateSegmentsLeaf(video.segments)
-                : null,
-            timelineLeaf: hasTimeline
-              ? generateTimelineLeaf(video.clips, video.chapters)
-              : null,
-          };
-        }),
+            originalFootagePath: video.originalFootagePath,
+            clips: video.clips,
+            chapters: video.chapters,
+          }),
+          segments: generateSortedSegments(video.segments),
+          timelineItems: generateSortedTimelineItems(
+            video.clips,
+            video.chapters
+          ),
+        })),
       })),
     })),
   };
@@ -246,6 +239,70 @@ export const buildVfsForCourse = (courseId: string, versionId?: string) =>
 
     const anchor = `/courses/${entry.slug}`;
     const root = buildVfsTree([entry]);
+    const version = course.versions[0]!;
 
-    return { root, anchor, courseSlug: entry.slug };
+    return {
+      root,
+      anchor,
+      courseSlug: entry.slug,
+      repoVersionId: version.id,
+      filePath: course.filePath ?? null,
+    };
+  });
+
+export const loadArchivedEntities = (
+  db: DrizzleDB,
+  repoVersionId: string
+): Effect.Effect<Map<string, ArchivedEntity>, UnknownDBServiceError> =>
+  Effect.gen(function* () {
+    const map = new Map<string, ArchivedEntity>();
+
+    const archivedLessons = yield* makeDbCall(() =>
+      db
+        .select({
+          id: lessons.id,
+          sectionPath: sections.path,
+        })
+        .from(lessons)
+        .innerJoin(sections, eq(lessons.sectionId, sections.id))
+        .where(
+          and(
+            eq(lessons.archived, true),
+            eq(sections.repoVersionId, repoVersionId)
+          )
+        )
+    );
+
+    for (const row of archivedLessons) {
+      map.set(row.id, {
+        entityType: "lesson" as EntityType,
+        parentLabel: row.sectionPath,
+      });
+    }
+
+    const archivedVideos = yield* makeDbCall(() =>
+      db
+        .select({
+          id: videos.id,
+          lessonTitle: lessons.title,
+        })
+        .from(videos)
+        .innerJoin(lessons, eq(videos.lessonId, lessons.id))
+        .innerJoin(sections, eq(lessons.sectionId, sections.id))
+        .where(
+          and(
+            eq(videos.archived, true),
+            eq(sections.repoVersionId, repoVersionId)
+          )
+        )
+    );
+
+    for (const row of archivedVideos) {
+      map.set(row.id, {
+        entityType: "video" as EntityType,
+        parentLabel: row.lessonTitle,
+      });
+    }
+
+    return map;
   });

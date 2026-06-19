@@ -5,11 +5,12 @@ import {
   type VideoWarning,
 } from "@/services/video-warnings";
 import type {
+  ChapterLeaf,
+  ClipLeaf,
   CourseLeaf,
   LessonLeaf,
   SectionLeaf,
-  SegmentsLeaf,
-  TimelineLeaf,
+  SegmentLeaf,
   VideoLeaf,
 } from "./vfs-schemas";
 
@@ -29,7 +30,6 @@ export type SectionInput = {
   id: string;
   path: string;
   description: string;
-  order: number;
   lessons: ReadonlyArray<{ fsStatus: string }>;
 };
 
@@ -43,7 +43,6 @@ export type LessonInput = {
   dependencies: string[] | null;
   authoringStatus: string | null;
   fsStatus: string;
-  order: number;
 };
 
 export type VideoInput = {
@@ -60,6 +59,7 @@ export type SegmentInput = {
   title: string;
   description: string;
   order: string;
+  archived?: boolean;
 };
 
 export type ClipInput = {
@@ -104,7 +104,6 @@ export const generateSectionLeaf = (section: SectionInput): SectionLeaf => {
     id: section.id,
     slug,
     description: section.description,
-    order: section.order,
     real: sectionHasRealLessons(section.lessons),
   };
 };
@@ -126,7 +125,6 @@ export const generateLessonLeaf = (lesson: LessonInput): LessonLeaf => {
         ? lesson.authoringStatus
         : null,
     fsStatus: lesson.fsStatus as "real" | "ghost",
-    order: lesson.order,
   };
 };
 
@@ -144,24 +142,24 @@ export const generateVideoLeaf = (video: VideoInput): VideoLeaf => {
   };
 };
 
-export const generateSegmentsLeaf = (
+export const generateSortedSegments = (
   segments: ReadonlyArray<SegmentInput>
-): SegmentsLeaf => {
-  const sorted = sortByOrder(segments.map((s) => ({ ...s })));
+): SegmentLeaf[] => {
+  const live = segments.filter((s) => !s.archived);
+  const sorted = sortByOrder(live.map((s) => ({ ...s })));
 
-  return sorted.map((s, i) => ({
+  return sorted.map((s) => ({
     id: s.id,
     kind: s.kind,
     title: s.title,
     description: s.description,
-    order: i,
   }));
 };
 
-export const generateTimelineLeaf = (
+export const generateSortedTimelineItems = (
   clips: ReadonlyArray<ClipInput>,
   chapters: ReadonlyArray<ChapterInput>
-): TimelineLeaf => {
+): Array<ClipLeaf | ChapterLeaf> => {
   const liveClips = clips.filter((c) => !c.archived);
   const liveChapters = chapters.filter((c) => !c.archived);
 
