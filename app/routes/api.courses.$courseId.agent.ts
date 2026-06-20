@@ -26,7 +26,7 @@ import {
 } from "ai";
 import { tool } from "ai";
 import type { ModelMessage } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { openrouter } from "@openrouter/ai-sdk-provider";
 import { Console, Effect, Layer, Schema } from "effect";
 import {
   DrizzleService,
@@ -453,7 +453,11 @@ export const action = async (args: {
     );
 
     const agent = new Agent({
-      model: anthropic("claude-sonnet-4-5"),
+      model: openrouter("z-ai/glm-5.2", {
+        reasoning: {
+          effort: "high",
+        },
+      }),
       instructions: SYSTEM_PROMPT(anchor),
       tools: {
         ls: lsTool,
