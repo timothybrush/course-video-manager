@@ -47,8 +47,59 @@ Decided in the map-building `/grilling`. These are the spine; the tickets fill i
   channel yet; an AI-Hero cutover to `course.json` is its own (fogged) ticket.
 - **R4 — `course.json` contract = Effect v3 + Effect Schema.** Do **not** reuse the VFS
   layer. Stay on Effect 3 (no v3→v4 bridge to Joel's stack). Emit inside `syncToDropbox`.
+- **R5 — The `video.body` editor is a _field-bound modal writer_, not a new tab.** The
+  long-form Post fields (AI Hero body, Skills Changelog body, Newsletter copy, and the new
+  `video.body`) become click-to-edit: clicking the field opens a modal hosting the existing
+  writer engine, preceded into the field's mode, and writes the result back on Apply. This
+  supersedes the `body-editor-ui` ticket. Spine decided in the `writable-field-modal`
+  grilling (2026-06-30); see that ticket for D1–D6.
 
-## body-editor-ui: Where does the video body + SEO-description editor live?
+## writable-field-modal: Long-form Post fields edited via a field-bound modal writer
+
+Blocked by: —
+Status: resolved
+Type: Grilling (resolved 2026-06-30)
+
+### Question
+
+(Supersedes the original `body-editor-ui` prototype: "where does the `video.body` + SEO
+editor live — AI Hero sub-tab / new sub-tab / new top-level tab?") Reframed: should the
+standalone Write page become a **field-bound modal** that opens when you click a long-form
+Post text field, killing the write→localStorage→copy/paste tax? The writer
+(`write-page.tsx` + `document-writing-agent.ts` + Monaco `document-panel.tsx`) is excellent
+for authoring but decoupled from the fields it feeds.
+
+### Answer
+
+**Yes — adopt the field-bound modal writer.** Spine (do not re-litigate):
+
+- **D1 — Field value _is_ the document.** Clicking a field seeds the modal's document with
+  the field's current text; the agent edits _that_; on accept it's written back. No separate
+  writer-document; the field's own persisted value is the document. (Bidirectional, not
+  "compose then insert".)
+- **D2 — Deprecate the standalone `/write` page.** Remove it from all routes + nav, but
+  **don't delete the code yet.** Its field-less modes (`brainstorming`, `scoping-*`,
+  `interview-*`, lesson README-on-disk writing) go dark temporarily — parked, not rehomed.
+- **D3 — Conversation keyed `(videoId, fieldId, mode)`.** Each writable field carries a
+  stable `fieldId` (e.g. `ai-hero-body`); two fields sharing a mode get separate threads;
+  a multi-mode field gets one thread per mode. No separate document-storage slot.
+- **D4 — MVP scope = long-form/document fields only:** AI Hero body, Skills Changelog body,
+  Newsletter copy, and the new `video.body`. Short inputs (titles, SEO descriptions, X
+  caption) **stay as plain text inputs** — deferred (see `short-fields-modal`). This avoids
+  promoting chat-only modes to document modes; every in-scope field already maps to a real
+  document mode (`article` / `skill-building` / `newsletter`).
+- **D5 — Working-copy + explicit Apply.** Modal opens on a copy; agent edits the copy;
+  Apply writes back through the field's existing persistence/overwrite flow
+  (`post-page-overwrite-dialog.tsx` untouched); close-without-Apply discards; conversation
+  history persists either way. No live mutation of the field mid-edit.
+- **D6 — Mode set via prop: `modes: Mode[]`.** One mode → no selector, preceded straight in.
+  Multiple → constrained selector (reuse `WriteModeDropdown` filtered to the list). Host
+  field owns the menu; the component is dumb.
+
+Implementation fog opened below: `writer-engine-extract`, `writable-field-component`,
+`deprecate-write-route`, `short-fields-modal` (FOG).
+
+## writer-engine-extract: Make the writer mountable inside a modal
 
 Blocked by: —
 Status: open
@@ -56,13 +107,67 @@ Type: Prototype
 
 ### Question
 
-The editor for the new `video.body` (markdown) + `video.description` (SEO) needs a home in
-the per-video UI. Candidates: (a) fold into the existing **AI Hero** sub-tab (fields are
-AI-Hero-facing; that surface already loads AI Hero context/auth); (b) a **new dedicated
-sub-tab** under Post; (c) a **new top-level tab**. The "Write" tab is the AI article/
-newsletter writer (different artifact) and is out. Build prototypes of the variants to
-compare. Persistence pattern: new `api.videos.$videoId.*` action → new `VideoOperationsService`
-write method; reuse `markdown-monaco-editor.tsx`.
+Extract the writer engine — the document-agent loop (`document-writing-agent.ts` +
+`use-document-flow.ts`), conversation/document storage (`write-utils.ts`), the chat
+(`WriteChat`), and the `DocumentPanel`/`markdown-monaco-editor.tsx` — out of the fullscreen
+`write-page.tsx` route shell so it can mount inside a `Dialog`/`Sheet`. Decide the seam:
+what the engine needs injected (videoId, fieldId, mode set, initial document, course
+context from the loader) vs. what it owns. Prototype the modal shell to confirm the 3-pane
+workspace survives at modal size (or collapses to chat + document for the field case).
+
+### Answer
+
+_unresolved_
+
+## writable-field-component: The `<WritableField>` contract + wire the in-scope fields
+
+Blocked by: writer-engine-extract
+Status: open
+Type: Grilling
+
+### Question
+
+Define the React component that wraps a long-form Post field: props (`fieldId`, `modes`,
+current value, onApply), click-to-open behaviour, working-copy + Apply (D5), conversation
+keyed `(videoId, fieldId, mode)` (D3), seed-value-as-document (D1), constrained selector
+(D6). Then wire the four in-scope fields (AI Hero body, Skills Changelog body, Newsletter
+copy, `video.body`) to their modes and stable `fieldId`s. Resolve how the new `video.body`
+field's value is loaded/persisted (the R2 column → action/service write path).
+
+### Answer
+
+_unresolved_
+
+## deprecate-write-route: Unroute the standalone Write page (keep code)
+
+Blocked by: writable-field-component
+Status: open
+Type: Grilling
+
+### Question
+
+Remove `/write` (`_app.videos.$videoId.write.tsx`) from routing + any nav/tab entry, leaving
+the source in place (D2). Sequenced **after** the modal covers the field cases so nothing is
+orphaned prematurely. Confirm what breaks (deep links, the "Go Live" interview entry, lesson
+README writing) and what the temporary loss of the field-less modes costs.
+
+### Answer
+
+_unresolved_
+
+## short-fields-modal: Bring short Post inputs into the modal (FOG — beyond MVP)
+
+Blocked by: writable-field-component
+Status: open
+Type: Grilling
+
+### Question
+
+Extend the field-bound modal to the short inputs deferred in D4 (YouTube title/description,
+SEO description, X caption). Requires resolving how chat-only modes (`youtube-title`,
+`seo-description`, …) operate when the field _is_ the document — i.e. promote them to the
+document-agent edit-tool path, or a lighter single-line variant. Kept fogged until the
+long-form `writable-field-component` ships and proves the pattern.
 
 ### Answer
 
