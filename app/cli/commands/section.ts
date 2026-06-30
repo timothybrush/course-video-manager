@@ -46,7 +46,7 @@ OUTPUT FIELDS
   description   free-text section description (default "").
   repoVersionId the Course Version this section belongs to.
   archivedAt    deletion timestamp; always null in CLI output (archived hidden).
-  lessons       (list/get) the section's ACTIVE Lessons.
+  lessons       (get only) the section's ACTIVE Lessons.
 
 VERBS
   list   All sections of a Version (requires --course-version <id> or --course <id>).
@@ -66,7 +66,7 @@ EXAMPLES
   # Walk the structure, then drill into a lesson (flags come BEFORE the id):
   cvm section tree --depth all <sectionId> | jq '.children[].id'`;
 
-const LIST_HELP = `List ALL Sections of one Course Version (the complete set, never a UI-bounded subset), as NDJSON — one compact JSON object per line, ordered by 'order' ascending. Each line carries the section's identity (id, path, order, repoVersionId) plus its active Lessons, so an agent can map a section name to its id in a single call.
+const LIST_HELP = `List ALL Sections of one Course Version (the complete set, never a UI-bounded subset), as NDJSON — one compact JSON object per line, ordered by 'order' ascending. Each line carries the section's identity (id, path, order, repoVersionId), so an agent can map a section name to its id in a single call. Lessons are NOT included — list goes one level deep; use 'section get <id>' or 'lesson list --section <id>' to drill in.
 
 You MUST scope the read to a Version:
   --course-version <id>   pin a specific Course Version (Draft or Published).
@@ -75,7 +75,7 @@ Pass exactly one. Archived (deleted) sections are never included.
 
 EXAMPLES
   cvm section list --course <courseId>
-  cvm section list --course-version <versionId> | jq '{id, path, lessons: (.lessons | length)}'`;
+  cvm section list --course-version <versionId> | jq '{id, path}'`;
 
 const GET_HELP = `Get one or more Sections BY ID (variadic). A single id prints one pretty JSON object; multiple ids print NDJSON (one compact object per line) of those found. Each section is returned with its parent context (its Course Version and Course) and its ACTIVE Lessons (the section's immediate natural children).
 
@@ -142,8 +142,7 @@ const listCmd = Command.make(
     Effect.gen(function* () {
       const svc = yield* ops;
       const repoVersionId = yield* resolveScopedVersion(version, course);
-      const sections =
-        yield* svc.getSectionsWithLessonsByRepoVersionId(repoVersionId);
+      const sections = yield* svc.getSectionsByRepoVersionId(repoVersionId);
       yield* emitNdjson(sections);
     })
 ).pipe(Command.withDescription(detail(LIST_HELP)));
