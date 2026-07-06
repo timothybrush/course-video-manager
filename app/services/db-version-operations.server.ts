@@ -205,6 +205,10 @@ export const createVersionOperations = (db: Database) => {
                         orderBy: asc(clips.order),
                         where: eq(clips.archived, false),
                       },
+                      chapters: {
+                        orderBy: asc(chapters.order),
+                        where: eq(chapters.archived, false),
+                      },
                     },
                   },
                 },
@@ -379,6 +383,7 @@ export const createVersionOperations = (db: Database) => {
             .values({
               repoVersionId: newVersion.id,
               previousVersionSectionId: sourceSection.id,
+              lineageId: sourceSection.lineageId,
               path: sourceSection.path,
               order: sourceSection.order,
               description: sourceSection.description,
@@ -395,6 +400,7 @@ export const createVersionOperations = (db: Database) => {
               .values({
                 sectionId: newSection.id,
                 previousVersionLessonId: sourceLesson.id,
+                lineageId: sourceLesson.lineageId,
                 path: sourceLesson.path,
                 order: sourceLesson.order,
                 fsStatus: sourceLesson.fsStatus,
@@ -416,8 +422,11 @@ export const createVersionOperations = (db: Database) => {
                 .insert(videos)
                 .values({
                   lessonId: newLesson.id,
+                  lineageId: sourceVideo.lineageId,
                   path: sourceVideo.path,
                   originalFootagePath: sourceVideo.originalFootagePath,
+                  body: sourceVideo.body,
+                  description: sourceVideo.description,
                 })
                 .returning()
             );
