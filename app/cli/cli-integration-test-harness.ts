@@ -159,17 +159,17 @@ export const seedIntegration = async (db: TestDb): Promise<IntegrationSeed> => {
     })
     .returning();
 
-  await db.insert(schema.segments).values([
+  await db.insert(schema.beats).values([
     {
       videoId: lessonVideo!.id,
       kind: "definition",
-      title: "Active segment",
+      title: "Active beat",
       order: "0001",
     },
     {
       videoId: lessonVideo!.id,
       kind: "definition",
-      title: "Archived segment",
+      title: "Archived beat",
       order: "0002",
       archived: true,
     },

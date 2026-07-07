@@ -41,9 +41,7 @@ describe("output contract: NDJSON / single object / empty", () => {
     expect(stderr).toBe("");
 
     const lines = stdout.split("\n").filter((l) => l.length > 0);
-    // Only the active course is listed (archived excluded by default).
     expect(lines).toHaveLength(1);
-    // Each line is a single compact JSON object (no pretty-print newlines).
     expect(lines[0]).not.toMatch(/\n/);
     expect(lines[0]).not.toMatch(/^\{\n/);
     const obj = JSON.parse(lines[0]!) as { id: string; name: string };
@@ -59,11 +57,9 @@ describe("output contract: NDJSON / single object / empty", () => {
     ]);
     expect(exitCode).toBe(0);
     expect(stderr).toBe("");
-    // Single-object output is pretty-printed (indented).
     expect(stdout).toMatch(/\{\n {2}"/);
     const obj = JSON.parse(stdout) as { id: string };
     expect(obj.id).toBe(s.courseAId);
-    // Exactly one object: the trimmed stdout parses whole.
     expect(stdout.trim().split("\n").length).toBeGreaterThan(1);
   });
 
@@ -77,10 +73,8 @@ describe("output contract: NDJSON / single object / empty", () => {
       versions?: unknown;
     };
     expect(obj.id).toBe(s.courseAId);
-    // Scoped to the DRAFT version, NOT every published snapshot.
     expect(obj.draftVersionId).toBe(s.draftVersionId);
     expect(obj).not.toHaveProperty("versions");
-    // Only the draft version's active section, summarized (no nested children).
     expect(obj.sections.map((sec) => sec.id)).toEqual([s.draftSectionId]);
     expect(Object.keys(obj.sections[0]!).sort()).toEqual([
       "description",
@@ -202,7 +196,6 @@ describe("error -> exit code mapping", () => {
   });
 
   it("CLI validation error (missing required flag) => exit 3 ParseError", async () => {
-    // `version list` requires --course.
     const { exitCode, stdout, stderr } = await run(["version", "list"]);
     expect(exitCode).toBe(3);
     expect(stdout).toBe("");
@@ -211,10 +204,6 @@ describe("error -> exit code mapping", () => {
   });
 
   it("misordered flag => STDERR is exactly one parseable JSON object (no framework prose leak)", async () => {
-    // @effect/cli rejects an option placed AFTER a positional id. The framework
-    // would normally also print a human-readable line to Console.error; the CLI
-    // routes that through the CliOutput seam and suppresses it, so STDERR must be
-    // a single contract JSON object an agent can JSON.parse directly.
     const { stdout, stderr, exitCode } = await run([
       "version",
       "tree",
@@ -224,7 +213,6 @@ describe("error -> exit code mapping", () => {
     ]);
     expect(exitCode).toBe(3);
     expect(stdout).toBe("");
-    // Exactly one non-empty line, and it parses whole.
     const lines = stderr.split("\n").filter((l) => l.length > 0);
     expect(lines).toHaveLength(1);
     const err = JSON.parse(lines[0]!) as { _tag: string };
@@ -232,7 +220,6 @@ describe("error -> exit code mapping", () => {
   });
 
   it("db/internal failure => exit 4 DatabaseError", async () => {
-    // Dedicated PGlite instance we close, so any query fails -> mapped to 4.
     const broken = await createTestDb();
     await broken.pglite.close();
     const brokenRun = makeRun(buildWriteLayer(broken.testDb));
@@ -259,12 +246,10 @@ describe("multi-id get partial failure", () => {
     ]);
     expect(exitCode).toBe(2);
 
-    // stdout stays PURE data: only the found object, as NDJSON.
     const rows = ndjson(stdout) as { id: string }[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(s.lessonVideoId);
 
-    // Missing ids reported on stderr under the NotFoundError tag.
     const err = JSON.parse(stderr.trim()) as {
       _tag: string;
       entity: string;
@@ -310,12 +295,12 @@ describe("archived filtering", () => {
     expect(rows.map((r) => r.id)).toEqual([s.standaloneArchivedId]);
   });
 
-  it("segment list NEVER shows archived (no flag, always hidden)", async () => {
+  it("beat list NEVER shows archived (no flag, always hidden)", async () => {
     const rows = ndjson(
-      (await run(["segment", "list", "--video", s.lessonVideoId])).stdout
+      (await run(["beat", "list", "--video", s.lessonVideoId])).stdout
     ) as { title: string; archived: boolean }[];
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.title).toBe("Active segment");
+    expect(rows[0]!.title).toBe("Active beat");
     expect(rows.every((r) => r.archived === false)).toBe(true);
   });
 
@@ -440,15 +425,10 @@ describe("version resolution defaults to Draft", () => {
     const rows = ndjson(
       (await run(["section", "list", "--course", s.courseAId])).stdout
     ) as { id: string; path: string }[];
-    // Only the draft version's section, NOT the published version's section.
     expect(rows.map((r) => r.id)).toEqual([s.draftSectionId]);
     expect(rows[0]!.path).toBe("01-intro");
   });
 
-  // The pin flag is `--course-version` (not `--version`, which @effect/cli
-  // reserves as a built-in "show CLI version" flag matched even at subcommand
-  // level). `--course-version` also stays faithful to the CourseVersion glossary
-  // term. It pins a specific (e.g. Published) snapshot instead of the Draft.
   it("section list --course-version pins the published snapshot", async () => {
     const rows = ndjson(
       (await run(["section", "list", "--course-version", s.publishedVersionId]))
@@ -482,7 +462,6 @@ describe("tree skeleton + depth", () => {
     ]);
     expect(exitCode).toBe(0);
     const tree = JSON.parse(stdout);
-    // Skeleton node shape: { id, kind, name, children } and nothing else.
     expect(Object.keys(tree).sort()).toEqual([
       "children",
       "id",
@@ -491,7 +470,6 @@ describe("tree skeleton + depth", () => {
     ]);
     expect(tree.kind).toBe("version");
     expect(tree.id).toBe(s.draftVersionId);
-    // depth 1 => version + sections, but sections have NO expanded children.
     expect(tree.children.map((c: any) => c.kind)).toEqual(["section"]);
     expect(tree.children[0].id).toBe(s.draftSectionId);
     expect(tree.children[0].children).toEqual([]);
@@ -509,7 +487,6 @@ describe("tree skeleton + depth", () => {
     const lessons = tree.children[0].children;
     expect(lessons.map((l: any) => l.kind)).toEqual(["lesson"]);
     expect(lessons[0].id).toBe(s.lessonId);
-    // depth 2 stops before videos.
     expect(lessons[0].children).toEqual([]);
     expect(kindsAtDepth(tree).has("video")).toBe(false);
   });
@@ -527,13 +504,8 @@ describe("tree skeleton + depth", () => {
     expect(kinds.has("section")).toBe(true);
     expect(kinds.has("lesson")).toBe(true);
     expect(kinds.has("video")).toBe(true);
-    // Drill down to the video node id.
     const videoNode = tree.children[0].children[0].children[0];
     expect(videoNode.kind).toBe("video");
     expect(videoNode.id).toBe(s.lessonVideoId);
   });
 });
-
-// ===========================================================================
-// search
-// ===========================================================================

@@ -46,7 +46,7 @@ import {
   useCourseEditorFailureToast,
 } from "@/features/course-view/use-optimistic-course";
 import { DivergenceReportModal } from "@/features/course-view/divergence-report-modal";
-import { SegmentDescriptionsProvider } from "@/features/segments/segment-descriptions-context";
+import { BeatDescriptionsProvider } from "@/features/beats/beat-descriptions-context";
 
 export const meta: Route.MetaFunction = ({ data }) => {
   const section = data?.selectedCourse?.sections[0];
@@ -59,9 +59,9 @@ export const meta: Route.MetaFunction = ({ data }) => {
 
 /**
  * Section Workbench — a focused, single-Section reskin of the compact course
- * view. Reuses the very same {@link SectionGrid} (and the Section/Lesson/Segment
+ * view. Reuses the very same {@link SectionGrid} (and the Section/Lesson/Beat
  * components beneath it) scoped to one Section, always in compact mode so the
- * Segment plan shows, with Segment Descriptions turned on for the whole subtree.
+ * Beat plan shows, with Beat Descriptions turned on for the whole subtree.
  * See docs/adr (Section Workbench) and the course view it links back to.
  */
 export const loader = async (args: Route.LoaderArgs) => {
@@ -73,7 +73,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       courseViewEffect({
         courseId: params.courseId!,
         selectedVersionId,
-        // The Segment plan only renders in compact mode; the Workbench always
+        // The Beat plan only renders in compact mode; the Workbench always
         // shows it, so the cookie's view mode is irrelevant here.
         viewMode: "compact",
       }).pipe(
@@ -237,7 +237,7 @@ export default function Component(props: Route.ComponentProps) {
                   </div>
                 )}
 
-                <SegmentDescriptionsProvider show>
+                <BeatDescriptionsProvider show>
                   <SectionGrid
                     currentCourse={currentCourse}
                     data={loaderData}
@@ -271,7 +271,7 @@ export default function Component(props: Route.ComponentProps) {
                     deleteVideoFileFetcher={deleteVideoFileFetcher}
                     submitDeleteVideo={submitDeleteVideo}
                   />
-                </SegmentDescriptionsProvider>
+                </BeatDescriptionsProvider>
               </>
             ) : (
               <div className="text-center py-12">
