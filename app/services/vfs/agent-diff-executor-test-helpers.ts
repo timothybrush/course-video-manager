@@ -216,6 +216,7 @@ export async function buildVfsFromDb(
       sectionLeaf: generateSectionLeaf({
         id: section.id,
         path: section.path,
+        title: section.title,
         description: section.description,
         lessons: section.lessons,
       }),

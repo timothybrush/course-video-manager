@@ -29,6 +29,7 @@ import {
 } from "./vfs-leaves";
 import { buildVfsTree, type CourseEntry } from "./vfs-tree";
 import { sectionHasRealLessons } from "@/services/section-path-service";
+import { attachDerivedPaths } from "@/services/path-projection";
 
 const makeDbCall = <T>(fn: () => Promise<T>) =>
   Effect.tryPromise({
@@ -118,12 +119,11 @@ const courseToEntry = (course: {
     description: string;
     sections: Array<{
       id: string;
-      path: string;
+      title: string;
       description: string;
       order: number;
       lessons: Array<{
         id: string;
-        path: string;
         title: string;
         description: string;
         icon: string | null;
@@ -169,6 +169,8 @@ const courseToEntry = (course: {
   const version = course.versions[0];
   if (!version) return null;
 
+  const sectionsWithPaths = attachDerivedPaths(version.sections);
+
   return {
     slug: course.slug ?? course.id,
     courseLeaf: generateCourseLeaf(
@@ -179,11 +181,12 @@ const courseToEntry = (course: {
         description: version.description ?? "",
       }
     ),
-    sections: version.sections.map((section) => ({
+    sections: sectionsWithPaths.map((section) => ({
       path: section.path,
       sectionLeaf: generateSectionLeaf({
         id: section.id,
         path: section.path,
+        title: section.title,
         description: section.description,
         lessons: section.lessons,
       }),
@@ -261,7 +264,7 @@ export const loadArchivedEntities = (
       db
         .select({
           id: lessons.id,
-          sectionPath: sections.path,
+          sectionTitle: sections.title,
         })
         .from(lessons)
         .innerJoin(sections, eq(lessons.sectionId, sections.id))
@@ -276,7 +279,9 @@ export const loadArchivedEntities = (
     for (const row of archivedLessons) {
       map.set(row.id, {
         entityType: "lesson" as EntityType,
-        parentLabel: row.sectionPath,
+        // Parent label for an archived lesson: the section's title (the derived
+        // path is unavailable for an archived/ghost parent).
+        parentLabel: row.sectionTitle,
       });
     }
 
