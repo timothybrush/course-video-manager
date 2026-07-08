@@ -108,7 +108,7 @@ export const createVersionOperations = (db: Database) => {
             where: eq(lessons.archived, false),
             with: {
               videos: {
-                orderBy: asc(videos.path),
+                orderBy: asc(videos.title),
                 with: {
                   clips: {
                     orderBy: asc(clips.order),
@@ -162,7 +162,7 @@ export const createVersionOperations = (db: Database) => {
             where: eq(lessons.archived, false),
             with: {
               videos: {
-                orderBy: asc(videos.path),
+                orderBy: asc(videos.title),
                 with: {
                   clips: {
                     columns: {
@@ -203,7 +203,7 @@ export const createVersionOperations = (db: Database) => {
                 where: eq(lessons.archived, false),
                 with: {
                   videos: {
-                    orderBy: asc(videos.path),
+                    orderBy: asc(videos.title),
                     with: {
                       clips: {
                         orderBy: asc(clips.order),
@@ -354,7 +354,7 @@ export const createVersionOperations = (db: Database) => {
               where: eq(lessons.archived, false),
               with: {
                 videos: {
-                  orderBy: asc(videos.path),
+                  orderBy: asc(videos.title),
                   where: eq(videos.archived, false),
                   with: {
                     clips: {
@@ -391,7 +391,7 @@ export const createVersionOperations = (db: Database) => {
               repoVersionId: newVersion.id,
               previousVersionSectionId: sourceSection.id,
               lineageId: sourceSection.lineageId,
-              path: sourceSection.path,
+              title: sourceSection.title,
               order: sourceSection.order,
               description: sourceSection.description,
             })
@@ -408,9 +408,7 @@ export const createVersionOperations = (db: Database) => {
                 sectionId: newSection.id,
                 previousVersionLessonId: sourceLesson.id,
                 lineageId: sourceLesson.lineageId,
-                path: sourceLesson.path,
                 order: sourceLesson.order,
-                fsStatus: sourceLesson.fsStatus,
                 title: sourceLesson.title,
                 description: sourceLesson.description,
                 icon: sourceLesson.icon,
@@ -430,7 +428,7 @@ export const createVersionOperations = (db: Database) => {
                 .values({
                   lessonId: newLesson.id,
                   lineageId: sourceVideo.lineageId,
-                  path: sourceVideo.path,
+                  title: sourceVideo.title,
                   originalFootagePath: sourceVideo.originalFootagePath,
                   body: sourceVideo.body,
                   description: sourceVideo.description,
@@ -564,7 +562,7 @@ export const createVersionOperations = (db: Database) => {
                   where: eq(lessons.archived, false),
                   with: {
                     videos: {
-                      orderBy: asc(videos.path),
+                      orderBy: asc(videos.title),
                       with: {
                         clips: {
                           orderBy: asc(clips.order),
@@ -591,39 +589,31 @@ export const createVersionOperations = (db: Database) => {
           name: version.name,
           description: version.description,
           createdAt: version.createdAt,
-          sections: version.sections
-            .filter(
-              (s) =>
-                s.lessons.length === 0 ||
-                s.lessons.some((l) => l.fsStatus !== "ghost")
-            )
-            .map((s) => ({
-              id: s.id,
-              path: derivedPaths.get(s.id) ?? "",
-              previousVersionSectionId: s.previousVersionSectionId,
-              lessons: s.lessons
-                .filter((l) => l.fsStatus !== "ghost")
-                .map((l) => ({
-                  id: l.id,
-                  path: derivedPaths.get(l.id) ?? "",
-                  previousVersionLessonId: l.previousVersionLessonId,
-                  authoringStatus: l.authoringStatus as "todo" | "done" | null,
-                  videos: l.videos.map((v) => ({
-                    id: v.id,
-                    path: v.path,
-                    transcript: toTranscriptItems(v.clips, v.chapters),
-                  })),
-                })),
+          sections: version.sections.map((s) => ({
+            id: s.id,
+            path: derivedPaths.get(s.id) ?? "",
+            previousVersionSectionId: s.previousVersionSectionId,
+            lessons: s.lessons.map((l) => ({
+              id: l.id,
+              path: derivedPaths.get(l.id) ?? "",
+              previousVersionLessonId: l.previousVersionLessonId,
+              authoringStatus: l.authoringStatus as "todo" | "done" | null,
+              videos: l.videos.map((v) => ({
+                id: v.id,
+                title: v.title,
+                transcript: toTranscriptItems(v.clips, v.chapters),
+              })),
             })),
+          })),
         };
       });
     }
   );
 
   /**
-   * Loads a version's real-sibling tree (id/order/title/fsStatus only) so the
-   * pure per-version projection can derive folder names. Single query; used by
-   * the single-item resolvers below for partial-slice fs-join callers.
+   * Loads a version's sibling tree (id/order/title only) so the pure
+   * per-version projection can derive folder names. Single query; used by
+   * the single-item resolvers below for partial-slice callers.
    */
   const loadVersionTreeForProjection = (repoVersionId: string) =>
     makeDbCall(() =>
@@ -638,7 +628,7 @@ export const createVersionOperations = (db: Database) => {
           lessons: {
             where: eq(lessons.archived, false),
             orderBy: asc(lessons.order),
-            columns: { id: true, order: true, title: true, fsStatus: true },
+            columns: { id: true, order: true, title: true },
           },
         },
       })
@@ -648,7 +638,7 @@ export const createVersionOperations = (db: Database) => {
    * Resolves a single lesson's on-disk directory relative to the repo root
    * ("NN-section/NN.MM-lesson"), computed on read from (title, rank). For
    * partial-slice fs-join callers that hold one lesson without its siblings.
-   * The caller keeps owning repo.filePath.
+   * The caller keeps owning the course identity.
    */
   const resolveLessonDir = Effect.fn("resolveLessonDir")(function* (
     lessonId: string

@@ -37,19 +37,17 @@ beforeEach(async () => {
   s = await seedWrite(testDb);
 });
 
-describe("lesson create (ghost)", () => {
+describe("lesson create", () => {
   interface Lesson {
     id: string;
     sectionId: string;
     title: string;
-    path: string;
     order: number;
-    fsStatus: string;
     authoringStatus: string | null;
     archived: boolean;
   }
 
-  it("creates a ghost lesson appended to the section, echoing the row", async () => {
+  it("creates a lesson appended to the section, echoing the row", async () => {
     const { stdout, stderr, exitCode } = await run([
       "lesson",
       "create",
@@ -64,9 +62,7 @@ describe("lesson create (ghost)", () => {
     const lesson = one<Lesson>(stdout);
     expect(lesson.sectionId).toBe(s.draftSectionId);
     expect(lesson.title).toBe("Intro to Effect");
-    expect(lesson.path).toBe("intro-to-effect"); // slugified
-    expect(lesson.fsStatus).toBe("ghost");
-    expect(lesson.authoringStatus).toBeNull(); // ghosts have no authoring status
+    expect(lesson.authoringStatus).toBe("todo");
     expect(lesson.archived).toBe(false);
     expect(lesson.order).toBeGreaterThan(1); // appended after the seed lesson
     const list = ndjson(
@@ -171,10 +167,7 @@ describe("lesson create (ghost)", () => {
     );
   });
 
-  it("a slug that collides with an existing lesson => non-zero exit", async () => {
-    // The typed assert*PathAvailable guards were removed in the title-driven
-    // paths migration; the DB uniqueness index still rejects a colliding ghost
-    // path, so the command fails (non-zero) rather than the old typed exit 3.
+  it("duplicate titles are allowed (uniqueness is on order, not path)", async () => {
     await run([
       "lesson",
       "create",
@@ -191,14 +184,14 @@ describe("lesson create (ghost)", () => {
       "--title",
       "Duplicate",
     ]);
-    expect(exitCode).not.toBe(0);
+    expect(exitCode).toBe(0);
   });
 });
 
 describe("video create / move / update", () => {
   interface Video {
     id: string;
-    path: string;
+    title: string;
     lessonId: string | null;
     pitchId: string | null;
     archived: boolean;
@@ -217,7 +210,7 @@ describe("video create / move / update", () => {
     expect(exitCode).toBe(0);
     expect(stderr).toBe("");
     const v = vobj(stdout);
-    expect(v.path).toBe("New Standalone");
+    expect(v.title).toBe("New Standalone");
     expect(v.lessonId).toBeNull();
     expect(v.pitchId).toBeNull();
     expect(v.archived).toBe(false);
@@ -255,7 +248,7 @@ describe("video create / move / update", () => {
     );
     expect(v.pitchId).toBe(s.pitchActiveId);
     expect(v.lessonId).toBeNull();
-    expect(v.path).toBe("My Pitch Cut");
+    expect(v.title).toBe("My Pitch Cut");
   });
 
   it("create with missing --name => invalid input, exit 3", async () => {
@@ -315,7 +308,7 @@ describe("video create / move / update", () => {
   });
 
   it("create --lesson with a name already taken in the lesson => invalid input, exit 3", async () => {
-    // s.lessonVideoId already has path "intro.mp4" in the lesson.
+    // s.lessonVideoId already has title "intro.mp4" in the lesson.
     const { exitCode, stdout } = await run([
       "video",
       "create",
@@ -422,7 +415,7 @@ describe("video create / move / update", () => {
       ).stdout
     );
     expect(updated.id).toBe(s.standaloneActiveId);
-    expect(updated.path).toBe("renamed.mp4");
+    expect(updated.title).toBe("renamed.mp4");
   });
 
   it("update with no --name => invalid input, exit 3", async () => {
@@ -470,8 +463,8 @@ describe("video create / move / update", () => {
     );
     expect(updated.id).toBe(s.standaloneActiveId);
     expect(updated.description).toBe("Learn to refactor a reducer");
-    // Leaves the name/path untouched.
-    expect(updated.path).toBe("standalone-active.mp4");
+    // Leaves the name/title untouched.
+    expect(updated.title).toBe("standalone-active.mp4");
   });
 
   it("update --body sets the markdown body from inline text", async () => {
@@ -505,7 +498,7 @@ describe("video create / move / update", () => {
         ])
       ).stdout
     );
-    expect(updated.path).toBe("renamed.mp4");
+    expect(updated.title).toBe("renamed.mp4");
     expect(updated.body).toBe("body text");
     expect(updated.description).toBe("seo text");
   });

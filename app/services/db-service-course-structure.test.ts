@@ -29,7 +29,7 @@ beforeEach(async () => {
 const buildCourseWithVideos = async () => {
   const [course] = await testDb
     .insert(schema.courses)
-    .values({ name: "Test Course", filePath: "/tmp/test-repo" })
+    .values({ name: "Test Course" })
     .returning();
 
   const [version] = await testDb
@@ -41,7 +41,6 @@ const buildCourseWithVideos = async () => {
     .insert(schema.sections)
     .values({
       repoVersionId: version!.id,
-      path: "01-intro",
       title: "intro",
       order: 1,
     })
@@ -51,10 +50,8 @@ const buildCourseWithVideos = async () => {
     .insert(schema.lessons)
     .values({
       sectionId: section!.id,
-      path: "01-welcome",
       title: "Welcome",
       order: 1,
-      fsStatus: "real",
       description: "A welcome lesson",
       authoringStatus: "done",
     })
@@ -64,10 +61,9 @@ const buildCourseWithVideos = async () => {
     .insert(schema.lessons)
     .values({
       sectionId: section!.id,
-      path: "02-ghost",
       title: "Ghost Lesson",
       order: 2,
-      fsStatus: "ghost",
+      authoringStatus: "todo",
     })
     .returning();
 
@@ -76,7 +72,7 @@ const buildCourseWithVideos = async () => {
     .insert(schema.videos)
     .values({
       lessonId: lessonReal!.id,
-      path: "video.mp4",
+      title: "video.mp4",
       originalFootagePath: "footage.mp4",
     })
     .returning();
@@ -108,7 +104,6 @@ describe("getCourseStructureById - archived section filtering", () => {
           .insert(schema.courses)
           .values({
             name: "Archive Test Course",
-            filePath: "/tmp/archive-test",
           })
           .returning()
       );
@@ -124,13 +119,11 @@ describe("getCourseStructureById - archived section filtering", () => {
         testDb.insert(schema.sections).values([
           {
             repoVersionId: version!.id,
-            path: "01-active",
             title: "active",
             order: 1,
           },
           {
             repoVersionId: version!.id,
-            path: "02-archived",
             title: "archived",
             order: 2,
             archivedAt: new Date(),
@@ -143,7 +136,7 @@ describe("getCourseStructureById - archived section filtering", () => {
 
       const sections = result.versions[0]!.sections;
       expect(sections).toHaveLength(1);
-      expect(sections[0]!.path).toBe("01-active");
+      expect(sections[0]!.title).toBe("active");
     }).pipe(Effect.provide(testLayer))
   );
 
@@ -154,7 +147,6 @@ describe("getCourseStructureById - archived section filtering", () => {
           .insert(schema.courses)
           .values({
             name: "All Archived Course",
-            filePath: "/tmp/all-archived",
           })
           .returning()
       );
@@ -169,14 +161,12 @@ describe("getCourseStructureById - archived section filtering", () => {
         testDb.insert(schema.sections).values([
           {
             repoVersionId: version!.id,
-            path: "01-archived",
             title: "archived",
             order: 1,
             archivedAt: new Date(),
           },
           {
             repoVersionId: version!.id,
-            path: "02-archived",
             title: "archived",
             order: 2,
             archivedAt: new Date(),
@@ -195,7 +185,7 @@ describe("getCourseStructureById - archived section filtering", () => {
 describe("getCourseStructureById", () => {
   it.effect("returns course with versions, sections, and lessons", () =>
     Effect.gen(function* () {
-      const { courseId, versionId, sectionId, lessonRealId, lessonGhostId } =
+      const { courseId, versionId, sectionId, lessonRealId } =
         yield* Effect.promise(() => buildCourseWithVideos());
 
       const courseOps = yield* CourseOperationsService;
@@ -211,16 +201,12 @@ describe("getCourseStructureById", () => {
 
       const section = version.sections[0]!;
       expect(section.id).toBe(sectionId);
-      expect(section.path).toBe("01-intro");
+      expect(section.title).toBe("intro");
       expect(section.lessons).toHaveLength(2);
 
       const realLesson = section.lessons.find((l) => l.id === lessonRealId)!;
-      expect(realLesson.path).toBe("01-welcome");
+      expect(realLesson.title).toBe("Welcome");
       expect(realLesson.description).toBe("A welcome lesson");
-      expect(realLesson.fsStatus).toBe("real");
-
-      const ghostLesson = section.lessons.find((l) => l.id === lessonGhostId)!;
-      expect(ghostLesson.fsStatus).toBe("ghost");
     }).pipe(Effect.provide(testLayer))
   );
 
@@ -253,7 +239,6 @@ describe("getCourseStructureById", () => {
           .insert(schema.courses)
           .values({
             name: "Memory Course",
-            filePath: "/tmp/memory-repo",
             memory: "This is the AI context for the course",
           })
           .returning()
@@ -276,7 +261,7 @@ describe("getCourseStructureById", () => {
       const [course] = yield* Effect.promise(() =>
         testDb
           .insert(schema.courses)
-          .values({ name: "Ordered Course", filePath: "/tmp/ordered" })
+          .values({ name: "Ordered Course" })
           .returning()
       );
       const [version] = yield* Effect.promise(() =>
@@ -290,7 +275,6 @@ describe("getCourseStructureById", () => {
       yield* Effect.promise(() =>
         testDb.insert(schema.sections).values({
           repoVersionId: version!.id,
-          path: "02-advanced",
           title: "advanced",
           order: 2,
         })
@@ -300,7 +284,6 @@ describe("getCourseStructureById", () => {
           .insert(schema.sections)
           .values({
             repoVersionId: version!.id,
-            path: "01-basics",
             title: "basics",
             order: 1,
           })
@@ -312,18 +295,14 @@ describe("getCourseStructureById", () => {
         testDb.insert(schema.lessons).values([
           {
             sectionId: sectionA!.id,
-            path: "02-second",
             title: "Second",
             order: 2,
-            fsStatus: "real",
             authoringStatus: "done",
           },
           {
             sectionId: sectionA!.id,
-            path: "01-first",
             title: "First",
             order: 1,
-            fsStatus: "real",
             authoringStatus: "done",
           },
         ])
@@ -333,12 +312,12 @@ describe("getCourseStructureById", () => {
       const result = yield* courseOps.getCourseStructureById(course!.id);
 
       const sections = result.versions[0]!.sections;
-      expect(sections[0]!.path).toBe("01-basics");
-      expect(sections[1]!.path).toBe("02-advanced");
+      expect(sections[0]!.title).toBe("basics");
+      expect(sections[1]!.title).toBe("advanced");
 
       const lessons = sections[0]!.lessons;
-      expect(lessons[0]!.path).toBe("01-first");
-      expect(lessons[1]!.path).toBe("02-second");
+      expect(lessons[0]!.title).toBe("First");
+      expect(lessons[1]!.title).toBe("Second");
     }).pipe(Effect.provide(testLayer))
   );
 });

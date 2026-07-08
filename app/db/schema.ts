@@ -2,7 +2,6 @@ import type { DatabaseId } from "@/features/video-editor/clip-state-reducer";
 import { relations, sql, type InferSelectModel } from "drizzle-orm";
 import {
   boolean,
-  check,
   customType,
   date,
   doublePrecision,
@@ -43,7 +42,6 @@ export const courses = createTable(
       .notNull()
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    filePath: text("repo_path"),
     name: text("name").notNull(),
     slug: text("slug"),
     archived: boolean("archived").notNull().default(false),
@@ -96,7 +94,6 @@ export const sections = createTable(
     lineageId: varchar("lineage_id", { length: 255 })
       .notNull()
       .$defaultFn(() => crypto.randomUUID()),
-    path: text("path").notNull(),
     title: text("title").notNull().default(""),
     description: text("description").notNull().default(""),
     archivedAt: timestamp("archived_at", {
@@ -112,8 +109,8 @@ export const sections = createTable(
     order: doublePrecision("order").notNull(),
   },
   (table) => [
-    uniqueIndex("section_version_path_uniq")
-      .on(table.repoVersionId, table.path)
+    uniqueIndex("section_version_order_uniq")
+      .on(table.repoVersionId, table.order)
       .where(sql`${table.archivedAt} IS NULL`),
   ]
 );
@@ -134,9 +131,7 @@ export const lessons = createTable(
     lineageId: varchar("lineage_id", { length: 255 })
       .notNull()
       .$defaultFn(() => crypto.randomUUID()),
-    path: text("path").notNull(),
     title: text("title").notNull().default(""),
-    fsStatus: text("fs_status").notNull().default("real"),
     description: text("description").notNull().default(""),
     icon: varchar("icon", { length: 255 }),
     priority: integer("priority").notNull().default(2),
@@ -152,12 +147,8 @@ export const lessons = createTable(
     archived: boolean("archived").notNull().default(false),
   },
   (table) => [
-    check(
-      "lesson_authoring_status_biconditional",
-      sql`(${table.fsStatus} = 'real' AND ${table.authoringStatus} IS NOT NULL) OR (${table.fsStatus} != 'real' AND ${table.authoringStatus} IS NULL)`
-    ),
-    uniqueIndex("lesson_section_path_uniq")
-      .on(table.sectionId, table.path)
+    uniqueIndex("lesson_section_order_uniq")
+      .on(table.sectionId, table.order)
       .where(sql`NOT ${table.archived}`),
   ]
 );
@@ -212,7 +203,7 @@ export const videos = createTable(
     lineageId: varchar("lineage_id", { length: 255 })
       .notNull()
       .$defaultFn(() => crypto.randomUUID()),
-    path: text("path").notNull(),
+    title: text("title").notNull(),
     originalFootagePath: text("original_footage_path").notNull(),
     body: text("body"),
     description: text("video_description"),
@@ -231,8 +222,8 @@ export const videos = createTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
-    uniqueIndex("video_lesson_path_uniq")
-      .on(table.lessonId, table.path)
+    uniqueIndex("video_lesson_title_uniq")
+      .on(table.lessonId, table.title)
       .where(sql`NOT ${table.archived}`),
   ]
 );

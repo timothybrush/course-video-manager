@@ -28,20 +28,18 @@ beforeEach(async () => {
 
 const buildCourseFixture = async (
   sections: Array<{
-    path: string;
+    title: string;
     order: number;
     lessons: Array<{
-      path: string;
       title: string;
       order: number;
-      fsStatus?: string;
-      videos: Array<{ path: string; archived?: boolean }>;
+      videos: Array<{ title: string; archived?: boolean }>;
     }>;
   }>
 ) => {
   const [course] = await testDb
     .insert(schema.courses)
-    .values({ name: "Test Course", filePath: "/tmp/test-repo" })
+    .values({ name: "Test Course" })
     .returning();
 
   const [version] = await testDb
@@ -49,29 +47,26 @@ const buildCourseFixture = async (
     .values({ repoId: course!.id, name: "v1" })
     .returning();
 
-  const allVideos: Array<{ id: string; path: string; lessonId: string }> = [];
+  const allVideos: Array<{ id: string; title: string; lessonId: string }> = [];
 
   for (const sectionDef of sections) {
     const [section] = await testDb
       .insert(schema.sections)
       .values({
         repoVersionId: version!.id,
-        path: sectionDef.path,
+        title: sectionDef.title,
         order: sectionDef.order,
       })
       .returning();
 
     for (const lessonDef of sectionDef.lessons) {
-      const fsStatus = lessonDef.fsStatus ?? "real";
       const [lesson] = await testDb
         .insert(schema.lessons)
         .values({
           sectionId: section!.id,
-          path: lessonDef.path,
           title: lessonDef.title,
           order: lessonDef.order,
-          fsStatus,
-          authoringStatus: fsStatus === "real" ? "done" : null,
+          authoringStatus: "done",
         })
         .returning();
 
@@ -80,15 +75,15 @@ const buildCourseFixture = async (
           .insert(schema.videos)
           .values({
             lessonId: lesson!.id,
-            path: videoDef.path,
-            originalFootagePath: videoDef.path,
+            title: videoDef.title,
+            originalFootagePath: videoDef.title,
             archived: videoDef.archived ?? false,
           })
           .returning();
 
         allVideos.push({
           id: video!.id,
-          path: video!.path,
+          title: video!.title,
           lessonId: lesson!.id,
         });
       }
@@ -104,7 +99,7 @@ describe("getNextVideoId / getPreviousVideoId", () => {
       Effect.gen(function* () {
         const vOps = yield* VideoOperationsService;
         const video = yield* vOps.createStandaloneVideo({
-          path: "standalone.mp4",
+          title: "standalone.mp4",
         });
         const fetched = yield* vOps.getVideoWithClipsById(video.id);
 
@@ -117,7 +112,7 @@ describe("getNextVideoId / getPreviousVideoId", () => {
       Effect.gen(function* () {
         const vOps = yield* VideoOperationsService;
         const video = yield* vOps.createStandaloneVideo({
-          path: "standalone.mp4",
+          title: "standalone.mp4",
         });
         const fetched = yield* vOps.getVideoWithClipsById(video.id);
 
@@ -128,23 +123,22 @@ describe("getNextVideoId / getPreviousVideoId", () => {
   });
 
   describe("same lesson navigation", () => {
-    it.effect("returns next video in same lesson sorted by path", () =>
+    it.effect("returns next video in same lesson sorted by title", () =>
       Effect.gen(function* () {
         const vOps = yield* VideoOperationsService;
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
                   videos: [
-                    { path: "a.mp4" },
-                    { path: "b.mp4" },
-                    { path: "c.mp4" },
+                    { title: "a.mp4" },
+                    { title: "b.mp4" },
+                    { title: "c.mp4" },
                   ],
                 },
               ],
@@ -152,8 +146,8 @@ describe("getNextVideoId / getPreviousVideoId", () => {
           ])
         );
 
-        const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
-        const videoC = fixture.videos.find((v) => v.path === "c.mp4")!;
+        const videoB = fixture.videos.find((v) => v.title === "b.mp4")!;
+        const videoC = fixture.videos.find((v) => v.title === "c.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoB.id);
 
         const nextId = yield* vOps.getNextVideoId(fetched);
@@ -161,23 +155,22 @@ describe("getNextVideoId / getPreviousVideoId", () => {
       }).pipe(Effect.provide(testLayer))
     );
 
-    it.effect("returns previous video in same lesson sorted by path", () =>
+    it.effect("returns previous video in same lesson sorted by title", () =>
       Effect.gen(function* () {
         const vOps = yield* VideoOperationsService;
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
                   videos: [
-                    { path: "a.mp4" },
-                    { path: "b.mp4" },
-                    { path: "c.mp4" },
+                    { title: "a.mp4" },
+                    { title: "b.mp4" },
+                    { title: "c.mp4" },
                   ],
                 },
               ],
@@ -185,8 +178,8 @@ describe("getNextVideoId / getPreviousVideoId", () => {
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
-        const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
+        const videoB = fixture.videos.find((v) => v.title === "b.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoB.id);
 
         const prevId = yield* vOps.getPreviousVideoId(fetched);
@@ -204,28 +197,26 @@ describe("getNextVideoId / getPreviousVideoId", () => {
           const fixture = yield* Effect.promise(() =>
             buildCourseFixture([
               {
-                path: "section-01",
+                title: "section-01",
                 order: 1,
                 lessons: [
                   {
-                    path: "lesson-01",
                     title: "Lesson 1",
                     order: 1,
-                    videos: [{ path: "a.mp4" }],
+                    videos: [{ title: "a.mp4" }],
                   },
                   {
-                    path: "lesson-02",
                     title: "Lesson 2",
                     order: 2,
-                    videos: [{ path: "b.mp4" }],
+                    videos: [{ title: "b.mp4" }],
                   },
                 ],
               },
             ])
           );
 
-          const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
-          const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
+          const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
+          const videoB = fixture.videos.find((v) => v.title === "b.mp4")!;
           const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
           const nextId = yield* vOps.getNextVideoId(fetched);
@@ -241,28 +232,26 @@ describe("getNextVideoId / getPreviousVideoId", () => {
           const fixture = yield* Effect.promise(() =>
             buildCourseFixture([
               {
-                path: "section-01",
+                title: "section-01",
                 order: 1,
                 lessons: [
                   {
-                    path: "lesson-01",
                     title: "Lesson 1",
                     order: 1,
-                    videos: [{ path: "a.mp4" }, { path: "b.mp4" }],
+                    videos: [{ title: "a.mp4" }, { title: "b.mp4" }],
                   },
                   {
-                    path: "lesson-02",
                     title: "Lesson 2",
                     order: 2,
-                    videos: [{ path: "c.mp4" }],
+                    videos: [{ title: "c.mp4" }],
                   },
                 ],
               },
             ])
           );
 
-          const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
-          const videoC = fixture.videos.find((v) => v.path === "c.mp4")!;
+          const videoB = fixture.videos.find((v) => v.title === "b.mp4")!;
+          const videoC = fixture.videos.find((v) => v.title === "c.mp4")!;
           const fetched = yield* vOps.getVideoWithClipsById(videoC.id);
 
           const prevId = yield* vOps.getPreviousVideoId(fetched);
@@ -270,45 +259,43 @@ describe("getNextVideoId / getPreviousVideoId", () => {
         }).pipe(Effect.provide(testLayer))
     );
 
-    it.effect("skips ghost lessons when navigating next", () =>
+    it.effect("navigates through all lessons regardless of origin", () =>
       Effect.gen(function* () {
         const vOps = yield* VideoOperationsService;
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
                 {
-                  path: "lesson-02-ghost",
-                  title: "Ghost Lesson",
+                  title: "Middle Lesson",
                   order: 2,
-                  fsStatus: "ghost",
-                  videos: [{ path: "ghost.mp4" }],
+                  videos: [{ title: "middle.mp4" }],
                 },
                 {
-                  path: "lesson-03",
                   title: "Lesson 3",
                   order: 3,
-                  videos: [{ path: "b.mp4" }],
+                  videos: [{ title: "b.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
-        const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
+        const videoMiddle = fixture.videos.find(
+          (v) => v.title === "middle.mp4"
+        )!;
         const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
         const nextId = yield* vOps.getNextVideoId(fetched);
-        expect(nextId).toBe(videoB.id);
+        expect(nextId).toBe(videoMiddle.id);
       }).pipe(Effect.provide(testLayer))
     );
 
@@ -318,34 +305,32 @@ describe("getNextVideoId / getPreviousVideoId", () => {
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
               ],
             },
             {
-              path: "section-02",
+              title: "section-02",
               order: 2,
               lessons: [
                 {
-                  path: "lesson-02",
                   title: "Lesson 2",
                   order: 1,
-                  videos: [{ path: "b.mp4" }],
+                  videos: [{ title: "b.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
-        const videoB = fixture.videos.find((v) => v.path === "b.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
+        const videoB = fixture.videos.find((v) => v.title === "b.mp4")!;
 
         // Next from last video of section 1 → first video of section 2
         const fetchedA = yield* vOps.getVideoWithClipsById(videoA.id);
@@ -365,21 +350,20 @@ describe("getNextVideoId / getPreviousVideoId", () => {
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
         const nextId = yield* vOps.getNextVideoId(fetched);
@@ -393,21 +377,20 @@ describe("getNextVideoId / getPreviousVideoId", () => {
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
         const prevId = yield* vOps.getPreviousVideoId(fetched);
@@ -421,34 +404,31 @@ describe("getNextVideoId / getPreviousVideoId", () => {
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
                 {
-                  path: "lesson-02",
                   title: "Lesson 2 (all archived)",
                   order: 2,
-                  videos: [{ path: "b.mp4", archived: true }],
+                  videos: [{ title: "b.mp4", archived: true }],
                 },
                 {
-                  path: "lesson-03",
                   title: "Lesson 3",
                   order: 3,
-                  videos: [{ path: "c.mp4" }],
+                  videos: [{ title: "c.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
-        const videoC = fixture.videos.find((v) => v.path === "c.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
+        const videoC = fixture.videos.find((v) => v.title === "c.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
         const nextId = yield* vOps.getNextVideoId(fetched);
@@ -463,7 +443,7 @@ describe("getNextLessonWithoutVideo", () => {
     Effect.gen(function* () {
       const vOps = yield* VideoOperationsService;
       const video = yield* vOps.createStandaloneVideo({
-        path: "standalone.mp4",
+        title: "standalone.mp4",
       });
       const fetched = yield* vOps.getVideoWithClipsById(video.id);
 
@@ -478,17 +458,15 @@ describe("getNextLessonWithoutVideo", () => {
       const fixture = yield* Effect.promise(() =>
         buildCourseFixture([
           {
-            path: "section-01",
+            title: "section-01",
             order: 1,
             lessons: [
               {
-                path: "lesson-01",
                 title: "Lesson 1",
                 order: 1,
-                videos: [{ path: "a.mp4" }],
+                videos: [{ title: "a.mp4" }],
               },
               {
-                path: "lesson-02",
                 title: "Lesson 2 (empty)",
                 order: 2,
                 videos: [],
@@ -498,14 +476,13 @@ describe("getNextLessonWithoutVideo", () => {
         ])
       );
 
-      const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+      const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
       const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
       const result = yield* vOps.getNextLessonWithoutVideo(fetched);
       expect(result).not.toBeNull();
-      expect(result!.lessonPath).toBe("lesson-02");
+      expect(result!.lessonTitle).toBe("Lesson 2 (empty)");
       expect(result!.sectionPath).toBe("section-01");
-      expect(result!.repoFilePath).toBe("/tmp/test-repo");
     }).pipe(Effect.provide(testLayer))
   );
 
@@ -515,27 +492,25 @@ describe("getNextLessonWithoutVideo", () => {
       const fixture = yield* Effect.promise(() =>
         buildCourseFixture([
           {
-            path: "section-01",
+            title: "section-01",
             order: 1,
             lessons: [
               {
-                path: "lesson-01",
                 title: "Lesson 1",
                 order: 1,
-                videos: [{ path: "a.mp4" }],
+                videos: [{ title: "a.mp4" }],
               },
               {
-                path: "lesson-02",
                 title: "Lesson 2",
                 order: 2,
-                videos: [{ path: "b.mp4" }],
+                videos: [{ title: "b.mp4" }],
               },
             ],
           },
         ])
       );
 
-      const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+      const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
       const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
       const result = yield* vOps.getNextLessonWithoutVideo(fetched);
@@ -549,29 +524,26 @@ describe("getNextLessonWithoutVideo", () => {
       const fixture = yield* Effect.promise(() =>
         buildCourseFixture([
           {
-            path: "section-01",
+            title: "section-01",
             order: 1,
             lessons: [
               {
-                path: "lesson-01",
                 title: "Lesson 1",
                 order: 1,
-                videos: [{ path: "a.mp4" }],
+                videos: [{ title: "a.mp4" }],
               },
             ],
           },
           {
-            path: "section-02",
+            title: "section-02",
             order: 2,
             lessons: [
               {
-                path: "lesson-02",
                 title: "Lesson 2",
                 order: 1,
-                videos: [{ path: "b.mp4" }],
+                videos: [{ title: "b.mp4" }],
               },
               {
-                path: "lesson-03",
                 title: "Lesson 3 (empty)",
                 order: 2,
                 videos: [],
@@ -581,12 +553,12 @@ describe("getNextLessonWithoutVideo", () => {
         ])
       );
 
-      const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+      const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
       const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
       const result = yield* vOps.getNextLessonWithoutVideo(fetched);
       expect(result).not.toBeNull();
-      expect(result!.lessonPath).toBe("lesson-03");
+      expect(result!.lessonTitle).toBe("Lesson 3 (empty)");
       expect(result!.sectionPath).toBe("section-02");
     }).pipe(Effect.provide(testLayer))
   );
@@ -599,21 +571,20 @@ describe("getNextLessonWithoutVideo", () => {
         const fixture = yield* Effect.promise(() =>
           buildCourseFixture([
             {
-              path: "section-01",
+              title: "section-01",
               order: 1,
               lessons: [
                 {
-                  path: "lesson-01",
                   title: "Lesson 1",
                   order: 1,
-                  videos: [{ path: "a.mp4" }],
+                  videos: [{ title: "a.mp4" }],
                 },
               ],
             },
           ])
         );
 
-        const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+        const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
         const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
         const result = yield* vOps.getNextLessonWithoutVideo(fetched);
@@ -627,23 +598,20 @@ describe("getNextLessonWithoutVideo", () => {
       const fixture = yield* Effect.promise(() =>
         buildCourseFixture([
           {
-            path: "section-01",
+            title: "section-01",
             order: 1,
             lessons: [
               {
-                path: "lesson-01",
                 title: "Lesson 1",
                 order: 1,
-                videos: [{ path: "a.mp4" }],
+                videos: [{ title: "a.mp4" }],
               },
               {
-                path: "lesson-02",
                 title: "Lesson 2",
                 order: 2,
-                videos: [{ path: "b.mp4" }],
+                videos: [{ title: "b.mp4" }],
               },
               {
-                path: "lesson-03",
                 title: "Lesson 3 (empty)",
                 order: 3,
                 videos: [],
@@ -653,12 +621,12 @@ describe("getNextLessonWithoutVideo", () => {
         ])
       );
 
-      const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+      const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
       const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
       const result = yield* vOps.getNextLessonWithoutVideo(fetched);
       expect(result).not.toBeNull();
-      expect(result!.lessonPath).toBe("lesson-03");
+      expect(result!.lessonTitle).toBe("Lesson 3 (empty)");
     }).pipe(Effect.provide(testLayer))
   );
 
@@ -668,32 +636,30 @@ describe("getNextLessonWithoutVideo", () => {
       const fixture = yield* Effect.promise(() =>
         buildCourseFixture([
           {
-            path: "section-01",
+            title: "section-01",
             order: 1,
             lessons: [
               {
-                path: "lesson-01",
                 title: "Lesson 1",
                 order: 1,
-                videos: [{ path: "a.mp4" }],
+                videos: [{ title: "a.mp4" }],
               },
               {
-                path: "lesson-02",
                 title: "Lesson 2 (all archived)",
                 order: 2,
-                videos: [{ path: "b.mp4", archived: true }],
+                videos: [{ title: "b.mp4", archived: true }],
               },
             ],
           },
         ])
       );
 
-      const videoA = fixture.videos.find((v) => v.path === "a.mp4")!;
+      const videoA = fixture.videos.find((v) => v.title === "a.mp4")!;
       const fetched = yield* vOps.getVideoWithClipsById(videoA.id);
 
       const result = yield* vOps.getNextLessonWithoutVideo(fetched);
       expect(result).not.toBeNull();
-      expect(result!.lessonPath).toBe("lesson-02");
+      expect(result!.lessonTitle).toBe("Lesson 2 (all archived)");
       expect(result!.sectionPath).toBe("section-01");
     }).pipe(Effect.provide(testLayer))
   );

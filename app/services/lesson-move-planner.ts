@@ -47,8 +47,6 @@ export type PlannerLesson = {
   id: string;
   path: string;
   order: number;
-  /** "ghost" marks a lesson with no on-disk folder; null/anything else = real. */
-  fsStatus: string | null;
 };
 
 export type PlannerSection = {
@@ -73,7 +71,6 @@ export type LessonMoveInput = {
 export type LessonUpdate = {
   id: string;
   sectionId: string;
-  path: string;
   order: number;
 };
 
@@ -109,8 +106,6 @@ export type LessonMovePlan = {
   /** True when the move is a no-op (lesson/target missing, or same section). */
   noop: boolean;
 };
-
-const isReal = (lesson: PlannerLesson): boolean => lesson.fsStatus !== "ghost";
 
 const NOOP: LessonMovePlan = {
   lessonUpdates: [],
@@ -171,24 +166,6 @@ export function planLessonMove(input: LessonMoveInput): LessonMovePlan {
       : 0;
   const newOrder = computeInsertOrder(targetLessons, beforeLessonId, maxOrder);
 
-  // ----- Ghost lesson: DB-only move, no filesystem, no (de)materialization. --
-  if (!isReal(lesson)) {
-    return {
-      lessonUpdates: [
-        {
-          id: lesson.id,
-          sectionId: targetSectionId,
-          path: lesson.path,
-          order: newOrder,
-        },
-      ],
-      sectionUpdates: [],
-      fsOps: [],
-      noop: false,
-    };
-  }
-
-  // ----- Real lesson: filesystem move + renumber both sections. --------------
   const fsOps: FsOp[] = [];
   // Sections that currently have a directory on disk (real sections do).
   const hasDir = new Set(
@@ -225,18 +202,16 @@ export function planLessonMove(input: LessonMoveInput): LessonMovePlan {
   const lessonParsed = parseLessonPath(lesson.path);
   const slug = lessonParsed?.slug ?? lesson.path;
 
-  // Place the moved lesson among the target's real lessons at the drop anchor,
-  // shifting subsequent real lessons up by one number to free the slot.
-  const targetRealLessons = targetLessons
-    .filter(isReal)
-    .sort((a, b) => a.order - b.order);
+  const targetSortedLessons = [...targetLessons].sort(
+    (a, b) => a.order - b.order
+  );
   const insertAtIndex = computeInsertRealIndex(
-    targetRealLessons,
+    targetSortedLessons,
     targetLessons,
     beforeLessonId
   );
   const insertion = computeInsertionPlan({
-    existingRealLessons: targetRealLessons.map((l) => ({
+    existingRealLessons: targetSortedLessons.map((l) => ({
       id: l.id,
       path: l.path,
     })),
@@ -276,10 +251,9 @@ export function planLessonMove(input: LessonMoveInput): LessonMovePlan {
   lesson.order = newOrder;
   targetSection.lessons.push(lesson);
 
-  // Renumber source real lessons to close the gap left by the move.
-  const sourceRealLessons = sourceSection.lessons
-    .filter(isReal)
-    .sort((a, b) => a.order - b.order);
+  const sourceRealLessons = [...sourceSection.lessons].sort(
+    (a, b) => a.order - b.order
+  );
   if (sourceRealLessons.length > 0) {
     const sourceRenames: { oldPath: string; newPath: string }[] = [];
     for (let i = 0; i < sourceRealLessons.length; i++) {
@@ -379,8 +353,7 @@ export function planLessonsMove(input: LessonsMoveInput): LessonMovePlan {
 
 /**
  * Apply a single plan's data deltas to a planner model, returning the next
- * model (same section order, lessons re-sorted into display order). fsStatus is
- * carried over untouched — a move never changes a lesson's filesystem presence.
+ * model (same section order, lessons re-sorted into display order).
  */
 function applyPlanToModel(
   sections: PlannerSection[],
@@ -391,8 +364,6 @@ function applyPlanToModel(
     plan.sectionUpdates.map((u) => [u.id, u.path])
   );
 
-  // Re-home every lesson under its (possibly updated) section, patching path /
-  // order from the plan.
   const placed: { lesson: PlannerLesson; sectionId: string }[] = [];
   for (const s of sections) {
     for (const l of s.lessons) {
@@ -400,7 +371,6 @@ function applyPlanToModel(
       placed.push({
         lesson: {
           ...l,
-          path: u ? u.path : l.path,
           order: u ? u.order : l.order,
         },
         sectionId: u ? u.sectionId : s.id,
@@ -425,9 +395,9 @@ type WorkingSection = {
 };
 
 /**
- * Pure mirror of `renumberSections` in course-write-service.helpers.ts: real
- * sections get sequential numbers, ghosts are skipped, and each renumbered
- * section's real lessons keep their own lessonNumber under the new prefix.
+ * Real sections get sequential numbers, ghosts are skipped, and each
+ * renumbered section's real lessons keep their own lessonNumber under the
+ * new prefix.
  */
 function renumberSectionsInModel(
   model: WorkingSection[],
@@ -476,7 +446,7 @@ function renumberSectionsInModel(
     const section = model.find((s) => s.id === rename.id)!;
     section.path = rename.newPath;
 
-    const realLessons = section.lessons.filter(isReal);
+    const realLessons = section.lessons;
     const lessonRenames: { oldPath: string; newPath: string }[] = [];
     for (const l of realLessons) {
       const p = parseLessonPath(l.path);
@@ -505,13 +475,10 @@ function diffLessons(
   before: PlannerSection[],
   after: WorkingSection[]
 ): LessonUpdate[] {
-  const beforeById = new Map<
-    string,
-    { sectionId: string; path: string; order: number }
-  >();
+  const beforeById = new Map<string, { sectionId: string; order: number }>();
   for (const s of before) {
     for (const l of s.lessons) {
-      beforeById.set(l.id, { sectionId: s.id, path: l.path, order: l.order });
+      beforeById.set(l.id, { sectionId: s.id, order: l.order });
     }
   }
 
@@ -519,16 +486,10 @@ function diffLessons(
   for (const s of after) {
     for (const l of s.lessons) {
       const prev = beforeById.get(l.id);
-      if (
-        !prev ||
-        prev.sectionId !== s.id ||
-        prev.path !== l.path ||
-        prev.order !== l.order
-      ) {
+      if (!prev || prev.sectionId !== s.id || prev.order !== l.order) {
         updates.push({
           id: l.id,
           sectionId: s.id,
-          path: l.path,
           order: l.order,
         });
       }

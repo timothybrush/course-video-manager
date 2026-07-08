@@ -31,7 +31,7 @@ describe("lineageId copy-forward", () => {
   it("copies section lineageId forward unchanged on version clone", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Test", filePath: "/tmp/test" })
+      .values({ name: "Test" })
       .returning();
 
     const [version] = await testDb
@@ -41,7 +41,7 @@ describe("lineageId copy-forward", () => {
 
     const [section] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: version!.id, path: "01-intro", order: 1 })
+      .values({ repoVersionId: version!.id, title: "01-intro", order: 1 })
       .returning();
 
     const result = await run(
@@ -67,7 +67,7 @@ describe("lineageId copy-forward", () => {
   it("copies lesson lineageId forward unchanged on version clone", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Test", filePath: "/tmp/test" })
+      .values({ name: "Test" })
       .returning();
 
     const [version] = await testDb
@@ -77,16 +77,14 @@ describe("lineageId copy-forward", () => {
 
     const [section] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: version!.id, path: "01-intro", order: 1 })
+      .values({ repoVersionId: version!.id, title: "01-intro", order: 1 })
       .returning();
 
     const [lesson] = await testDb
       .insert(schema.lessons)
       .values({
         sectionId: section!.id,
-        path: "01-lesson",
         order: 1,
-        fsStatus: "real",
         title: "Lesson",
         authoringStatus: "done",
       })
@@ -115,7 +113,7 @@ describe("lineageId copy-forward", () => {
   it("copies video lineageId forward unchanged on version clone", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Test", filePath: "/tmp/test" })
+      .values({ name: "Test" })
       .returning();
 
     const [version] = await testDb
@@ -125,16 +123,14 @@ describe("lineageId copy-forward", () => {
 
     const [section] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: version!.id, path: "01-intro", order: 1 })
+      .values({ repoVersionId: version!.id, title: "01-intro", order: 1 })
       .returning();
 
     const [lesson] = await testDb
       .insert(schema.lessons)
       .values({
         sectionId: section!.id,
-        path: "01-lesson",
         order: 1,
-        fsStatus: "real",
         title: "Lesson",
         authoringStatus: "done",
       })
@@ -144,7 +140,7 @@ describe("lineageId copy-forward", () => {
       .insert(schema.videos)
       .values({
         lessonId: lesson!.id,
-        path: "explainer",
+        title: "explainer",
         originalFootagePath: "/footage/v1",
       })
       .returning();
@@ -175,7 +171,7 @@ describe("lineageId copy-forward", () => {
   it("assigns fresh lineageId to genuinely new rows", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Test", filePath: "/tmp/test" })
+      .values({ name: "Test" })
       .returning();
 
     const [version] = await testDb
@@ -185,12 +181,12 @@ describe("lineageId copy-forward", () => {
 
     const [s1] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: version!.id, path: "01-intro", order: 1 })
+      .values({ repoVersionId: version!.id, title: "01-intro", order: 1 })
       .returning();
 
     const [s2] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: version!.id, path: "02-advanced", order: 2 })
+      .values({ repoVersionId: version!.id, title: "02-advanced", order: 2 })
       .returning();
 
     expect(s1!.lineageId).toBeTruthy();
@@ -201,7 +197,7 @@ describe("lineageId copy-forward", () => {
   it("preserves lineageId across two successive clones", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Test", filePath: "/tmp/test" })
+      .values({ name: "Test" })
       .returning();
 
     const [v1] = await testDb
@@ -211,7 +207,7 @@ describe("lineageId copy-forward", () => {
 
     const [section] = await testDb
       .insert(schema.sections)
-      .values({ repoVersionId: v1!.id, path: "01-intro", order: 1 })
+      .values({ repoVersionId: v1!.id, title: "01-intro", order: 1 })
       .returning();
 
     const originalLineageId = section!.lineageId;

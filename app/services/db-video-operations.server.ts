@@ -8,7 +8,7 @@ import {
   CannotArchiveLessonVideoError,
   NotFoundError,
   UnknownDBServiceError,
-  VideoPathTakenError,
+  VideoTitleTakenError,
 } from "@/services/db-service-errors";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { Effect } from "effect";
@@ -30,11 +30,11 @@ export const createVideoOperations = (
 ) => {
   const { getCourseNavigationData } = deps;
 
-  const assertVideoPathAvailable = Effect.fn("assertVideoPathAvailable")(
-    function* (lessonId: string, path: string, excludeVideoId?: string) {
+  const assertVideoTitleAvailable = Effect.fn("assertVideoTitleAvailable")(
+    function* (lessonId: string, title: string, excludeVideoId?: string) {
       const conditions = [
         eq(videos.lessonId, lessonId),
-        eq(videos.path, path),
+        eq(videos.title, title),
         eq(videos.archived, false),
       ];
       if (excludeVideoId) {
@@ -49,9 +49,9 @@ export const createVideoOperations = (
       );
 
       if (existing) {
-        return yield* new VideoPathTakenError({
-          path,
-          message: `Video name "${path}" is already taken in this lesson`,
+        return yield* new VideoTitleTakenError({
+          title,
+          message: `Video name "${title}" is already taken in this lesson`,
         });
       }
     }
@@ -115,7 +115,7 @@ export const createVideoOperations = (
     function* () {
       const standaloneVideos = yield* makeDbCall(() =>
         db.query.videos.findMany({
-          columns: { id: true, path: true },
+          columns: { id: true, title: true },
           where: and(
             isNull(videos.lessonId),
             isNull(videos.pitchId),
@@ -198,7 +198,7 @@ export const createVideoOperations = (
                 },
               },
               videos: {
-                columns: { id: true, path: true },
+                columns: { id: true, title: true },
                 where: eq(videos.archived, false),
               },
             },
@@ -276,11 +276,11 @@ export const createVideoOperations = (
   const createVideo = Effect.fn("createVideo")(function* (
     lessonId: string,
     video: {
-      path: string;
+      title: string;
       originalFootagePath: string;
     }
   ) {
-    yield* assertVideoPathAvailable(lessonId, video.path);
+    yield* assertVideoTitleAvailable(lessonId, video.title);
 
     const videoResults = yield* makeDbCall(() =>
       db
@@ -301,12 +301,12 @@ export const createVideoOperations = (
   });
 
   const createStandaloneVideo = Effect.fn("createStandaloneVideo")(
-    function* (video: { path: string }) {
+    function* (video: { title: string }) {
       const videoResults = yield* makeDbCall(() =>
         db
           .insert(videos)
           .values({
-            path: video.path,
+            title: video.title,
             originalFootagePath: "",
             lessonId: null,
           })
@@ -358,32 +358,36 @@ export const createVideoOperations = (
     return videoResult;
   });
 
-  const updateVideoPath = Effect.fn("updateVideoPath")(function* (opts: {
+  const updateVideoTitle = Effect.fn("updateVideoTitle")(function* (opts: {
     videoId: string;
-    path: string;
+    title: string;
   }) {
     const video = yield* makeDbCall(() =>
       db.query.videos.findFirst({
         where: eq(videos.id, opts.videoId),
-        columns: { lessonId: true, path: true },
+        columns: { lessonId: true, title: true },
       })
     );
 
-    if (video && video.lessonId && video.path !== opts.path) {
-      yield* assertVideoPathAvailable(video.lessonId, opts.path, opts.videoId);
+    if (video && video.lessonId && video.title !== opts.title) {
+      yield* assertVideoTitleAvailable(
+        video.lessonId,
+        opts.title,
+        opts.videoId
+      );
     }
 
     yield* makeDbCall(() =>
       db
         .update(videos)
-        .set({ path: opts.path, updatedAt: new Date() })
+        .set({ title: opts.title, updatedAt: new Date() })
         .where(eq(videos.id, opts.videoId))
     );
   });
 
   const copyVideo = Effect.fn("copyVideo")(function* (opts: {
     sourceVideoId: string;
-    newPath: string;
+    newTitle: string;
     copyClips: boolean;
     copyBeats: boolean;
   }) {
@@ -450,7 +454,7 @@ export const createVideoOperations = (
     id: string;
     lesson: {
       id: string;
-      videos: Array<{ id: string; path: string }>;
+      videos: Array<{ id: string; title: string }>;
       section: { repoVersion: { repo: { id: string } } };
     } | null;
   }) {
@@ -458,9 +462,9 @@ export const createVideoOperations = (
     if (!currentLesson) return null; // Standalone videos have no next/prev
     const repo = currentLesson.section.repoVersion.repo;
 
-    // Get all videos in current lesson sorted by path
+    // Get all videos in current lesson sorted by title
     const videosInLesson = [...currentLesson.videos].sort((a, b) =>
-      a.path.localeCompare(b.path)
+      a.title.localeCompare(b.title)
     );
     const currentVideoIndex = videosInLesson.findIndex(
       (v) => v.id === currentVideo.id
@@ -477,22 +481,18 @@ export const createVideoOperations = (
 
     // Build a flat list of real lessons in order
     const allRealLessons = latestVersionSections.flatMap(
-      (s: (typeof latestVersionSections)[number]) =>
-        s.lessons.filter(
-          (l: (typeof s.lessons)[number]) => l.fsStatus === "real"
-        )
+      (s: (typeof latestVersionSections)[number]) => s.lessons
     );
 
     const currentIndex = allRealLessons.findIndex(
       (l: (typeof allRealLessons)[number]) => l.id === currentLesson.id
     );
 
-    // Find next real lesson with videos
     for (let i = currentIndex + 1; i < allRealLessons.length; i++) {
       const nextLesson = allRealLessons[i]!;
       const firstVideo = nextLesson.videos.sort(
-        (a: { path: string }, b: { path: string }) =>
-          a.path.localeCompare(b.path)
+        (a: { title: string }, b: { title: string }) =>
+          a.title.localeCompare(b.title)
       )[0];
       if (firstVideo) return firstVideo.id;
     }
@@ -505,7 +505,7 @@ export const createVideoOperations = (
       id: string;
       lesson: {
         id: string;
-        videos: Array<{ id: string; path: string }>;
+        videos: Array<{ id: string; title: string }>;
         section: { repoVersion: { repo: { id: string } } };
       } | null;
     }) {
@@ -513,9 +513,9 @@ export const createVideoOperations = (
       if (!currentLesson) return null; // Standalone videos have no next/prev
       const repo = currentLesson.section.repoVersion.repo;
 
-      // Get all videos in current lesson sorted by path
+      // Get all videos in current lesson sorted by title
       const videosInLesson = [...currentLesson.videos].sort((a, b) =>
-        a.path.localeCompare(b.path)
+        a.title.localeCompare(b.title)
       );
       const currentVideoIndex = videosInLesson.findIndex(
         (v) => v.id === currentVideo.id
@@ -530,12 +530,8 @@ export const createVideoOperations = (
       const courseNav = yield* getCourseNavigationData(repo.id);
       const latestVersionSections = courseNav.versions[0]?.sections ?? [];
 
-      // Build a flat list of real lessons in order
       const allRealLessons = latestVersionSections.flatMap(
-        (s: (typeof latestVersionSections)[number]) =>
-          s.lessons.filter(
-            (l: (typeof s.lessons)[number]) => l.fsStatus === "real"
-          )
+        (s: (typeof latestVersionSections)[number]) => s.lessons
       );
 
       const currentIndex = allRealLessons.findIndex(
@@ -546,8 +542,8 @@ export const createVideoOperations = (
       for (let i = currentIndex - 1; i >= 0; i--) {
         const prevLesson = allRealLessons[i]!;
         const videos = prevLesson.videos.sort(
-          (a: { path: string }, b: { path: string }) =>
-            a.path.localeCompare(b.path)
+          (a: { title: string }, b: { title: string }) =>
+            a.title.localeCompare(b.title)
         );
         const lastVideo = videos[videos.length - 1];
         if (lastVideo) return lastVideo.id;
@@ -567,7 +563,7 @@ export const createVideoOperations = (
         id: string;
         section: {
           repoVersion: {
-            repo: { id: string; filePath: string | null };
+            repo: { id: string };
           };
         };
       } | null;
@@ -601,9 +597,8 @@ export const createVideoOperations = (
               if (nextLesson.videos.length === 0) {
                 return {
                   lessonId: nextLesson.id,
-                  lessonPath: nextLesson.path,
-                  sectionPath: section.path,
-                  repoFilePath: repo.filePath,
+                  lessonTitle: nextLesson.title,
+                  sectionPath: section.title,
                 };
               }
             }
@@ -619,9 +614,8 @@ export const createVideoOperations = (
                 if (nextLesson.videos.length === 0) {
                   return {
                     lessonId: nextLesson.id,
-                    lessonPath: nextLesson.path,
-                    sectionPath: nextSection.path,
-                    repoFilePath: repo.filePath,
+                    lessonTitle: nextLesson.title,
+                    sectionPath: nextSection.title,
                   };
                 }
               }
@@ -680,7 +674,7 @@ export const createVideoOperations = (
             eq(videos.archived, false),
             ne(videos.id, opts.excludeVideoId)
           ),
-          columns: { id: true, path: true },
+          columns: { id: true, title: true },
           with: {
             clips: {
               where: eq(clips.archived, false),
@@ -719,7 +713,7 @@ export const createVideoOperations = (
     hasOriginalFootagePathAlreadyBeenUsed,
     updateVideo,
     deleteVideo,
-    updateVideoPath,
+    updateVideoTitle,
     copyVideo,
     updateVideoLesson,
     ...createVideoWriteOps(db),

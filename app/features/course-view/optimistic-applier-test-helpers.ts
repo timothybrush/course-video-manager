@@ -13,7 +13,7 @@ export function makeVideo(
 ) {
   return {
     id: "video-1",
-    path: "video-01.mp4",
+    title: "video-01.mp4",
     totalDuration: 120,
     firstClipId: null,
     archived: false,
@@ -49,7 +49,6 @@ export function makeLesson(
     icon: "watch" as const,
     priority: 2,
     dependencies: [],
-    fsStatus: "real" as const,
     authoringStatus: "todo" as const,
     order: 0,
     videos: [],
@@ -91,7 +90,6 @@ export function makeLoaderData(sections = [makeSection()]): LoaderData {
       lessonHasFilesMap: {},
     }),
     videoTranscripts: Promise.resolve({}),
-    gitStatus: Promise.resolve(null),
     showMediaFilesList: false,
   } as unknown as LoaderData;
 }

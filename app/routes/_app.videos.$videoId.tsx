@@ -9,7 +9,6 @@ import {
 import { cn } from "@/lib/utils";
 import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { makeLoader } from "@/services/route-action.server";
-import { FileSystem } from "@effect/platform";
 import { Effect } from "effect";
 import {
   BookOpenIcon,
@@ -32,7 +31,6 @@ export const loader = makeLoader({
     Effect.gen(function* () {
       const videoId = params.videoId!;
       const videoOps = yield* VideoOperationsService;
-      const fs = yield* FileSystem.FileSystem;
       const video = yield* videoOps.getVideoWithLessonById(videoId);
 
       const [nextVideoId, previousVideoId] = yield* Effect.all([
@@ -45,7 +43,7 @@ export const loader = makeLoader({
       if (!lesson) {
         return {
           videoId,
-          videoPath: video.path,
+          videoTitle: video.title,
           lessonPath: null,
           sectionPath: null,
           repoId: null,
@@ -59,15 +57,11 @@ export const loader = makeLoader({
         };
       }
 
-      const hasExplainerFolder = yield* fs.exists(
-        `${lesson.section.repoVersion.repo.filePath}/${lesson.section.path}/${lesson.path}/explainer`
-      );
-
       return {
         videoId,
-        videoPath: video.path,
-        lessonPath: lesson.path,
-        sectionPath: lesson.section.path,
+        videoTitle: video.title,
+        lessonPath: lesson.title,
+        sectionPath: lesson.section.title,
         repoId: lesson.section.repoVersion.repoId,
         lessonId: lesson.id,
         pitchId: video.pitchId,
@@ -75,7 +69,7 @@ export const loader = makeLoader({
         nextVideoId,
         previousVideoId,
         videoCount: lesson.videos.length,
-        hasExplainerFolder,
+        hasExplainerFolder: false,
       };
     }),
 });
@@ -142,7 +136,7 @@ const isPostTab = (tab: Tab): boolean =>
 export default function VideoLayout({ loaderData }: Route.ComponentProps) {
   const {
     videoId,
-    videoPath,
+    videoTitle,
     lessonPath,
     sectionPath,
     repoId,
@@ -196,8 +190,8 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
 
   // Build breadcrumb text
   const breadcrumb = isStandalone
-    ? videoPath
-    : `${sectionPath}/${lessonPath}/${videoPath}`;
+    ? videoTitle
+    : `${sectionPath}/${lessonPath}/${videoTitle}`;
 
   return (
     <div className="h-screen flex flex-col">

@@ -9,7 +9,6 @@ import {
 } from "@/services/course-loader-fs";
 import { computeLessonWarnings } from "@/services/lesson-warnings";
 import type { ExportClip } from "@/services/export-hash";
-import { getGitStatusAsync } from "@/services/git-status-service.server";
 import { runtimeLive } from "@/services/layer.server";
 
 /**
@@ -103,16 +102,7 @@ export function courseViewEffect(input: {
         })()
       : undefined;
 
-    const lessons = selectedCourse?.filePath
-      ? selectedCourse.sections.flatMap((section) =>
-          section.lessons
-            .filter((lesson) => lesson.fsStatus !== "ghost")
-            .map((lesson) => ({
-              id: lesson.id,
-              fullPath: `${selectedCourse.filePath}/${section.path}/${lesson.path}`,
-            }))
-        )
-      : [];
+    const lessons: { id: string; fullPath: string }[] = [];
 
     const hasExportedVideoMap = selectedCourse
       ? runtimeLive.runPromise(
@@ -139,10 +129,6 @@ export function courseViewEffect(input: {
       selectedVersion.id === latestVersion.id
     );
 
-    const gitStatus = selectedCourse?.filePath
-      ? getGitStatusAsync(selectedCourse.filePath)
-      : Promise.resolve(null);
-
     return {
       courses,
       selectedCourse: slimCourse,
@@ -152,7 +138,6 @@ export function courseViewEffect(input: {
       hasExportedVideoMap,
       lessonFsMaps,
       videoTranscripts,
-      gitStatus,
       showMediaFilesList: featureFlags.isEnabled("ENABLE_MEDIA_FILES_LIST"),
       viewMode,
     };

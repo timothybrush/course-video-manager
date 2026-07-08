@@ -95,14 +95,13 @@ export interface ReadSeed {
 export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
   const [courseA] = await db
     .insert(schema.courses)
-    .values({ name: "Alpha", slug: "alpha", filePath: "/tmp/alpha" })
+    .values({ name: "Alpha", slug: "alpha" })
     .returning();
   const [courseB] = await db
     .insert(schema.courses)
     .values({
       name: "Beta",
       slug: "beta",
-      filePath: "/tmp/beta",
       archived: true,
     })
     .returning();
@@ -127,22 +126,20 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
 
   const [oldSection] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: publishedVersion!.id, path: "00-old", order: 1 })
+    .values({ repoVersionId: publishedVersion!.id, title: "00-old", order: 1 })
     .returning();
 
   const [draftSection] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: draftVersion!.id, path: "01-intro", order: 1 })
+    .values({ repoVersionId: draftVersion!.id, title: "01-intro", order: 1 })
     .returning();
 
   const [lesson] = await db
     .insert(schema.lessons)
     .values({
       sectionId: draftSection!.id,
-      path: "01-welcome",
       title: "Welcome",
       order: 1,
-      fsStatus: "real",
       authoringStatus: "done",
     })
     .returning();
@@ -151,7 +148,7 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
     .insert(schema.videos)
     .values({
       lessonId: lesson!.id,
-      path: "intro.mp4",
+      title: "intro.mp4",
       originalFootagePath: "footage.mp4",
     })
     .returning();
@@ -200,10 +197,8 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
     .insert(schema.lessons)
     .values({
       sectionId: draftSection!.id,
-      path: "02-deleted",
       title: "Deleted lesson",
       order: 2,
-      fsStatus: "real",
       authoringStatus: "done",
       archived: true,
     })
@@ -213,7 +208,7 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
     .insert(schema.sections)
     .values({
       repoVersionId: draftVersion!.id,
-      path: "99-deleted",
+      title: "99-deleted",
       order: 99,
       archivedAt: new Date("2024-02-01T00:00:00Z"),
     })
@@ -223,7 +218,7 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
     .insert(schema.videos)
     .values({
       lessonId: lesson!.id,
-      path: "deleted.mp4",
+      title: "deleted.mp4",
       originalFootagePath: "footage.mp4",
       archived: true,
     })
@@ -247,12 +242,12 @@ export const seedRead = async (db: TestDb): Promise<ReadSeed> => {
 
   const [standaloneActive] = await db
     .insert(schema.videos)
-    .values({ path: "standalone-active.mp4", originalFootagePath: "f.mp4" })
+    .values({ title: "standalone-active.mp4", originalFootagePath: "f.mp4" })
     .returning();
   const [standaloneArchived] = await db
     .insert(schema.videos)
     .values({
-      path: "standalone-archived.mp4",
+      title: "standalone-archived.mp4",
       originalFootagePath: "f.mp4",
       archived: true,
     })

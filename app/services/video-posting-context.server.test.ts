@@ -62,7 +62,7 @@ const createStandaloneVideoWithClips = (
   Effect.gen(function* () {
     const videoOps = yield* VideoOperationsService;
     const clipOps = yield* ClipOperationsService;
-    const video = yield* videoOps.createStandaloneVideo({ path: name });
+    const video = yield* videoOps.createStandaloneVideo({ title: name });
 
     const createdClips = yield* clipOps.appendClips({
       videoId: video.id,
@@ -116,7 +116,6 @@ const createLessonVideo = (setupFiles?: (lessonDir: string) => void) =>
     const videoOps = yield* VideoOperationsService;
 
     const course = yield* courseOps.createCourse({
-      filePath: tempDir,
       name: "test-course",
     });
     const version = yield* versionOps.createCourseVersion({
@@ -131,7 +130,7 @@ const createLessonVideo = (setupFiles?: (lessonDir: string) => void) =>
       { lessonPathWithNumber: lessonPath, lessonNumber: 1 },
     ]);
     const video = yield* videoOps.createVideo(lesson!.id, {
-      path: "test-video",
+      title: "test-video",
       originalFootagePath: "/footage",
     });
 
@@ -146,10 +145,9 @@ const createLessonVideo = (setupFiles?: (lessonDir: string) => void) =>
     };
   });
 
-function setupStandaloneDir(videoId: string): string {
-  const baseDir =
-    process.env.STANDALONE_VIDEO_FILES_DIR || "./standalone-video-files";
-  const dir = path.join(baseDir, videoId);
+function setupVideoDir(lineageId: string): string {
+  const baseDir = process.env.VIDEO_FILES_DIR || "./video-files";
+  const dir = path.join(baseDir, lineageId);
   nodeFs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -164,7 +162,7 @@ describe("loadVideoPostingContext", () => {
           [{ name: "Introduction", afterClipIndex: 0 }]
         );
 
-        setupStandaloneDir(video.id);
+        setupVideoDir(video.lineageId);
 
         const ctx = yield* loadVideoPostingContext(video.id);
 
@@ -190,7 +188,7 @@ describe("loadVideoPostingContext", () => {
           ]
         );
 
-        setupStandaloneDir(video.id);
+        setupVideoDir(video.lineageId);
 
         const ctx = yield* loadVideoPostingContext(video.id);
 
@@ -212,7 +210,7 @@ describe("loadVideoPostingContext", () => {
           "text",
         ]);
 
-        const dir = setupStandaloneDir(video.id);
+        const dir = setupVideoDir(video.lineageId);
         nodeFs.writeFileSync(path.join(dir, "code.ts"), "const x = 1;");
         nodeFs.writeFileSync(path.join(dir, "image.png"), "fake-png-data");
         nodeFs.writeFileSync(path.join(dir, "notes.md"), "# Notes");
@@ -250,27 +248,21 @@ describe("loadVideoPostingContext", () => {
     );
   });
 
-  describe("lesson file metadata", () => {
+  describe("lesson video file metadata", () => {
     it.effect(
-      "returns lesson files with recursive reading and excluded directory filtering",
+      "returns files from lineageId-keyed dir for lesson-bound videos",
       () =>
         Effect.gen(function* () {
-          const { video } = yield* createLessonVideo((lessonDir) => {
-            nodeFs.writeFileSync(path.join(lessonDir, "index.ts"), "export {}");
-            nodeFs.writeFileSync(path.join(lessonDir, "readme.md"), "# Readme");
-            nodeFs.mkdirSync(path.join(lessonDir, "node_modules", "pkg"), {
-              recursive: true,
-            });
-            nodeFs.writeFileSync(
-              path.join(lessonDir, "node_modules", "pkg", "index.js"),
-              "{}"
-            );
-          });
+          const { video } = yield* createLessonVideo();
+
+          const dir = setupVideoDir(video.lineageId);
+          nodeFs.writeFileSync(path.join(dir, "index.ts"), "export {}");
+          nodeFs.writeFileSync(path.join(dir, "readme.md"), "# Readme");
 
           const ctx = yield* loadVideoPostingContext(video.id);
 
           expect(ctx.isStandalone).toBe(false);
-          expect(ctx.files.length).toBeGreaterThan(0);
+          expect(ctx.files.length).toBe(2);
 
           const tsFile = ctx.files.find((f) => f.path === "index.ts");
           expect(tsFile).toBeDefined();
@@ -278,52 +270,32 @@ describe("loadVideoPostingContext", () => {
 
           const readmeFile = ctx.files.find((f) => f.path === "readme.md");
           expect(readmeFile).toBeDefined();
-          expect(readmeFile!.defaultEnabled).toBe(false);
-
-          const nodeModulesFile = ctx.files.find((f) =>
-            f.path.includes("node_modules")
-          );
-          expect(nodeModulesFile).toBeUndefined();
+          expect(readmeFile!.defaultEnabled).toBe(true);
         }).pipe(Effect.provide(testLayer))
     );
   });
 
   describe("course structure", () => {
-    it.effect(
-      "resolves course structure with version matching and fsStatus filtering",
-      () =>
-        Effect.gen(function* () {
-          const { video, section } = yield* createLessonVideo((lessonDir) => {
-            nodeFs.writeFileSync(path.join(lessonDir, "index.ts"), "export {}");
-          });
+    it.effect("resolves course structure with version matching", () =>
+      Effect.gen(function* () {
+        const { video } = yield* createLessonVideo((lessonDir) => {
+          nodeFs.writeFileSync(path.join(lessonDir, "index.ts"), "export {}");
+        });
 
-          const lsOps = yield* LessonSectionOperationsService;
-          yield* lsOps.createGhostLesson(section.id, {
-            title: "Ghost Lesson",
-            path: "002-ghost-lesson",
-            order: 2,
-          });
+        const ctx = yield* loadVideoPostingContext(video.id);
 
-          const ctx = yield* loadVideoPostingContext(video.id);
+        expect(ctx.courseStructure).not.toBeNull();
+        expect(ctx.courseStructure!.repoName).toBe("test-course");
+        expect(ctx.courseStructure!.currentSectionPath).toBe("01-intro");
+        expect(ctx.courseStructure!.currentLessonPath).toBe(
+          "01.01-getting-started"
+        );
+        expect(ctx.courseStructure!.sections).toHaveLength(1);
 
-          expect(ctx.courseStructure).not.toBeNull();
-          expect(ctx.courseStructure!.repoName).toBe("test-course");
-          expect(ctx.courseStructure!.currentSectionPath).toBe("01-intro");
-          expect(ctx.courseStructure!.currentLessonPath).toBe(
-            "01.01-getting-started"
-          );
-          expect(ctx.courseStructure!.sections).toHaveLength(1);
-
-          const sectionResult = ctx.courseStructure!.sections[0]!;
-          const realLessons = sectionResult.lessons.filter(
-            (l) => l.path === "01.01-getting-started"
-          );
-          expect(realLessons).toHaveLength(1);
-          const ghostLessons = sectionResult.lessons.filter(
-            (l) => l.path === "002-ghost-lesson"
-          );
-          expect(ghostLessons).toHaveLength(0);
-        }).pipe(Effect.provide(testLayer))
+        const sectionResult = ctx.courseStructure!.sections[0]!;
+        expect(sectionResult.lessons).toHaveLength(1);
+        expect(sectionResult.lessons[0]!.path).toBe("01.01-getting-started");
+      }).pipe(Effect.provide(testLayer))
     );
 
     it.effect("returns null courseStructure for standalone videos", () =>
@@ -332,7 +304,7 @@ describe("loadVideoPostingContext", () => {
           "text",
         ]);
 
-        setupStandaloneDir(video.id);
+        setupVideoDir(video.lineageId);
 
         const ctx = yield* loadVideoPostingContext(video.id);
 
@@ -346,10 +318,10 @@ describe("loadVideoPostingContext", () => {
       Effect.gen(function* () {
         const videoOps = yield* VideoOperationsService;
         const video = yield* videoOps.createStandaloneVideo({
-          path: "empty-video",
+          title: "empty-video",
         });
 
-        setupStandaloneDir(video.id);
+        setupVideoDir(video.lineageId);
 
         const ctx = yield* loadVideoPostingContext(video.id);
 
@@ -366,7 +338,7 @@ describe("loadVideoPostingContext", () => {
           "text",
         ]);
 
-        setupStandaloneDir(video.id);
+        setupVideoDir(video.lineageId);
 
         const ctx = yield* loadVideoPostingContext(video.id);
 

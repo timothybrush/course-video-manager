@@ -28,13 +28,13 @@ async function createBeat() {
     version.id,
     "01-intro",
     0,
-    [{ path: "01.01-lesson", title: "Lesson 1", fsStatus: "real", order: 1 }]
+    [{ title: "Lesson 1", order: 1 }]
   );
   const [video] = await db()
     .insert(schema.videos)
     .values({
       lessonId: lessons[0]!.id,
-      path: "video.mp4",
+      title: "video.mp4",
       originalFootagePath: "/tmp/video.mp4",
     })
     .returning();

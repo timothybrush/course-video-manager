@@ -13,7 +13,6 @@ function makeLesson(overrides: Partial<Lesson> = {}): Lesson {
     previousVersionLessonId: null,
     path: "lesson-path",
     title: null,
-    fsStatus: "real",
     description: null,
     icon: null,
     priority: 2,
@@ -29,7 +28,7 @@ function makeLesson(overrides: Partial<Lesson> = {}): Lesson {
 const noFilters = {
   priorityFilter: [] as number[],
   iconFilter: [] as string[],
-  fsStatusFilter: null as string | null,
+  todoFilter: false,
   searchQuery: "",
 };
 
@@ -39,13 +38,13 @@ describe("filterLessons", () => {
       makeLesson({
         authoringStatus: "todo",
         videos: [
-          { id: "v1", path: "v.mp4", clipCount: 5, totalDuration: 100 },
+          { id: "v1", title: "v.mp4", clipCount: 5, totalDuration: 100 },
         ] as Lesson["videos"],
       }),
     ];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
     });
     expect(filteredLessons).toHaveLength(1);
   });
@@ -54,16 +53,16 @@ describe("filterLessons", () => {
     const lessons = [makeLesson({ authoringStatus: "done" })];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
     });
     expect(filteredLessons).toHaveLength(0);
   });
 
-  it("todo filter excludes ghost lessons", () => {
-    const lessons = [makeLesson({ fsStatus: "ghost", authoringStatus: null })];
+  it("todo filter excludes lessons with null authoringStatus", () => {
+    const lessons = [makeLesson({ authoringStatus: null })];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
     });
     expect(filteredLessons).toHaveLength(0);
   });
@@ -76,7 +75,7 @@ describe("filterLessons", () => {
     ];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
     });
     expect(filteredLessons).toHaveLength(3);
   });
@@ -88,23 +87,22 @@ describe("filterLessons", () => {
     ];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
       priorityFilter: [1],
     });
     expect(filteredLessons).toHaveLength(1);
     expect(filteredLessons[0]!.id).toBe("p1");
   });
 
-  it("treats null fsStatus as real for todo filter", () => {
+  it("todo filter includes lesson with authoringStatus=todo", () => {
     const lessons = [
       makeLesson({
-        fsStatus: null as unknown as string,
         authoringStatus: "todo",
       }),
     ];
     const { filteredLessons } = filterLessons(lessons, {
       ...noFilters,
-      fsStatusFilter: "todo",
+      todoFilter: true,
     });
     expect(filteredLessons).toHaveLength(1);
   });
@@ -113,7 +111,7 @@ describe("filterLessons", () => {
     const lessons = [
       makeLesson({ id: "l1", authoringStatus: "todo" }),
       makeLesson({ id: "l2", authoringStatus: "done" }),
-      makeLesson({ id: "l3", fsStatus: "ghost", authoringStatus: null }),
+      makeLesson({ id: "l3", authoringStatus: null }),
     ];
     const { filteredLessons, hasActiveFilters } = filterLessons(
       lessons,

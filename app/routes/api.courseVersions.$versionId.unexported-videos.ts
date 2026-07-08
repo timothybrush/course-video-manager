@@ -21,12 +21,11 @@ export const action = makeAction({
 
       for (const section of version.sections) {
         for (const lesson of section.lessons) {
-          if (lesson.fsStatus === "ghost") continue;
           for (const video of lesson.videos) {
             if (unexportedVideoIds.includes(video.id)) {
               unexportedVideos.push({
                 id: video.id,
-                title: `${section.path}/${lesson.path}/${video.path}`,
+                title: `${section.path}/${lesson.path}/${video.title}`,
               });
             }
           }

@@ -17,7 +17,6 @@ describe("courseViewReducer", () => {
       expect(state.isVersionSelectorModalOpen).toBe(false);
       expect(state.isRenameCourseModalOpen).toBe(false);
       expect(state.isPurgeExportsModalOpen).toBe(false);
-      expect(state.isRewriteCoursePathModalOpen).toBe(false);
       expect(state.isAddStandaloneVideoModalOpen).toBe(false);
     });
 
@@ -26,7 +25,6 @@ describe("courseViewReducer", () => {
       expect(state.addGhostLessonSectionId).toBeNull();
       expect(state.addVideoToLessonId).toBeNull();
       expect(state.editLessonId).toBeNull();
-      expect(state.convertToGhostLessonId).toBeNull();
     });
 
     it("3. video player is closed initially", () => {
@@ -34,7 +32,7 @@ describe("courseViewReducer", () => {
       expect(state.videoPlayerState).toEqual({
         isOpen: false,
         videoId: "",
-        videoPath: "",
+        videoTitle: "",
       });
     });
 
@@ -49,7 +47,7 @@ describe("courseViewReducer", () => {
       const state = createTester().getState();
       expect(state.priorityFilter).toEqual([]);
       expect(state.iconFilter).toEqual([]);
-      expect(state.fsStatusFilter).toBeNull();
+      expect(state.todoFilter).toBe(false);
     });
   });
 
@@ -95,13 +93,6 @@ describe("courseViewReducer", () => {
         .send({ type: "set-purge-exports-modal-open", open: true })
         .getState();
       expect(state.isPurgeExportsModalOpen).toBe(true);
-    });
-
-    it("15. set-rewrite-course-path-modal-open: toggles", () => {
-      const state = createTester()
-        .send({ type: "set-rewrite-course-path-modal-open", open: true })
-        .getState();
-      expect(state.isRewriteCoursePathModalOpen).toBe(true);
     });
 
     it("16. set-add-standalone-video-modal-open: toggles", () => {
@@ -163,22 +154,6 @@ describe("courseViewReducer", () => {
       expect(state2.editLessonId).toBeNull();
     });
 
-    it("22. set-convert-to-ghost-lesson-id: sets and clears", () => {
-      const tester = createTester();
-      const state1 = tester
-        .send({
-          type: "set-convert-to-ghost-lesson-id",
-          lessonId: "lesson-3",
-        })
-        .getState();
-      expect(state1.convertToGhostLessonId).toBe("lesson-3");
-
-      const state2 = tester
-        .send({ type: "set-convert-to-ghost-lesson-id", lessonId: null })
-        .getState();
-      expect(state2.convertToGhostLessonId).toBeNull();
-    });
-
     it("22b. set-delete-lesson-id: sets and clears", () => {
       const tester = createTester();
       const state1 = tester
@@ -202,13 +177,13 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-video-player",
           videoId: "vid-1",
-          videoPath: "section/lesson/video.mp4",
+          videoTitle: "section/lesson/video.mp4",
         })
         .getState();
       expect(state.videoPlayerState).toEqual({
         isOpen: true,
         videoId: "vid-1",
-        videoPath: "section/lesson/video.mp4",
+        videoTitle: "section/lesson/video.mp4",
       });
     });
 
@@ -217,14 +192,14 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-video-player",
           videoId: "vid-1",
-          videoPath: "section/lesson/video.mp4",
+          videoTitle: "section/lesson/video.mp4",
         })
         .send({ type: "close-video-player" })
         .getState();
       expect(state.videoPlayerState).toEqual({
         isOpen: false,
         videoId: "",
-        videoPath: "",
+        videoTitle: "",
       });
     });
   });
@@ -235,13 +210,13 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-move-video",
           videoId: "vid-1",
-          videoPath: "video.mp4",
+          videoTitle: "video.mp4",
           currentLessonId: "lesson-1",
         })
         .getState();
       expect(state.moveVideoState).toEqual({
         videoId: "vid-1",
-        videoPath: "video.mp4",
+        videoTitle: "video.mp4",
         currentLessonId: "lesson-1",
       });
     });
@@ -251,7 +226,7 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-move-video",
           videoId: "vid-1",
-          videoPath: "video.mp4",
+          videoTitle: "video.mp4",
           currentLessonId: "lesson-1",
         })
         .send({ type: "close-move-video" })
@@ -297,12 +272,12 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-rename-video",
           videoId: "vid-1",
-          videoPath: "video.mp4",
+          videoTitle: "video.mp4",
         })
         .getState();
       expect(state.renameVideoState).toEqual({
         videoId: "vid-1",
-        videoPath: "video.mp4",
+        videoTitle: "video.mp4",
       });
     });
 
@@ -311,7 +286,7 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-rename-video",
           videoId: "vid-1",
-          videoPath: "video.mp4",
+          videoTitle: "video.mp4",
         })
         .send({ type: "close-rename-video" })
         .getState();
@@ -376,45 +351,30 @@ describe("courseViewReducer", () => {
       expect(state.iconFilter).toEqual(["code", "discussion"]);
     });
 
-    it("40. toggle-fs-status-filter: sets status when not active", () => {
+    it("40. toggle-todo-filter: toggles from false to true", () => {
       const state = createTester()
-        .send({ type: "toggle-fs-status-filter", status: "ghost" })
+        .send({ type: "toggle-todo-filter" })
         .getState();
-      expect(state.fsStatusFilter).toBe("ghost");
+      expect(state.todoFilter).toBe(true);
     });
 
-    it("41. toggle-fs-status-filter: clears status when already active", () => {
+    it("41. toggle-todo-filter: toggles back to false", () => {
       const state = createTester()
-        .send({ type: "toggle-fs-status-filter", status: "ghost" })
-        .send({ type: "toggle-fs-status-filter", status: "ghost" })
+        .send({ type: "toggle-todo-filter" })
+        .send({ type: "toggle-todo-filter" })
         .getState();
-      expect(state.fsStatusFilter).toBeNull();
-    });
-
-    it("42. toggle-fs-status-filter: exclusive — selecting one replaces the other", () => {
-      const state = createTester()
-        .send({ type: "toggle-fs-status-filter", status: "ghost" })
-        .send({ type: "toggle-fs-status-filter", status: "real" })
-        .getState();
-      expect(state.fsStatusFilter).toBe("real");
-    });
-
-    it("42b. toggle-fs-status-filter: todo filter", () => {
-      const state = createTester()
-        .send({ type: "toggle-fs-status-filter", status: "todo" })
-        .getState();
-      expect(state.fsStatusFilter).toBe("todo");
+      expect(state.todoFilter).toBe(false);
     });
 
     it("43. filters are independent of each other", () => {
       const state = createTester()
         .send({ type: "toggle-priority-filter", priority: 1 })
         .send({ type: "toggle-icon-filter", icon: "code" })
-        .send({ type: "toggle-fs-status-filter", status: "ghost" })
+        .send({ type: "toggle-todo-filter" })
         .getState();
       expect(state.priorityFilter).toEqual([1]);
       expect(state.iconFilter).toEqual(["code"]);
-      expect(state.fsStatusFilter).toBe("ghost");
+      expect(state.todoFilter).toBe(true);
     });
   });
 
@@ -513,7 +473,7 @@ describe("courseViewReducer", () => {
         .send({
           type: "open-video-player",
           videoId: "vid-1",
-          videoPath: "path",
+          videoTitle: "path",
         })
         .getState();
       expect(state.isAddCourseModalOpen).toBe(true);

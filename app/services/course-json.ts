@@ -12,7 +12,6 @@ const CourseJsonChapter = Schema.Struct({
 
 const CourseJsonVideo = Schema.Struct({
   id: Schema.String,
-  path: Schema.String,
   body: Schema.NullOr(Schema.String),
   description: Schema.NullOr(Schema.String),
   hash: Schema.NullOr(Schema.String),
@@ -22,7 +21,6 @@ const CourseJsonVideo = Schema.Struct({
 const ExplainerLessonSchema = Schema.Struct({
   type: Schema.Literal("explainer"),
   id: Schema.String,
-  path: Schema.String,
   title: Schema.String,
   description: Schema.String,
   explainer: CourseJsonVideo,
@@ -31,7 +29,6 @@ const ExplainerLessonSchema = Schema.Struct({
 const ProblemLessonSchema = Schema.Struct({
   type: Schema.Literal("problem"),
   id: Schema.String,
-  path: Schema.String,
   title: Schema.String,
   description: Schema.String,
   problem: CourseJsonVideo,
@@ -45,7 +42,6 @@ const CourseJsonLessonSchema = Schema.Union(
 
 const CourseJsonSectionSchema = Schema.Struct({
   id: Schema.String,
-  path: Schema.String,
   title: Schema.String,
   description: Schema.String,
   lessons: Schema.Array(CourseJsonLessonSchema),
@@ -67,7 +63,7 @@ export class InvalidLessonRoleComboError extends Data.TaggedError(
 )<{
   sectionPath: string;
   lessonPath: string;
-  videoPaths: string[];
+  videoTitles: string[];
 }> {}
 
 // ── Input types ─────────────────────────────────────────────────────────
@@ -86,7 +82,7 @@ type InputChapter = {
 
 type InputVideo = {
   lineageId: string;
-  path: string;
+  title: string;
   body: string | null;
   description: string | null;
   archived: boolean;
@@ -99,7 +95,6 @@ type InputLesson = {
   path: string;
   title: string;
   description: string;
-  fsStatus: string;
   videos: InputVideo[];
 };
 
@@ -128,7 +123,6 @@ function toVideoEntry(video: InputVideo): typeof CourseJsonVideo.Type {
   }));
   return {
     id: video.lineageId,
-    path: video.path,
     body: video.body,
     description: video.description,
     hash: computeExportHash(exportClips),
@@ -151,8 +145,6 @@ export const buildCourseJson = (
       const lessons: Array<typeof CourseJsonLessonSchema.Type> = [];
 
       for (const lesson of section.lessons) {
-        if (lesson.fsStatus === "ghost") continue;
-
         const activeVideos = lesson.videos.filter((v) => !v.archived);
         if (activeVideos.length === 0) continue;
 
@@ -161,13 +153,13 @@ export const buildCourseJson = (
           return yield* new InvalidLessonRoleComboError({
             sectionPath: section.path,
             lessonPath: lesson.path,
-            videoPaths: activeVideos.map((v) => v.path),
+            videoTitles: activeVideos.map((v) => v.title),
           });
         }
 
         const roleMap = activeVideos.map((v) => ({
           video: v,
-          role: deriveVideoRole(v.path),
+          role: deriveVideoRole(v.title),
         }));
 
         const problem = roleMap.find((r) => r.role === "problem");
@@ -179,7 +171,6 @@ export const buildCourseJson = (
             lessons.push({
               type: "problem",
               id: lesson.lineageId,
-              path: lesson.path,
               title: lesson.title,
               description: lesson.description,
               problem: toVideoEntry(problem.video),
@@ -189,7 +180,6 @@ export const buildCourseJson = (
             lessons.push({
               type: "problem",
               id: lesson.lineageId,
-              path: lesson.path,
               title: lesson.title,
               description: lesson.description,
               problem: toVideoEntry(problem.video),
@@ -200,7 +190,6 @@ export const buildCourseJson = (
           lessons.push({
             type: "explainer",
             id: lesson.lineageId,
-            path: lesson.path,
             title: lesson.title,
             description: lesson.description,
             explainer: toVideoEntry(video),
@@ -210,7 +199,6 @@ export const buildCourseJson = (
 
       sections.push({
         id: section.lineageId,
-        path: section.path,
         title: section.title,
         description: section.description,
         lessons,

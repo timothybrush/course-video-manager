@@ -3,6 +3,7 @@ import {
   planLessonMove,
   planLessonsMove,
 } from "@/services/lesson-move-planner";
+import { attachDerivedPaths } from "@/services/path-projection";
 import type {
   LoaderData,
   Lesson,
@@ -63,8 +64,6 @@ function entityIdForEvent(event: CourseEditorEvent): string {
     case "update-lesson-dependencies":
     case "delete-lesson":
     case "move-lesson-to-section":
-    case "convert-to-ghost":
-    case "create-on-disk":
     case "set-lesson-authoring-status":
       return event.lessonId;
     case "create-beat":
@@ -113,6 +112,7 @@ export function applyOptimisticEvent(
       }));
     case "update-section-name":
       return withPatchedSection(loaderData, event.sectionId, (section) => ({
+        title: event.title,
         path: replaceSlug(section.path, event.title),
       }));
     case "update-section-description":
@@ -123,8 +123,6 @@ export function applyOptimisticEvent(
       return applyDeleteLesson(loaderData, event);
     case "archive-section":
       return applyArchiveSection(loaderData, event);
-    case "convert-to-ghost":
-      return applyConvertToGhost(loaderData, event);
     case "reorder-sections":
       return applyReorderSections(loaderData, event);
     case "reorder-lessons":
@@ -206,36 +204,6 @@ function applyArchiveSection(
   return {
     ...loaderData,
     selectedCourse: { ...course, sections: filtered },
-  };
-}
-
-function applyConvertToGhost(
-  loaderData: LoaderData,
-  event: Extract<CourseEditorEvent, { type: "convert-to-ghost" }>
-): LoaderData {
-  const course = loaderData.selectedCourse;
-  if (!course) return loaderData;
-
-  let found = false;
-  const sections = course.sections.map((section) => {
-    if (found) return section;
-    let sectionChanged = false;
-    const lessons = section.lessons.map((lesson) => {
-      if (lesson.id === event.lessonId) {
-        found = true;
-        sectionChanged = true;
-        return { ...lesson, fsStatus: "ghost" as const };
-      }
-      return lesson;
-    });
-    return sectionChanged ? { ...section, lessons } : section;
-  });
-
-  if (!found) return loaderData;
-
-  return {
-    ...loaderData,
-    selectedCourse: { ...course, sections },
   };
 }
 
@@ -353,7 +321,6 @@ function toPlannerSections(course: NonNullable<LoaderData["selectedCourse"]>) {
       id: l.id,
       path: l.path,
       order: l.order,
-      fsStatus: l.fsStatus,
     })),
   }));
 }
@@ -436,11 +403,9 @@ function applyMovePlanToLoader(
   );
   const movedSet = new Set(movedIds);
 
-  // Patch a lesson's path/order from the plan; section membership is encoded by
-  // which section array the lesson sits in, so it isn't patched here.
   const patch = (l: Lesson): Lesson => {
     const u = lessonUpdateById.get(l.id);
-    return u ? { ...l, path: u.path, order: u.order } : l;
+    return u ? { ...l, order: u.order } : l;
   };
 
   const allLessons = course.sections.flatMap((s) => s.lessons);
@@ -487,7 +452,7 @@ function applyMovePlanToLoader(
 
   return {
     ...loaderData,
-    selectedCourse: { ...course, sections },
+    selectedCourse: { ...course, sections: attachDerivedPaths(sections) },
   };
 }
 

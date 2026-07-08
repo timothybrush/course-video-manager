@@ -34,7 +34,6 @@ export const makeDuplicateCourse = (db: Database) =>
   Effect.fn("duplicateCourse")(function* (input: {
     sourceCourseId: string;
     name: string;
-    filePath: string;
   }) {
     // Fetch source course
     const sourceCourse = yield* makeDbCall(() =>
@@ -72,7 +71,6 @@ export const makeDuplicateCourse = (db: Database) =>
         .insert(courses)
         .values({
           name: input.name,
-          filePath: input.filePath,
           memory: sourceCourse.memory,
         })
         .returning()
@@ -115,7 +113,7 @@ export const makeDuplicateCourse = (db: Database) =>
             where: eq(lessons.archived, false),
             with: {
               videos: {
-                orderBy: asc(videos.path),
+                orderBy: asc(videos.title),
                 where: eq(videos.archived, false),
                 with: {
                   clips: {
@@ -146,7 +144,7 @@ export const makeDuplicateCourse = (db: Database) =>
           .values({
             repoVersionId: newVersion.id,
             previousVersionSectionId: null,
-            path: sourceSection.path,
+            title: sourceSection.title,
             order: sourceSection.order,
             description: sourceSection.description,
           })
@@ -162,9 +160,7 @@ export const makeDuplicateCourse = (db: Database) =>
             .values({
               sectionId: newSection.id,
               previousVersionLessonId: null,
-              path: sourceLesson.path,
               order: sourceLesson.order,
-              fsStatus: sourceLesson.fsStatus,
               title: sourceLesson.title,
               description: sourceLesson.description,
               icon: sourceLesson.icon,
@@ -183,7 +179,7 @@ export const makeDuplicateCourse = (db: Database) =>
               .insert(videos)
               .values({
                 lessonId: newLesson.id,
-                path: sourceVideo.path,
+                title: sourceVideo.title,
                 originalFootagePath: sourceVideo.originalFootagePath,
               })
               .returning()

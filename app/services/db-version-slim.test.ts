@@ -28,10 +28,7 @@ beforeEach(async () => {
 const buildFixture = () =>
   Effect.gen(function* () {
     const [course] = yield* Effect.promise(() =>
-      testDb
-        .insert(schema.courses)
-        .values({ name: "Test Course", filePath: "/tmp/test" })
-        .returning()
+      testDb.insert(schema.courses).values({ name: "Test Course" }).returning()
     );
 
     const [version] = yield* Effect.promise(() =>
@@ -46,7 +43,6 @@ const buildFixture = () =>
         .insert(schema.sections)
         .values({
           repoVersionId: version!.id,
-          path: "01-intro",
           title: "intro",
           order: 1,
         })
@@ -58,7 +54,6 @@ const buildFixture = () =>
         .insert(schema.lessons)
         .values({
           sectionId: section!.id,
-          path: "01-intro/01-lesson",
           order: 1,
           authoringStatus: "done",
         })
@@ -70,7 +65,7 @@ const buildFixture = () =>
         .insert(schema.videos)
         .values({
           lessonId: lesson!.id,
-          path: "01-intro/01-lesson/video",
+          title: "01-intro/01-lesson/video",
           originalFootagePath: "footage.mp4",
         })
         .returning()
@@ -120,7 +115,6 @@ describe("getCourseWithSectionsByVersionSlim", () => {
       yield* Effect.promise(() =>
         testDb.insert(schema.sections).values({
           repoVersionId: version.id,
-          path: "02-archived",
           title: "archived",
           order: 2,
           archivedAt: new Date(),
@@ -134,7 +128,7 @@ describe("getCourseWithSectionsByVersionSlim", () => {
       });
 
       expect(result.sections).toHaveLength(1);
-      expect(result.sections[0]!.path).toBe("01-intro");
+      expect(result.sections[0]!.title).toBe("intro");
     }).pipe(Effect.provide(testLayer))
   );
 

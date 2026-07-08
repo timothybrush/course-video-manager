@@ -21,15 +21,13 @@ export function SectionContextMenuItems({
   lessons,
   allSectionIds,
   isReadOnly,
-  isGhostSection,
   dispatch,
   submitEvent,
 }: {
-  section: { id: string; path: string; description?: string | null };
+  section: { id: string; title: string; description?: string | null };
   lessons: Lesson[];
   allSectionIds: string[];
   isReadOnly: boolean;
-  isGhostSection: boolean;
   dispatch: (action: courseViewReducer.Action) => void;
   submitEvent: (event: CourseEditorEvent) => void;
 }) {
@@ -66,7 +64,7 @@ export function SectionContextMenuItems({
           onSelect={() =>
             dispatch({
               type: "open-copy-section-transcript",
-              sectionPath: section.path,
+              sectionTitle: section.title,
               sectionDescription: section.description ?? undefined,
               lessons,
             })
@@ -136,7 +134,7 @@ export function SectionContextMenuItems({
           </ContextMenuItem>
         </>
       )}
-      {!isReadOnly && isGhostSection && (
+      {!isReadOnly && (
         <>
           <ContextMenuSeparator />
           <ContextMenuItem

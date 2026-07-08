@@ -5,24 +5,22 @@ import type { CourseEditorEvent } from "@/services/course-editor-service";
 
 export function SectionModals({
   sectionId,
-  sectionPath,
+  sectionTitle,
   lessonCount,
   addGhostLessonSectionId,
   insertAdjacentLessonId,
   insertPosition,
   archiveSectionId,
-  courseFilePath,
   dispatch,
   submitEvent,
 }: {
   sectionId: string;
-  sectionPath: string;
+  sectionTitle: string;
   lessonCount: number;
   addGhostLessonSectionId: string | null;
   insertAdjacentLessonId: string | null;
   insertPosition: "before" | "after" | null;
   archiveSectionId: string | null;
-  courseFilePath: string | null;
   dispatch: (action: courseViewReducer.Action) => void;
   submitEvent: (event: CourseEditorEvent) => void;
 }) {
@@ -37,9 +35,9 @@ export function SectionModals({
             sectionId: open ? sectionId : null,
           });
         }}
-        onAddLesson={({ title, isReal }) => {
+        onAddLesson={({ title }) => {
           submitEvent({
-            type: isReal ? "create-real-lesson" : "add-ghost-lesson",
+            type: "add-ghost-lesson",
             sectionId,
             title,
             ...(insertAdjacentLessonId
@@ -52,11 +50,10 @@ export function SectionModals({
         }}
         adjacentLessonId={insertAdjacentLessonId}
         position={insertPosition}
-        courseFilePath={courseFilePath}
       />
       <ArchiveSectionModal
         sectionId={sectionId}
-        sectionTitle={sectionPath}
+        sectionTitle={sectionTitle}
         lessonCount={lessonCount}
         open={archiveSectionId === sectionId}
         onOpenChange={(open) => {

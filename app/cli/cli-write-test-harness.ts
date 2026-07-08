@@ -92,7 +92,7 @@ export interface WriteSeed {
 export const seedWrite = async (db: TestDb): Promise<WriteSeed> => {
   const [course] = await db
     .insert(schema.courses)
-    .values({ name: "Alpha", slug: "alpha", filePath: "/tmp/alpha" })
+    .values({ name: "Alpha", slug: "alpha" })
     .returning();
   const [draftVersion] = await db
     .insert(schema.courseVersions)
@@ -104,16 +104,14 @@ export const seedWrite = async (db: TestDb): Promise<WriteSeed> => {
     .returning();
   const [draftSection] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: draftVersion!.id, path: "01-intro", order: 1 })
+    .values({ repoVersionId: draftVersion!.id, title: "01-intro", order: 1 })
     .returning();
   const [lesson] = await db
     .insert(schema.lessons)
     .values({
       sectionId: draftSection!.id,
-      path: "01-welcome",
       title: "Welcome",
       order: 1,
-      fsStatus: "real",
       authoringStatus: "done",
     })
     .returning();
@@ -121,13 +119,13 @@ export const seedWrite = async (db: TestDb): Promise<WriteSeed> => {
     .insert(schema.videos)
     .values({
       lessonId: lesson!.id,
-      path: "intro.mp4",
+      title: "intro.mp4",
       originalFootagePath: "footage.mp4",
     })
     .returning();
   const [standaloneActive] = await db
     .insert(schema.videos)
-    .values({ path: "standalone-active.mp4", originalFootagePath: "f.mp4" })
+    .values({ title: "standalone-active.mp4", originalFootagePath: "f.mp4" })
     .returning();
   const [pitchActive] = await db
     .insert(schema.pitches)

@@ -74,7 +74,7 @@ export type SearchHit =
       id: string;
       courseId: string;
       lessonId: string;
-      path: string;
+      title: string;
       field: string;
       snippet: string;
     }
@@ -137,13 +137,12 @@ type BeatNode = {
 };
 type VideoNode = {
   id: string;
-  path: string;
+  title: string;
   lessonId: string;
   beats: BeatNode[];
 };
 type LessonNode = {
   id: string;
-  path: string;
   title: string;
   description: string;
   sectionId: string;
@@ -151,7 +150,7 @@ type LessonNode = {
 };
 type SectionNode = {
   id: string;
-  path: string;
+  title: string;
   description: string;
   lessons: LessonNode[];
 };
@@ -159,14 +158,13 @@ type CourseHead = { id: string; name: string; slug: string | null };
 
 // Nested `with` selection shared by every tree loader (section subtree down).
 const sectionWith = {
-  columns: { id: true, path: true, description: true, order: true },
+  columns: { id: true, title: true, description: true, order: true },
   where: isNull(sections.archivedAt),
   orderBy: asc(sections.order),
   with: {
     lessons: {
       columns: {
         id: true,
-        path: true,
         title: true,
         description: true,
         order: true,
@@ -176,9 +174,9 @@ const sectionWith = {
       orderBy: asc(lessons.order),
       with: {
         videos: {
-          columns: { id: true, path: true, lessonId: true },
+          columns: { id: true, title: true, lessonId: true },
           where: eq(videos.archived, false),
-          orderBy: asc(videos.path),
+          orderBy: asc(videos.title),
           with: {
             beats: {
               columns: {
@@ -312,7 +310,7 @@ export const createSearchOperations = (db: Database) => {
       const sec = yield* makeDbCall(() =>
         db.query.sections.findFirst({
           where: and(eq(sections.id, root.id), isNull(sections.archivedAt)),
-          columns: { id: true, path: true, description: true, order: true },
+          columns: { id: true, title: true, description: true, order: true },
           with: {
             repoVersion: { columns: { repoId: true } },
             lessons: sectionWith.with.lessons,
@@ -324,7 +322,7 @@ export const createSearchOperations = (db: Database) => {
       sectionNodes = [
         {
           id: sec.id,
-          path: sec.path,
+          title: sec.title,
           description: sec.description,
           lessons: sec.lessons as LessonNode[],
         },
@@ -336,7 +334,6 @@ export const createSearchOperations = (db: Database) => {
           where: and(eq(lessons.id, root.id), eq(lessons.archived, false)),
           columns: {
             id: true,
-            path: true,
             title: true,
             description: true,
             sectionId: true,
@@ -354,7 +351,6 @@ export const createSearchOperations = (db: Database) => {
       courseId = les.section?.repoVersion?.repoId ?? "";
       lessonRoot = {
         id: les.id,
-        path: les.path,
         title: les.title,
         description: les.description,
         sectionId: les.sectionId,
@@ -437,8 +433,8 @@ export const createSearchOperations = (db: Database) => {
     const emitVideo = (v: VideoNode, cid: string) => {
       if (want("video")) {
         const m =
-          (matches(v.path)
-            ? { field: "path", snippet: snippet(v.path) }
+          (matches(v.title)
+            ? { field: "title", snippet: snippet(v.title) }
             : null) ?? transcriptMatch.get(v.id);
         if (m)
           hits.push({
@@ -446,7 +442,7 @@ export const createSearchOperations = (db: Database) => {
             id: v.id,
             courseId: cid,
             lessonId: v.lessonId,
-            path: v.path,
+            title: v.title,
             field: m.field,
             snippet: m.snippet,
           });
@@ -474,7 +470,6 @@ export const createSearchOperations = (db: Database) => {
     const emitLesson = (les: LessonNode, cid: string) => {
       if (want("lesson")) {
         const m = firstMatch([
-          ["path", les.path],
           ["title", les.title],
           ["description", les.description],
         ]);
@@ -484,7 +479,7 @@ export const createSearchOperations = (db: Database) => {
             id: les.id,
             courseId: cid,
             sectionId: les.sectionId,
-            path: les.path,
+            path: les.title,
             field: m.field,
             snippet: m.snippet,
           });
@@ -495,7 +490,7 @@ export const createSearchOperations = (db: Database) => {
     const emitSection = (sec: SectionNode, cid: string) => {
       if (want("section")) {
         const m = firstMatch([
-          ["path", sec.path],
+          ["title", sec.title],
           ["description", sec.description],
         ]);
         if (m)
@@ -503,7 +498,7 @@ export const createSearchOperations = (db: Database) => {
             kind: "section",
             id: sec.id,
             courseId: cid,
-            path: sec.path,
+            path: sec.title,
             field: m.field,
             snippet: m.snippet,
           });

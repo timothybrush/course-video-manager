@@ -25,13 +25,6 @@ export class CannotUpdatePublishedVersionError extends Data.TaggedError(
   versionId: string;
 }> {}
 
-export class AmbiguousCourseUpdateError extends Data.TaggedError(
-  "AmbiguousCourseUpdateError"
-)<{
-  filePath: string;
-  repoCount: number;
-}> {}
-
 export class CannotArchiveLessonVideoError extends Data.TaggedError(
   "CannotArchiveLessonVideoError"
 )<{
@@ -61,9 +54,9 @@ export class LessonPathTakenError extends Data.TaggedError(
   message: string;
 }> {}
 
-export class VideoPathTakenError extends Data.TaggedError(
-  "VideoPathTakenError"
+export class VideoTitleTakenError extends Data.TaggedError(
+  "VideoTitleTakenError"
 )<{
-  path: string;
+  title: string;
   message: string;
 }> {}

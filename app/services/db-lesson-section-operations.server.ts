@@ -11,7 +11,7 @@ import {
 } from "@/services/db-service-errors";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Effect } from "effect";
-import { statusForCreateLesson } from "./lesson-authoring-status";
+import type { AuthoringStatus } from "./lesson-authoring-status";
 import { parseLessonPath } from "./lesson-path-service";
 import { parseSectionPath } from "./section-path-service";
 
@@ -42,7 +42,7 @@ export const createLessonSectionOperations = (db: Database) => {
         where: eq(lessons.id, id),
         with: {
           videos: {
-            orderBy: asc(videos.path),
+            orderBy: asc(videos.title),
           },
         },
       })
@@ -155,9 +155,6 @@ export const createLessonSectionOperations = (db: Database) => {
         .values(
           newSections.map((section) => ({
             repoVersionId,
-            path: section.sectionPathWithNumber,
-            // Title is the source of truth for the derived path; seed it from
-            // the created folder name so the projection reproduces it on read.
             title: titleFromSectionPathWithNumber(
               section.sectionPathWithNumber
             ),
@@ -194,11 +191,10 @@ export const createLessonSectionOperations = (db: Database) => {
         .values(
           newLessons.map((lesson) => ({
             sectionId,
-            path: lesson.lessonPathWithNumber,
             // Seed title from the folder name so the derived path reproduces it.
             title: titleFromLessonPathWithNumber(lesson.lessonPathWithNumber),
             order: lesson.lessonNumber,
-            authoringStatus: statusForCreateLesson("real"),
+            authoringStatus: "todo" satisfies AuthoringStatus,
           }))
         )
         .returning()
@@ -211,7 +207,6 @@ export const createLessonSectionOperations = (db: Database) => {
     sectionId: string,
     opts: {
       title: string;
-      path: string;
       order: number;
     }
   ) {
@@ -221,9 +216,8 @@ export const createLessonSectionOperations = (db: Database) => {
         .values({
           sectionId,
           title: opts.title,
-          path: opts.path,
           order: opts.order,
-          fsStatus: "ghost",
+          authoringStatus: "todo",
         })
         .returning()
     );
@@ -234,11 +228,9 @@ export const createLessonSectionOperations = (db: Database) => {
   const updateLesson = Effect.fn("updateLesson")(function* (
     lessonId: string,
     lesson: {
-      path?: string;
       sectionId?: string;
       lessonNumber?: number;
       title?: string;
-      fsStatus?: string;
       description?: string;
       dependencies?: string[];
       icon?: string | null;
@@ -250,11 +242,9 @@ export const createLessonSectionOperations = (db: Database) => {
       db
         .update(lessons)
         .set({
-          path: lesson.path,
           sectionId: lesson.sectionId,
           order: lesson.lessonNumber,
           title: lesson.title,
-          fsStatus: lesson.fsStatus,
           description: lesson.description,
           dependencies: lesson.dependencies,
           icon: lesson.icon,
@@ -305,12 +295,12 @@ export const createLessonSectionOperations = (db: Database) => {
     );
   });
 
-  const updateSectionPath = Effect.fn("updateSectionPath")(function* (
+  const updateSectionTitle = Effect.fn("updateSectionTitle")(function* (
     sectionId: string,
-    path: string
+    title: string
   ) {
     return yield* makeDbCall(() =>
-      db.update(sections).set({ path }).where(eq(sections.id, sectionId))
+      db.update(sections).set({ title }).where(eq(sections.id, sectionId))
     );
   });
 
@@ -390,8 +380,14 @@ export const createLessonSectionOperations = (db: Database) => {
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
-      // Cast to float8 to match the doublePrecision column type — without the
-      // cast, Drizzle sends numeric params as text and Postgres rejects them.
+
+      yield* makeDbCall(() =>
+        db
+          .update(lessons)
+          .set({ order: sql`-1 * ${lessons.order} - 1` })
+          .where(inArray(lessons.id, ids))
+      );
+
       const orderExpr = sql`case ${sql.join(
         updates.map(
           ({ id, order }) =>
@@ -412,12 +408,24 @@ export const createLessonSectionOperations = (db: Database) => {
    * Updates the order of multiple sections in a single SQL query using a
    * CASE WHEN expression. Equivalent to batchUpdateLessonOrders but for
    * sections.
+   *
+   * Two-phase update: the unique index on (repoVersionId, order) is checked
+   * per-row in PGlite, so shifting orders through each other in one statement
+   * would violate the constraint. Moving all affected rows to negative
+   * temporaries first avoids the collision.
    */
   const batchUpdateSectionOrders = Effect.fn("batchUpdateSectionOrders")(
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
-      // Cast to float8 to match the doublePrecision column type.
+
+      yield* makeDbCall(() =>
+        db
+          .update(sections)
+          .set({ order: sql`-1 * ${sections.order} - 1` })
+          .where(inArray(sections.id, ids))
+      );
+
       const orderExpr = sql`case ${sql.join(
         updates.map(
           ({ id, order }) =>
@@ -447,7 +455,7 @@ export const createLessonSectionOperations = (db: Database) => {
     deleteSection,
     archiveSection,
     updateSectionOrder,
-    updateSectionPath,
+    updateSectionTitle,
     updateSectionDescription,
     getSectionsByIds,
     getSectionsByRepoVersionId,

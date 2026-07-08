@@ -5,15 +5,15 @@ export function filterLessons(
   opts: {
     priorityFilter: number[];
     iconFilter: string[];
-    fsStatusFilter: string | null;
+    todoFilter: boolean;
     searchQuery: string;
   }
 ): { filteredLessons: Lesson[]; hasActiveFilters: boolean } {
-  const { priorityFilter, iconFilter, fsStatusFilter, searchQuery } = opts;
+  const { priorityFilter, iconFilter, todoFilter, searchQuery } = opts;
   const hasActiveFilters =
     priorityFilter.length > 0 ||
     iconFilter.length > 0 ||
-    fsStatusFilter !== null ||
+    todoFilter ||
     searchQuery.length > 0;
 
   if (!hasActiveFilters) return { filteredLessons: lessons, hasActiveFilters };
@@ -24,28 +24,19 @@ export function filterLessons(
       priorityFilter.includes(lesson.priority ?? 2);
     const passesIconFilter =
       iconFilter.length === 0 || iconFilter.includes(lesson.icon ?? "watch");
-    const passesFsStatusFilter = (() => {
-      if (fsStatusFilter === null) return true;
-      if (fsStatusFilter === "ghost")
-        return (lesson.fsStatus ?? "real") === "ghost";
-      if (fsStatusFilter === "real")
-        return (lesson.fsStatus ?? "real") === "real";
-      // "todo" filter
-      if ((lesson.fsStatus ?? "real") !== "real") return false;
-      return lesson.authoringStatus === "todo";
-    })();
+    const passesTodoFilter = !todoFilter || lesson.authoringStatus === "todo";
     const passesSearch = (() => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       if (lesson.path.toLowerCase().includes(q)) return true;
       if (lesson.title?.toLowerCase().includes(q)) return true;
       if (lesson.description?.toLowerCase().includes(q)) return true;
-      return lesson.videos.some((v) => v.path.toLowerCase().includes(q));
+      return lesson.videos.some((v) => v.title.toLowerCase().includes(q));
     })();
     return (
       passesPriorityFilter &&
       passesIconFilter &&
-      passesFsStatusFilter &&
+      passesTodoFilter &&
       passesSearch
     );
   });

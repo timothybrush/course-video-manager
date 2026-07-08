@@ -10,7 +10,6 @@ import {
   createCourseWithVersion,
   getLessons,
   getLessonById,
-  getSections,
   createSectionWithLessons,
   editorService as es,
   testDb,
@@ -24,7 +23,7 @@ const db = () => testDb;
 
 describe("CourseEditorService — lessons", () => {
   describe("add-ghost-lesson", () => {
-    it("creates a ghost lesson in a section", async () => {
+    it("creates a lesson in a section", async () => {
       const { version } = await createCourseWithVersion();
       const s = await svc().createSection(version.id, "Section A", 0);
 
@@ -38,17 +37,15 @@ describe("CourseEditorService — lessons", () => {
       expect(lessons).toHaveLength(1);
       expect(lessons[0]).toMatchObject({
         title: "My Lesson",
-        path: "my-lesson",
-        fsStatus: "ghost",
       });
     });
 
-    it("ghost lesson has null authoringStatus", async () => {
+    it("lesson starts with authoringStatus todo", async () => {
       const { version } = await createCourseWithVersion();
       const s = await svc().createSection(version.id, "Section A", 0);
       const l = await svc().addGhostLesson(s.sectionId, "My Lesson");
       const lesson = await getLessonById(l.lessonId);
-      expect(lesson!.authoringStatus).toBeNull();
+      expect(lesson!.authoringStatus).toBe("todo");
     });
 
     it("creates multiple ghost lessons with correct ordering", async () => {
@@ -71,12 +68,12 @@ describe("CourseEditorService — lessons", () => {
 
   describe("create-real-lesson", () => {
     it("creates a real lesson in a section with a parseable path", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+      const { version } = await createCourseWithVersion();
       const [section] = await db()
         .insert(schema.sections)
         .values({
           repoVersionId: version.id,
-          path: "01-introduction",
+          title: "01-introduction",
           order: 0,
         })
         .returning();
@@ -93,16 +90,15 @@ describe("CourseEditorService — lessons", () => {
 
       const lessons = await getLessons(section!.id);
       expect(lessons).toHaveLength(1);
-      expect(lessons[0]!.fsStatus).toBe("real");
     });
 
     it("real lesson starts with authoringStatus 'todo'", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+      const { version } = await createCourseWithVersion();
       const [section] = await db()
         .insert(schema.sections)
         .values({
           repoVersionId: version.id,
-          path: "01-introduction",
+          title: "01-introduction",
           order: 0,
         })
         .returning();
@@ -115,12 +111,11 @@ describe("CourseEditorService — lessons", () => {
       expect(lesson!.authoringStatus).toBe("todo");
     });
 
-    it("rejects creating a real lesson in a ghost course", async () => {
-      const { version } = await createCourseWithVersion(null);
+    it("creates a real lesson even when the course has no filePath", async () => {
+      const { version } = await createCourseWithVersion();
       const s = await svc().createSection(version.id, "Section A", 0);
-      await expect(
-        svc().createRealLesson(s.sectionId, "My Lesson")
-      ).rejects.toThrow();
+      const result = await svc().createRealLesson(s.sectionId, "My Lesson");
+      expect(result).toMatchObject({ success: true });
     });
   });
 
@@ -131,10 +126,10 @@ describe("CourseEditorService — lessons", () => {
       const l = await svc().addGhostLesson(s.sectionId, "Old Name");
 
       const result = await svc().updateLessonName(l.lessonId, "new-name");
-      expect(result).toMatchObject({ success: true, path: "new-name" });
+      expect(result).toMatchObject({ success: true, title: "new-name" });
 
       const lesson = await getLessonById(l.lessonId);
-      expect(lesson!.path).toBe("new-name");
+      expect(lesson!.title).toBe("new-name");
     });
 
     it("returns early when slug is unchanged", async () => {
@@ -143,7 +138,7 @@ describe("CourseEditorService — lessons", () => {
       const l = await svc().addGhostLesson(s.sectionId, "My Lesson");
 
       const result = await svc().updateLessonName(l.lessonId, "my-lesson");
-      expect(result).toMatchObject({ success: true, path: "my-lesson" });
+      expect(result).toMatchObject({ success: true, title: "my-lesson" });
     });
   });
 
@@ -158,7 +153,6 @@ describe("CourseEditorService — lessons", () => {
 
       const lesson = await getLessonById(l.lessonId);
       expect(lesson!.title).toBe("New Title");
-      expect(lesson!.path).toBe("new-title");
     });
   });
 
@@ -232,16 +226,16 @@ describe("CourseEditorService — lessons", () => {
       expect(archived!.archived).toBe(true);
     });
 
-    it("soft-deletes a real lesson and renumbers remaining", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+    it("soft-deletes a real lesson without renumbering siblings", async () => {
+      const { version } = await createCourseWithVersion();
       const { section, lessons } = await createSectionWithLessons(
         version.id,
         "01-intro",
         0,
         [
-          { path: "01.01-first", title: "First", fsStatus: "real", order: 0 },
-          { path: "01.02-second", title: "Second", fsStatus: "real", order: 1 },
-          { path: "01.03-third", title: "Third", fsStatus: "real", order: 2 },
+          { title: "First", order: 0 },
+          { title: "Second", order: 1 },
+          { title: "Third", order: 2 },
         ]
       );
 
@@ -249,7 +243,6 @@ describe("CourseEditorService — lessons", () => {
 
       const remaining = await getLessons(section.id);
       expect(remaining).toHaveLength(2);
-      expect(remaining[1]!.path).toBe("01.02-third");
 
       const archived = await getLessonById(lessons[1]!.id);
       expect(archived).toBeDefined();
@@ -275,16 +268,16 @@ describe("CourseEditorService — lessons", () => {
       expect(lessons.map((l) => l.title)).toEqual(["Gamma", "Beta", "Alpha"]);
     });
 
-    it("reorders real lessons and renumbers paths", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+    it("reorders real lessons by updating order values only", async () => {
+      const { version } = await createCourseWithVersion();
       const { section, lessons } = await createSectionWithLessons(
         version.id,
         "01-intro",
         0,
         [
-          { path: "01.01-alpha", title: "Alpha", fsStatus: "real", order: 0 },
-          { path: "01.02-beta", title: "Beta", fsStatus: "real", order: 1 },
-          { path: "01.03-gamma", title: "Gamma", fsStatus: "real", order: 2 },
+          { title: "Alpha", order: 0 },
+          { title: "Beta", order: 1 },
+          { title: "Gamma", order: 2 },
         ]
       );
 
@@ -296,11 +289,6 @@ describe("CourseEditorService — lessons", () => {
 
       const reordered = await getLessons(section.id);
       expect(reordered.map((l) => l.title)).toEqual(["Gamma", "Beta", "Alpha"]);
-      expect(reordered.map((l) => l.path)).toEqual([
-        "01.01-gamma",
-        "01.02-beta",
-        "01.03-alpha",
-      ]);
     });
   });
 
@@ -319,187 +307,76 @@ describe("CourseEditorService — lessons", () => {
       expect(target[0]!.title).toBe("My Lesson");
     });
 
-    it("materializes ghost target section when moving a real lesson", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+    it("moves a real lesson to an empty section and updates paths via planner", async () => {
+      const { version } = await createCourseWithVersion();
       const { lessons } = await createSectionWithLessons(
         version.id,
         "01-basics",
         0,
         [
           {
-            path: "01.01-alpha",
             title: "Alpha",
-            fsStatus: "real",
             order: 0,
           },
           {
-            path: "01.02-beta",
             title: "Beta",
-            fsStatus: "real",
             order: 1,
           },
         ]
       );
-      // Ghost target section
       const { section: s2 } = await createSectionWithLessons(
         version.id,
-        "Advanced Topics",
+        "02-advanced",
         1,
         []
       );
 
       await svc().moveLessonToSection(lessons[0]!.id, s2.id);
 
-      // Target section should be materialized
-      const sections = await getSections(version.id);
-      const targetSec = sections.find((s) => s.id === s2.id);
-      expect(targetSec!.path).toMatch(/^\d+-advanced-topics$/);
-
-      // Lesson should be moved with new path
       const targetLessons = await getLessons(s2.id);
       expect(targetLessons).toHaveLength(1);
-      expect(targetLessons[0]!.path).toMatch(/^\d+\.\d+-alpha$/);
+      expect(targetLessons[0]!.title).toBe("Alpha");
     });
 
-    it("reverts source section to ghost when last real lesson moves out", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const { section: s1, lessons } = await createSectionWithLessons(
-        version.id,
-        "01-basics",
-        0,
-        [
-          {
-            path: "01.01-only",
-            title: "Only Lesson",
-            fsStatus: "real",
-            order: 0,
-          },
-        ]
-      );
-      const { section: s2 } = await createSectionWithLessons(
-        version.id,
-        "02-advanced",
-        1,
-        []
-      );
-
-      await svc().moveLessonToSection(lessons[0]!.id, s2.id);
-
-      // Source section should revert to ghost title
-      const sections = await getSections(version.id);
-      const sourceSec = sections.find((s) => s.id === s1.id);
-      expect(sourceSec!.path).toBe("Basics");
-    });
-
-    it("does NOT revert source section when other real lessons remain", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const { section: s1, lessons } = await createSectionWithLessons(
-        version.id,
-        "01-basics",
-        0,
-        [
-          {
-            path: "01.01-alpha",
-            title: "Alpha",
-            fsStatus: "real",
-            order: 0,
-          },
-          {
-            path: "01.02-beta",
-            title: "Beta",
-            fsStatus: "real",
-            order: 1,
-          },
-        ]
-      );
-      const { section: s2 } = await createSectionWithLessons(
-        version.id,
-        "02-advanced",
-        1,
-        []
-      );
-
-      await svc().moveLessonToSection(lessons[0]!.id, s2.id);
-
-      // Source section should stay real
-      const sections = await getSections(version.id);
-      const sourceSec = sections.find((s) => s.id === s1.id);
-      expect(sourceSec!.path).toBe("01-basics");
-
-      // Remaining lesson should be renumbered
-      const sourceLessons = await getLessons(s1.id);
-      const realLessons = sourceLessons.filter((l) => l.fsStatus === "real");
-      expect(realLessons[0]!.path).toBe("01.01-beta");
-    });
-  });
-
-  describe("convert-to-ghost", () => {
-    it("converts a real lesson to ghost", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const { section, lessons } = await createSectionWithLessons(
-        version.id,
-        "01-intro",
-        0,
-        [
-          { path: "01.01-lesson", title: "Lesson", fsStatus: "real", order: 0 },
-          {
-            path: "01.02-another",
-            title: "Another",
-            fsStatus: "real",
-            order: 1,
-          },
-        ]
-      );
-
-      await svc().convertToGhost(lessons[0]!.id);
-
-      const lesson = await getLessonById(lessons[0]!.id);
-      expect(lesson!.fsStatus).toBe("ghost");
-
-      const remaining = await getLessons(section.id);
-      const realRemaining = remaining.filter((l) => l.fsStatus === "real");
-      expect(realRemaining).toHaveLength(1);
-      expect(realRemaining[0]!.path).toBe("01.01-another");
-    });
-
-    it("clears authoringStatus to null", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const { lessons } = await createSectionWithLessons(
-        version.id,
-        "01-intro",
-        0,
-        [
-          { path: "01.01-lesson", title: "Lesson", fsStatus: "real", order: 0 },
-          {
-            path: "01.02-another",
-            title: "Another",
-            fsStatus: "real",
-            order: 1,
-          },
-        ]
-      );
-
-      await svc().convertToGhost(lessons[0]!.id);
-      const lesson = await getLessonById(lessons[0]!.id);
-      expect(lesson!.authoringStatus).toBeNull();
-    });
-
-    it("rejects converting an already-ghost lesson", async () => {
+    it("renumbers remaining source lessons after a move", async () => {
       const { version } = await createCourseWithVersion();
-      const s = await svc().createSection(version.id, "Section A", 0);
-      const l = await svc().addGhostLesson(s.sectionId, "Ghost Lesson");
-      await expect(svc().convertToGhost(l.lessonId)).rejects.toThrow();
+      const { section: s1, lessons } = await createSectionWithLessons(
+        version.id,
+        "01-basics",
+        0,
+        [
+          {
+            title: "Alpha",
+            order: 0,
+          },
+          {
+            title: "Beta",
+            order: 1,
+          },
+        ]
+      );
+      const { section: s2 } = await createSectionWithLessons(
+        version.id,
+        "02-advanced",
+        1,
+        []
+      );
+
+      await svc().moveLessonToSection(lessons[0]!.id, s2.id);
+
+      const sourceLessons = await getLessons(s1.id);
+      expect(sourceLessons[0]!.title).toBe("Beta");
     });
   });
 
   describe("set-lesson-authoring-status", () => {
     it("marks a todo lesson as done", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+      const { version } = await createCourseWithVersion();
       const [section] = await db()
         .insert(schema.sections)
         .values({
           repoVersionId: version.id,
-          path: "01-introduction",
+          title: "01-introduction",
           order: 0,
         })
         .returning();
@@ -519,16 +396,14 @@ describe("CourseEditorService — lessons", () => {
     });
 
     it("marks a done lesson back to todo", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+      const { version } = await createCourseWithVersion();
       const { lessons } = await createSectionWithLessons(
         version.id,
         "01-intro",
         0,
         [
           {
-            path: "01.01-lesson",
             title: "Lesson",
-            fsStatus: "real",
             order: 0,
           },
         ]
@@ -544,24 +419,16 @@ describe("CourseEditorService — lessons", () => {
       );
     });
 
-    it("re-materialization after ghost roundtrip resets to 'todo'", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
+    it("set-lesson-authoring-status round-trips between done and todo", async () => {
+      const { version } = await createCourseWithVersion();
       const { lessons } = await createSectionWithLessons(
         version.id,
         "01-intro",
         0,
         [
           {
-            path: "01.01-lesson",
             title: "Lesson",
-            fsStatus: "real",
             order: 0,
-          },
-          {
-            path: "01.02-other",
-            title: "Other",
-            fsStatus: "real",
-            order: 1,
           },
         ]
       );
@@ -571,92 +438,10 @@ describe("CourseEditorService — lessons", () => {
         "done"
       );
 
-      await svc().convertToGhost(lessons[0]!.id);
-      expect((await getLessonById(lessons[0]!.id))!.authoringStatus).toBeNull();
-
-      await svc().createOnDisk(lessons[0]!.id);
+      await svc().setLessonAuthoringStatus(lessons[0]!.id, "todo");
       expect((await getLessonById(lessons[0]!.id))!.authoringStatus).toBe(
         "todo"
       );
-    });
-  });
-
-  describe("create-on-disk", () => {
-    it("materializes a ghost lesson to disk", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      // Section is already real because it holds a real lesson, so no section
-      // materialization (cascade) should occur when the ghost lesson lands.
-      const { section } = await createSectionWithLessons(
-        version.id,
-        "01-introduction",
-        0,
-        [
-          {
-            path: "01.01-existing",
-            title: "Existing",
-            fsStatus: "real",
-            order: 1,
-          },
-        ]
-      );
-
-      const l = await svc().addGhostLesson(section.id, "My Lesson");
-      const result = await svc().createOnDisk(l.lessonId);
-
-      expect(result).toMatchObject({ success: true, path: expect.any(String) });
-      // Should not include sectionPath/courseFilePath when no cascade happened
-      expect(result).not.toHaveProperty("sectionId");
-      expect(result).not.toHaveProperty("courseFilePath");
-      const lesson = await getLessonById(l.lessonId);
-      expect(lesson!.fsStatus).toBe("real");
-    });
-
-    it("returns sectionPath when ghost section is materialized", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      // Ghost section: it holds no real lessons (its path prefix is irrelevant)
-      const [section] = await db()
-        .insert(schema.sections)
-        .values({
-          repoVersionId: version.id,
-          path: "Introduction",
-          title: "Introduction",
-          order: 0,
-        })
-        .returning();
-
-      const l = await svc().addGhostLesson(section!.id, "First Lesson");
-      const result = await svc().createOnDisk(l.lessonId);
-
-      expect(result.sectionId).toBe(section!.id);
-      expect(result.sectionPath).toMatch(/^\d+-introduction$/);
-    });
-
-    it("materializing a ghost lesson sets authoringStatus to 'todo'", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const [section] = await db()
-        .insert(schema.sections)
-        .values({
-          repoVersionId: version.id,
-          path: "01-introduction",
-          order: 0,
-        })
-        .returning();
-
-      const l = await svc().addGhostLesson(section!.id, "My Lesson");
-      await svc().createOnDisk(l.lessonId);
-      const lesson = await getLessonById(l.lessonId);
-      expect(lesson!.authoringStatus).toBe("todo");
-    });
-
-    it("rejects materializing a non-ghost lesson", async () => {
-      const { version } = await createCourseWithVersion("/tmp/test-repo");
-      const { lessons } = await createSectionWithLessons(
-        version.id,
-        "01-intro",
-        0,
-        [{ path: "01.01-lesson", title: "Lesson", fsStatus: "real", order: 0 }]
-      );
-      await expect(svc().createOnDisk(lessons[0]!.id)).rejects.toThrow();
     });
   });
 });

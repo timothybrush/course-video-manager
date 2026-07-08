@@ -5,7 +5,6 @@ import { CopyVideoModal } from "@/components/copy-video-modal";
 import { MoveVideoModal } from "@/components/move-video-modal";
 import { RenameCourseModal } from "@/components/rename-course-modal";
 import { RenameVideoModal } from "@/components/rename-video-modal";
-import { RewriteCoursePathModal } from "@/components/rewrite-course-path-modal";
 import { VersionSelectorModal } from "@/components/version-selector-modal";
 import { computeCourseStats } from "@/features/course-view/course-editor-helpers";
 import { courseViewReducer } from "@/features/course-view/course-view-reducer";
@@ -14,9 +13,6 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Code,
-  FileVideo,
-  Ghost,
-  GitBranch,
   List,
   ListChecks,
   MessageCircle,
@@ -25,17 +21,15 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Suspense, use } from "react";
+import { Suspense } from "react";
 import { useNavigate } from "react-router";
 import { Input } from "@/components/ui/input";
 import type { LoaderData } from "./course-view-types";
 
 export function StatsBar({
   selectedCourse,
-  gitStatus,
 }: {
   selectedCourse: LoaderData["selectedCourse"];
-  gitStatus: LoaderData["gitStatus"];
 }) {
   const {
     totalLessonsWithVideos,
@@ -43,10 +37,7 @@ export function StatsBar({
     totalVideos,
     totalDurationSeconds,
     percentageComplete,
-  } = computeCourseStats(
-    selectedCourse?.sections ?? [],
-    selectedCourse?.filePath ?? null
-  );
+  } = computeCourseStats(selectedCourse?.sections ?? []);
 
   const totalDurationFormatted = (() => {
     const hours = Math.floor(totalDurationSeconds / 3600);
@@ -71,29 +62,15 @@ export function StatsBar({
           {totalDurationFormatted}
         </span>
       )}
-      <Suspense>
-        <GitStatusBadge gitStatus={gitStatus} />
-      </Suspense>
     </div>
-  );
-}
-
-function GitStatusBadge({ gitStatus }: { gitStatus: LoaderData["gitStatus"] }) {
-  const resolved = use(gitStatus);
-  if (!resolved || resolved.total === 0) return null;
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-yellow-500/20 px-2 py-1 text-xs font-medium text-yellow-600">
-      <GitBranch className="w-3 h-3" />
-      {resolved.total} change{resolved.total !== 1 ? "s" : ""}
-    </span>
   );
 }
 
 export function FilterBar({
   priorityFilter,
   iconFilter,
-  fsStatusFilter,
-  fsStatusCounts,
+  todoFilter,
+  todoCount,
   searchQuery,
   viewMode,
   onToggleViewMode,
@@ -101,12 +78,11 @@ export function FilterBar({
   onToggleAllSections,
   sectionCount,
   dispatch,
-  isRealCourse,
 }: {
   priorityFilter: number[];
   iconFilter: string[];
-  fsStatusFilter: string | null;
-  fsStatusCounts: { ghost: number; real: number; todo: number };
+  todoFilter: boolean;
+  todoCount: number;
   searchQuery: string;
   viewMode: "expanded" | "compact";
   onToggleViewMode: () => void;
@@ -114,12 +90,11 @@ export function FilterBar({
   onToggleAllSections: () => void;
   sectionCount: number;
   dispatch: (action: courseViewReducer.Action) => void;
-  isRealCourse: boolean;
 }) {
   const hasActiveFilters =
     priorityFilter.length > 0 ||
     iconFilter.length > 0 ||
-    fsStatusFilter !== null ||
+    todoFilter ||
     searchQuery.length > 0;
 
   return (
@@ -212,49 +187,20 @@ export function FilterBar({
           );
         })}
 
-        {isRealCourse && (
-          <>
-            <span className="text-muted-foreground mx-0.5">|</span>
-            {(["ghost", "real", "todo"] as const).map((status) => {
-              const isSelected = fsStatusFilter === status;
-              const showAsActive = fsStatusFilter === null || isSelected;
-              return (
-                <button
-                  key={status}
-                  className={`text-xs px-2 py-0.5 rounded-sm font-medium transition-colors flex items-center gap-1 ${
-                    showAsActive
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  } ${isSelected ? "ring-1 ring-current" : ""}`}
-                  onClick={() =>
-                    dispatch({ type: "toggle-fs-status-filter", status })
-                  }
-                  title={
-                    status === "ghost"
-                      ? "Ghost"
-                      : status === "real"
-                        ? "Real"
-                        : "Todo"
-                  }
-                >
-                  {status === "ghost" ? (
-                    <Ghost className="w-3 h-3" />
-                  ) : status === "real" ? (
-                    <FileVideo className="w-3 h-3" />
-                  ) : (
-                    <ListChecks className="w-3 h-3" />
-                  )}
-                  {status === "ghost"
-                    ? "Ghost"
-                    : status === "real"
-                      ? "Real"
-                      : "Todo"}
-                  <span className="opacity-60">{fsStatusCounts[status]}</span>
-                </button>
-              );
-            })}
-          </>
-        )}
+        <span className="text-muted-foreground mx-0.5">|</span>
+        <button
+          className={`text-xs px-2 py-0.5 rounded-sm font-medium transition-colors flex items-center gap-1 ${
+            todoFilter
+              ? "bg-muted text-muted-foreground ring-1 ring-current"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+          onClick={() => dispatch({ type: "toggle-todo-filter" })}
+          title="Todo"
+        >
+          <ListChecks className="w-3 h-3" />
+          Todo
+          <span className="opacity-60">{todoCount}</span>
+        </button>
 
         {hasActiveFilters && (
           <>
@@ -272,11 +218,8 @@ export function FilterBar({
                     dispatch({ type: "toggle-icon-filter", icon: i });
                   }
                 }
-                if (fsStatusFilter !== null) {
-                  dispatch({
-                    type: "toggle-fs-status-filter",
-                    status: fsStatusFilter,
-                  });
+                if (todoFilter) {
+                  dispatch({ type: "toggle-todo-filter" });
                 }
                 if (searchQuery) {
                   dispatch({ type: "set-search-query", query: "" });
@@ -358,32 +301,31 @@ export function RouteModals({
     isRenameCourseModalOpen: boolean;
     isVersionSelectorModalOpen: boolean;
     isPurgeExportsModalOpen: boolean;
-    isRewriteCoursePathModalOpen: boolean;
     isCopyTranscriptModalOpen: boolean;
     isDuplicateCourseModalOpen: boolean;
     copySectionTranscriptState: {
-      sectionPath: string;
+      sectionTitle: string;
       sectionDescription: string | undefined;
       lessons: import("./course-view-types").Lesson[];
     } | null;
     moveVideoState: {
       videoId: string;
-      videoPath: string;
+      videoTitle: string;
       currentLessonId: string;
     } | null;
     renameVideoState: {
       videoId: string;
-      videoPath: string;
+      videoTitle: string;
     } | null;
     copyVideoState: {
       videoId: string;
-      videoPath: string;
+      videoTitle: string;
       clipCount: number;
       beatCount: number;
     } | null;
     priorityFilter: number[];
     iconFilter: string[];
-    fsStatusFilter: string | null;
+    todoFilter: boolean;
   };
   dispatch: (action: courseViewReducer.Action) => void;
   navigate: ReturnType<typeof useNavigate>;
@@ -405,7 +347,6 @@ export function RouteModals({
         <DuplicateCourseModal
           courseId={currentCourse.id}
           currentName={currentCourse.name}
-          currentFilePath={currentCourse.filePath}
           open={viewState.isDuplicateCourseModalOpen}
           onOpenChange={(open) =>
             dispatch({ type: "set-duplicate-course-modal-open", open })
@@ -441,17 +382,6 @@ export function RouteModals({
         />
       )}
 
-      {currentCourse && currentCourse.filePath && (
-        <RewriteCoursePathModal
-          courseId={currentCourse.id}
-          currentPath={currentCourse.filePath}
-          open={viewState.isRewriteCoursePathModalOpen}
-          onOpenChange={(open) =>
-            dispatch({ type: "set-rewrite-course-path-modal-open", open })
-          }
-        />
-      )}
-
       <Suspense>
         {currentCourse && (
           <CopyTranscriptModal
@@ -465,23 +395,21 @@ export function RouteModals({
             }
             priorityFilter={viewState.priorityFilter}
             iconFilter={viewState.iconFilter}
-            fsStatusFilter={viewState.fsStatusFilter}
+            todoFilter={viewState.todoFilter}
             onTogglePriority={(priority) =>
               dispatch({ type: "toggle-priority-filter", priority })
             }
             onToggleIcon={(icon) =>
               dispatch({ type: "toggle-icon-filter", icon })
             }
-            onToggleFsStatus={(status) =>
-              dispatch({ type: "toggle-fs-status-filter", status })
-            }
+            onToggleTodo={() => dispatch({ type: "toggle-todo-filter" })}
           />
         )}
 
         {viewState.copySectionTranscriptState && (
           <CopyTranscriptModal
             mode="section"
-            sectionPath={viewState.copySectionTranscriptState.sectionPath}
+            sectionPath={viewState.copySectionTranscriptState.sectionTitle}
             sectionDescription={
               viewState.copySectionTranscriptState.sectionDescription
             }
@@ -493,16 +421,14 @@ export function RouteModals({
             }}
             priorityFilter={viewState.priorityFilter}
             iconFilter={viewState.iconFilter}
-            fsStatusFilter={viewState.fsStatusFilter}
+            todoFilter={viewState.todoFilter}
             onTogglePriority={(priority) =>
               dispatch({ type: "toggle-priority-filter", priority })
             }
             onToggleIcon={(icon) =>
               dispatch({ type: "toggle-icon-filter", icon })
             }
-            onToggleFsStatus={(status) =>
-              dispatch({ type: "toggle-fs-status-filter", status })
-            }
+            onToggleTodo={() => dispatch({ type: "toggle-todo-filter" })}
           />
         )}
       </Suspense>
@@ -510,7 +436,7 @@ export function RouteModals({
       {viewState.moveVideoState && currentCourse && (
         <MoveVideoModal
           videoId={viewState.moveVideoState.videoId}
-          videoPath={viewState.moveVideoState.videoPath}
+          videoTitle={viewState.moveVideoState.videoTitle}
           currentLessonId={viewState.moveVideoState.currentLessonId}
           sections={currentCourse.sections}
           open={true}
@@ -526,7 +452,7 @@ export function RouteModals({
       {viewState.renameVideoState && (
         <RenameVideoModal
           videoId={viewState.renameVideoState.videoId}
-          currentName={viewState.renameVideoState.videoPath}
+          currentName={viewState.renameVideoState.videoTitle}
           open={true}
           onOpenChange={(open) => {
             if (!open) dispatch({ type: "close-rename-video" });
@@ -540,7 +466,7 @@ export function RouteModals({
       {viewState.copyVideoState && (
         <CopyVideoModal
           videoId={viewState.copyVideoState.videoId}
-          videoPath={viewState.copyVideoState.videoPath}
+          videoTitle={viewState.copyVideoState.videoTitle}
           clipCount={viewState.copyVideoState.clipCount}
           beatCount={viewState.copyVideoState.beatCount}
           open={true}

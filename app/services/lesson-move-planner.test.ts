@@ -6,25 +6,16 @@ import {
   type PlannerSection,
 } from "./lesson-move-planner";
 
-/** Compact builder: real lesson. */
+/** Compact builder for a lesson. */
 const real = (id: string, path: string, order: number) => ({
   id,
   path,
   order,
-  fsStatus: "real" as const,
-});
-/** Compact builder: ghost lesson. */
-const ghost = (id: string, path: string, order: number) => ({
-  id,
-  path,
-  order,
-  fsStatus: "ghost" as const,
 });
 
-/** Maps lessonUpdates to a {id: {sectionId, path, order}} lookup. */
-const byId = (
-  updates: { id: string; sectionId: string; path: string; order: number }[]
-) => Object.fromEntries(updates.map((u) => [u.id, u]));
+/** Maps lessonUpdates to a {id: {sectionId, order}} lookup. */
+const byId = (updates: { id: string; sectionId: string; order: number }[]) =>
+  Object.fromEntries(updates.map((u) => [u.id, u]));
 
 const fsKinds = (ops: FsOp[]) => ops.map((o) => o.kind);
 
@@ -88,11 +79,11 @@ describe("planLessonMove", () => {
       expect(updates.second).toEqual({
         id: "second",
         sectionId: "s2",
-        path: "02.02-second",
         order: 1,
       });
-      // Source gap closed: third 01.03 → 01.02
-      expect(updates.third!.path).toBe("01.02-third");
+      // Source gap closed on disk, but third's order/sectionId are unchanged
+      // so it doesn't appear in the DB diff.
+      expect(updates.third).toBeUndefined();
       // First untouched (no update emitted)
       expect(updates.first).toBeUndefined();
       // Existing target lesson untouched (append, nothing shifts)
@@ -144,14 +135,10 @@ describe("planLessonMove", () => {
       });
 
       const updates = byId(plan.lessonUpdates);
-      expect(updates.moving!.path).toBe("02.02-moving");
       expect(updates.moving!.sectionId).toBe("s2");
       // order strictly between t1 (0) and t2 (1)
       expect(updates.moving!.order).toBeGreaterThan(0);
       expect(updates.moving!.order).toBeLessThan(1);
-      // t2, t3 shifted up by one number
-      expect(updates.t2!.path).toBe("02.03-t2");
-      expect(updates.t3!.path).toBe("02.04-t3");
       expect(updates.t1).toBeUndefined();
 
       // Source emptied → it dematerializes and sections renumber.
@@ -184,45 +171,7 @@ describe("planLessonMove", () => {
         beforeLessonId: "t1",
       });
       const updates = byId(plan.lessonUpdates);
-      expect(updates.a!.path).toBe("02.01-a");
       expect(updates.a!.order).toBeLessThan(5);
-      expect(updates.t1!.path).toBe("02.02-t1");
-    });
-  });
-
-  describe("ghost lesson", () => {
-    it("moves DB-only with no filesystem ops and no section changes", () => {
-      const sections: PlannerSection[] = [
-        {
-          id: "s1",
-          path: "01-intro",
-          lessons: [real("r", "01.01-r", 0), ghost("g", "ghost-lesson", 1)],
-        },
-        {
-          id: "s2",
-          path: "02-next",
-          lessons: [real("x", "02.01-x", 0)],
-        },
-      ];
-      const plan = planLessonMove({
-        sections,
-        lessonId: "g",
-        targetSectionId: "s2",
-        beforeLessonId: null,
-      });
-
-      expect(plan.fsOps).toEqual([]);
-      expect(plan.sectionUpdates).toEqual([]);
-      const updates = byId(plan.lessonUpdates);
-      expect(updates.g).toEqual({
-        id: "g",
-        sectionId: "s2",
-        path: "ghost-lesson",
-        order: 1,
-      });
-      // Real lessons untouched — a ghost leaving doesn't renumber anything.
-      expect(updates.r).toBeUndefined();
-      expect(updates.x).toBeUndefined();
     });
   });
 
@@ -252,10 +201,7 @@ describe("planLessonMove", () => {
       });
 
       const updates = byId(plan.lessonUpdates);
-      expect(updates.first!.path).toBe("02.01-first");
       expect(updates.first!.sectionId).toBe("s2");
-      // Source still real → renumbers second to close the gap.
-      expect(updates.second!.path).toBe("01.01-second");
 
       const secUpdates = Object.fromEntries(
         plan.sectionUpdates.map((s) => [s.id, s.path])
@@ -291,8 +237,6 @@ describe("planLessonMove", () => {
       });
 
       const updates = byId(plan.lessonUpdates);
-      // Target materialized then renumbered 02 → 01 (source dematerialized).
-      expect(updates.only!.path).toBe("01.01-only-lesson");
       expect(updates.only!.sectionId).toBe("s2");
 
       const secUpdates = Object.fromEntries(
@@ -359,17 +303,15 @@ describe("planLessonsMove", () => {
     expect(updates.a!.sectionId).toBe("s2");
     expect(updates.c!.sectionId).toBe("s2");
     // ...appended after the existing target lesson, in selection order a then c.
-    expect(updates.a!.path).toBe("02.02-a");
-    expect(updates.c!.path).toBe("02.03-c");
     expect(updates.a!.order).toBeLessThan(updates.c!.order);
     // x is unchanged (order 0, already first), so it isn't in the diff; the
     // appended block sorts after it.
     expect(updates.x).toBeUndefined();
     expect(updates.a!.order).toBeGreaterThan(0);
 
-    // The unselected source lesson is renumbered to close the gap.
-    expect(updates.b!.sectionId).toBe("s1");
-    expect(updates.b!.path).toBe("01.01-b");
+    // The unselected source lesson is renumbered on disk, but its
+    // order/sectionId are unchanged so it doesn't appear in the DB diff.
+    expect(updates.b).toBeUndefined();
   });
 
   it("preserves source display order and lands contiguous before the anchor", () => {

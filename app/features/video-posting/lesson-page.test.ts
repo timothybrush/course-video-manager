@@ -30,7 +30,7 @@ beforeEach(async () => {
 async function seedLessonVideo() {
   const [course] = await testDb
     .insert(schema.courses)
-    .values({ name: "Test Course", filePath: "/tmp/test" })
+    .values({ name: "Test Course" })
     .returning();
   const [version] = await testDb
     .insert(schema.courseVersions)
@@ -38,15 +38,13 @@ async function seedLessonVideo() {
     .returning();
   const [section] = await testDb
     .insert(schema.sections)
-    .values({ repoVersionId: version!.id, path: "01-intro", order: 1 })
+    .values({ repoVersionId: version!.id, title: "01-intro", order: 1 })
     .returning();
   const [lesson] = await testDb
     .insert(schema.lessons)
     .values({
       sectionId: section!.id,
-      path: "01-hello",
       order: 1,
-      fsStatus: "real",
       title: "Hello World",
       authoringStatus: "done",
     })
@@ -55,7 +53,7 @@ async function seedLessonVideo() {
     .insert(schema.videos)
     .values({
       lessonId: lesson!.id,
-      path: "explainer",
+      title: "explainer",
       originalFootagePath: "/footage/v1",
     })
     .returning();

@@ -7,10 +7,10 @@ const makeVideo = (
   overrides: Partial<
     BuildCourseJsonInput["sections"][0]["lessons"][0]["videos"][0]
   > & {
-    path: string;
+    title: string;
   }
 ) => ({
-  lineageId: `vid-lineage-${overrides.path}`,
+  lineageId: `vid-lineage-${overrides.title}`,
   body: null,
   description: null,
   archived: false,
@@ -28,7 +28,6 @@ const makeLesson = (
   lineageId: `lesson-lineage-${overrides.path}`,
   title: overrides.path,
   description: "",
-  fsStatus: "real",
   ...overrides,
 });
 
@@ -106,7 +105,7 @@ describe("buildCourseJson", () => {
             makeLesson({
               path: "01.01-welcome",
               lineageId: "lesson-abc",
-              videos: [makeVideo({ path: "Explainer" })],
+              videos: [makeVideo({ title: "Explainer" })],
             }),
           ],
         }),
@@ -123,7 +122,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer", lineageId: "vid-abc" })],
+              videos: [makeVideo({ title: "Explainer", lineageId: "vid-abc" })],
             }),
           ],
         }),
@@ -150,7 +149,7 @@ describe("buildCourseJson", () => {
               description: "A welcome lesson",
               videos: [
                 makeVideo({
-                  path: "Explainer",
+                  title: "Explainer",
                   body: "# Hello",
                   description: "SEO text",
                 }),
@@ -164,17 +163,19 @@ describe("buildCourseJson", () => {
     const lesson = result.sections[0]!.lessons[0]!;
     expect(lesson).toMatchObject({
       type: "explainer",
-      path: "01.01-welcome",
       title: "Welcome",
       description: "A welcome lesson",
       explainer: {
-        path: "Explainer",
         body: "# Hello",
         description: "SEO text",
         hash: null,
         chapters: [],
       },
     });
+    expect(lesson).not.toHaveProperty("path");
+    if (lesson.type === "explainer") {
+      expect(lesson.explainer).not.toHaveProperty("path");
+    }
   });
 
   // ── Problem-only lesson ────────────────────────────────────────────
@@ -187,7 +188,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-exercise",
-              videos: [makeVideo({ path: "Problem" })],
+              videos: [makeVideo({ title: "Problem" })],
             }),
           ],
         }),
@@ -196,8 +197,9 @@ describe("buildCourseJson", () => {
 
     const lesson = result.sections[0]!.lessons[0]!;
     expect(lesson.type).toBe("problem");
+    expect(lesson).not.toHaveProperty("path");
     if (lesson.type === "problem") {
-      expect(lesson.problem.path).toBe("Problem");
+      expect(lesson.problem).not.toHaveProperty("path");
       expect(lesson.solution).toBeUndefined();
     }
   });
@@ -213,8 +215,8 @@ describe("buildCourseJson", () => {
             makeLesson({
               path: "01.01-exercise",
               videos: [
-                makeVideo({ path: "Problem", lineageId: "prob-1" }),
-                makeVideo({ path: "Solution", lineageId: "sol-1" }),
+                makeVideo({ title: "Problem", lineageId: "prob-1" }),
+                makeVideo({ title: "Solution", lineageId: "sol-1" }),
               ],
             }),
           ],
@@ -241,7 +243,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-intro",
-              videos: [makeVideo({ path: "Intro" })],
+              videos: [makeVideo({ title: "Intro" })],
             }),
           ],
         }),
@@ -250,8 +252,9 @@ describe("buildCourseJson", () => {
 
     const lesson = result.sections[0]!.lessons[0]!;
     expect(lesson.type).toBe("explainer");
+    expect(lesson).not.toHaveProperty("path");
     if (lesson.type === "explainer") {
-      expect(lesson.explainer.path).toBe("Intro");
+      expect(lesson.explainer).not.toHaveProperty("path");
     }
   });
 
@@ -265,7 +268,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer", clips: CLIPS })],
+              videos: [makeVideo({ title: "Explainer", clips: CLIPS })],
             }),
           ],
         }),
@@ -287,7 +290,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer", clips: [] })],
+              videos: [makeVideo({ title: "Explainer", clips: [] })],
             }),
           ],
         }),
@@ -312,7 +315,7 @@ describe("buildCourseJson", () => {
               path: "01.01-welcome",
               videos: [
                 makeVideo({
-                  path: "Explainer",
+                  title: "Explainer",
                   clips: [
                     {
                       videoFilename: "rec.mp4",
@@ -353,7 +356,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer", clips: CLIPS })],
+              videos: [makeVideo({ title: "Explainer", clips: CLIPS })],
             }),
           ],
         }),
@@ -364,27 +367,6 @@ describe("buildCourseJson", () => {
     if (lesson.type === "explainer") {
       expect(lesson.explainer.chapters).toEqual([]);
     }
-  });
-
-  // ── Ghost lessons skipped ──────────────────────────────────────────
-
-  it("skips ghost lessons", async () => {
-    const result = await run(
-      makeInput([
-        makeSection({
-          path: "01-intro",
-          lessons: [
-            makeLesson({
-              path: "01.01-welcome",
-              fsStatus: "ghost",
-              videos: [makeVideo({ path: "Explainer" })],
-            }),
-          ],
-        }),
-      ])
-    );
-
-    expect(result.sections[0]!.lessons).toEqual([]);
   });
 
   // ── Archived videos filtered ───────────────────────────────────────
@@ -398,8 +380,8 @@ describe("buildCourseJson", () => {
             makeLesson({
               path: "01.01-welcome",
               videos: [
-                makeVideo({ path: "Explainer", archived: true }),
-                makeVideo({ path: "Problem" }),
+                makeVideo({ title: "Explainer", archived: true }),
+                makeVideo({ title: "Problem" }),
               ],
             }),
           ],
@@ -419,7 +401,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer", archived: true })],
+              videos: [makeVideo({ title: "Explainer", archived: true })],
             }),
           ],
         }),
@@ -440,7 +422,7 @@ describe("buildCourseJson", () => {
             lessons: [
               makeLesson({
                 path: "01.01-exercise",
-                videos: [makeVideo({ path: "Solution" })],
+                videos: [makeVideo({ title: "Solution" })],
               }),
             ],
           }),
@@ -451,7 +433,7 @@ describe("buildCourseJson", () => {
       _tag: "InvalidLessonRoleComboError",
       sectionPath: "01-intro",
       lessonPath: "01.01-exercise",
-      videoPaths: ["Solution"],
+      videoTitles: ["Solution"],
     });
   });
 
@@ -465,8 +447,8 @@ describe("buildCourseJson", () => {
               makeLesson({
                 path: "01.01-exercise",
                 videos: [
-                  makeVideo({ path: "Explainer" }),
-                  makeVideo({ path: "Problem" }),
+                  makeVideo({ title: "Explainer" }),
+                  makeVideo({ title: "Problem" }),
                 ],
               }),
             ],
@@ -490,8 +472,8 @@ describe("buildCourseJson", () => {
               makeLesson({
                 path: "01.01-exercise",
                 videos: [
-                  makeVideo({ path: "Problem" }),
-                  makeVideo({ path: "Problem" }),
+                  makeVideo({ title: "Problem" }),
+                  makeVideo({ title: "Problem" }),
                 ],
               }),
             ],
@@ -512,9 +494,9 @@ describe("buildCourseJson", () => {
               makeLesson({
                 path: "01.01-exercise",
                 videos: [
-                  makeVideo({ path: "Problem" }),
-                  makeVideo({ path: "Solution" }),
-                  makeVideo({ path: "Solution 2" }),
+                  makeVideo({ title: "Problem" }),
+                  makeVideo({ title: "Solution" }),
+                  makeVideo({ title: "Solution 2" }),
                 ],
               }),
             ],
@@ -552,7 +534,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer" })],
+              videos: [makeVideo({ title: "Explainer" })],
             }),
           ],
         }),
@@ -560,6 +542,7 @@ describe("buildCourseJson", () => {
     );
 
     expect(result.sections[0]!.title).toBe("Introduction");
+    expect(result.sections[0]).not.toHaveProperty("path");
   });
 
   it("emits title on every section", async () => {
@@ -592,7 +575,7 @@ describe("buildCourseJson", () => {
           lessons: [
             makeLesson({
               path: "01.01-welcome",
-              videos: [makeVideo({ path: "Explainer" })],
+              videos: [makeVideo({ title: "Explainer" })],
             }),
           ],
         }),
@@ -602,13 +585,13 @@ describe("buildCourseJson", () => {
             makeLesson({
               path: "02.01-exercise",
               videos: [
-                makeVideo({ path: "Problem" }),
-                makeVideo({ path: "Solution" }),
+                makeVideo({ title: "Problem" }),
+                makeVideo({ title: "Solution" }),
               ],
             }),
             makeLesson({
               path: "02.02-exercise",
-              videos: [makeVideo({ path: "Problem" })],
+              videos: [makeVideo({ title: "Problem" })],
             }),
           ],
         }),
@@ -635,7 +618,7 @@ describe("buildCourseJson", () => {
               path: "01.01-welcome",
               videos: [
                 makeVideo({
-                  path: "Explainer",
+                  title: "Explainer",
                   body: null,
                   description: null,
                 }),

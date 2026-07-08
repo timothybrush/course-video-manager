@@ -38,8 +38,6 @@ export const batchExportProgram = (
 
     for (const section of version.sections) {
       for (const lesson of section.lessons) {
-        // Skip ghost lessons — they have no videos on disk
-        if (lesson.fsStatus === "ghost") continue;
         for (const video of lesson.videos) {
           if (video.clips.length > 0) {
             const exportedVideoPath = path.join(
@@ -51,7 +49,7 @@ export const batchExportProgram = (
             if (!exists) {
               unexportedVideos.push({
                 id: video.id,
-                title: `${section.path}/${lesson.path}/${video.path}`,
+                title: `${section.path}/${lesson.path}/${video.title}`,
                 clips: video.clips,
               });
             }

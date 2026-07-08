@@ -16,11 +16,9 @@ import {
 // ===========================================================================
 // cvm WRITE verbs — lesson update (rename) + move (reorder / re-home)
 //
-// All fixtures use a GHOST course (no filePath) with GHOST lessons, so the move
-// planner emits zero filesystem ops and the disk-sync validation short-circuits
-// (repoPath === null). That exercises the full CLI → CourseWriteService wiring,
-// the planner, and the Draft guard as a pure DB path over PGlite. The on-disk
-// renumber / git-mv cascade for REAL lessons is covered by the service's own
+// All fixtures use a course with lessons. That exercises the full CLI →
+// CourseWriteService wiring, the planner, and the Draft guard as a pure DB path
+// over PGlite. The service's own
 // suites (lesson-move-planner, course-repo-write-*).
 //
 // CLI convention: options come BEFORE the positional <id> (a flag after the id
@@ -40,9 +38,7 @@ interface Lesson {
   id: string;
   sectionId: string;
   title: string;
-  path: string;
   order: number;
-  fsStatus: string;
   archived: boolean;
 }
 
@@ -69,26 +65,25 @@ interface MoveSeed {
 const addGhost = async (
   db: TestDb,
   sectionId: string,
-  path: string,
   title: string,
   order: number
 ): Promise<string> => {
   const [row] = await db
     .insert(schema.lessons)
-    .values({ sectionId, path, title, order, fsStatus: "ghost" })
+    .values({ sectionId, title, order })
     .returning();
   return row!.id;
 };
 
 /**
- * A ghost course (filePath null) with two sections of ghost lessons, plus an
- * older frozen version carrying one lesson (for the Draft-guard tests). The
- * draft is the NEWER version by createdAt.
+ * A course with two sections of lessons, plus an older frozen version carrying
+ * one lesson (for the Draft-guard tests). The draft is the NEWER version by
+ * createdAt.
  */
 const seedMove = async (db: TestDb): Promise<MoveSeed> => {
   const [course] = await db
     .insert(schema.courses)
-    .values({ name: "Beta", slug: "beta" }) // no filePath => ghost course
+    .values({ name: "Beta", slug: "beta" })
     .returning();
 
   const [oldVersion] = await db
@@ -110,23 +105,23 @@ const seedMove = async (db: TestDb): Promise<MoveSeed> => {
 
   const [sectionA] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: draftVersion!.id, path: "01-alpha", order: 1 })
+    .values({ repoVersionId: draftVersion!.id, title: "01-alpha", order: 1 })
     .returning();
   const [sectionB] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: draftVersion!.id, path: "02-beta", order: 2 })
+    .values({ repoVersionId: draftVersion!.id, title: "02-beta", order: 2 })
     .returning();
 
-  const a1 = await addGhost(db, sectionA!.id, "a-one", "A One", 1);
-  const a2 = await addGhost(db, sectionA!.id, "a-two", "A Two", 2);
-  const a3 = await addGhost(db, sectionA!.id, "a-three", "A Three", 3);
-  const b1 = await addGhost(db, sectionB!.id, "b-one", "B One", 1);
+  const a1 = await addGhost(db, sectionA!.id, "A One", 1);
+  const a2 = await addGhost(db, sectionA!.id, "A Two", 2);
+  const a3 = await addGhost(db, sectionA!.id, "A Three", 3);
+  const b1 = await addGhost(db, sectionB!.id, "B One", 1);
 
   const [archivedSection] = await db
     .insert(schema.sections)
     .values({
       repoVersionId: draftVersion!.id,
-      path: "03-gone",
+      title: "03-gone",
       order: 3,
       archivedAt: new Date("2024-05-01T00:00:00Z"),
     })
@@ -134,15 +129,9 @@ const seedMove = async (db: TestDb): Promise<MoveSeed> => {
 
   const [oldSection] = await db
     .insert(schema.sections)
-    .values({ repoVersionId: oldVersion!.id, path: "01-old", order: 1 })
+    .values({ repoVersionId: oldVersion!.id, title: "01-old", order: 1 })
     .returning();
-  const publishedLessonId = await addGhost(
-    db,
-    oldSection!.id,
-    "old-one",
-    "Old One",
-    1
-  );
+  const publishedLessonId = await addGhost(db, oldSection!.id, "Old One", 1);
 
   return {
     repoId: course!.id,
@@ -191,7 +180,6 @@ describe("lesson update --title", () => {
     expect(stdout).toMatch(/^\{\n/); // single pretty object
     const lesson = one<Lesson>(stdout);
     expect(lesson.title).toBe("A Much Better Title");
-    expect(lesson.path).toBe("a-one"); // slug is deliberately NOT re-derived
   });
 
   it("rejects an empty title as invalid input (exit 3)", async () => {
@@ -236,13 +224,7 @@ describe("lesson update --title", () => {
 
 describe("lesson move (same-section reorder)", () => {
   it("--before puts the lesson immediately before the anchor", async () => {
-    const { exitCode } = await run([
-      "lesson",
-      "move",
-      "--before",
-      s.a1,
-      s.a3,
-    ]);
+    const { exitCode } = await run(["lesson", "move", "--before", s.a1, s.a3]);
     expect(exitCode).toBe(0);
     expect(await orderOf(s.sectionAId)).toEqual([s.a3, s.a1, s.a2]);
   });
@@ -260,13 +242,7 @@ describe("lesson move (same-section reorder)", () => {
   });
 
   it("rejects moving a lesson relative to itself (exit 3)", async () => {
-    const { exitCode } = await run([
-      "lesson",
-      "move",
-      "--before",
-      s.a1,
-      s.a1,
-    ]);
+    const { exitCode } = await run(["lesson", "move", "--before", s.a1, s.a1]);
     expect(exitCode).toBe(3);
   });
 

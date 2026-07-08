@@ -1,7 +1,6 @@
 import { Layer, ManagedRuntime } from "effect";
 import { DrizzleService } from "./drizzle-service.server";
 import { DatabaseDumpService, PgDumpRunner } from "./dump-service";
-import { CourseRepoParserService } from "./course-repo-parser";
 import { NodeContext } from "@effect/platform-node";
 import { VideoProcessingService } from "./video-processing-service";
 import { BackgroundRemovalService } from "./background-removal-service";
@@ -10,9 +9,7 @@ import { FeatureFlagService } from "./feature-flag-service";
 import { OpenFolderService } from "./open-folder-service";
 import { CloudinaryService } from "./cloudinary-service";
 import { CloudinaryMarkdownService } from "./cloudinary-markdown-service";
-import { CourseRepoWriteService } from "./course-repo-write-service";
 import { CourseWriteService } from "./course-write-service";
-import { CourseRepoSyncValidationService } from "./course-repo-sync-validation";
 import { FFmpegCommandsService } from "./ffmpeg-commands";
 import { CoursePublishService } from "./course-publish-service";
 import { ClipOperationsService } from "./db-clip-operations.server";
@@ -43,7 +40,6 @@ const coreLayer = Layer.mergeAll(
   DeliverableOperationsService.Default,
   ThumbnailOperationsService.Default,
   LinkAuthOperationsService.Default,
-  CourseRepoParserService.Default,
   DatabaseDumpService.Default,
   VideoProcessingService.Default,
   BackgroundRemovalService.Default,
@@ -52,9 +48,7 @@ const coreLayer = Layer.mergeAll(
   OpenFolderService.Default,
   CloudinaryService.Default,
   CloudinaryMarkdownLayer,
-  CourseRepoWriteService.Default,
   CourseWriteService.Default,
-  CourseRepoSyncValidationService.Default,
   FFmpegCommandsService.Default,
   NodeContext.layer
 ).pipe(

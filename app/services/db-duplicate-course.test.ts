@@ -33,7 +33,6 @@ async function createFullCourseStructure() {
     .insert(schema.courses)
     .values({
       name: "Original Course",
-      filePath: "/tmp/original",
       memory: "Some course notes",
     })
     .returning();
@@ -48,7 +47,7 @@ async function createFullCourseStructure() {
     .insert(schema.sections)
     .values({
       repoVersionId: version!.id,
-      path: "01-intro",
+      title: "01-intro",
       order: 1,
       description: "Introduction section",
     })
@@ -56,7 +55,7 @@ async function createFullCourseStructure() {
 
   await testDb.insert(schema.sections).values({
     repoVersionId: version!.id,
-    path: "02-archived",
+    title: "02-archived",
     order: 2,
     archivedAt: new Date(),
   });
@@ -65,9 +64,7 @@ async function createFullCourseStructure() {
     .insert(schema.lessons)
     .values({
       sectionId: activeSection!.id,
-      path: "01-intro/01-lesson",
       order: 1,
-      fsStatus: "real",
       title: "First Lesson",
       icon: "code",
       priority: 3,
@@ -86,7 +83,7 @@ async function createFullCourseStructure() {
     .insert(schema.videos)
     .values({
       lessonId: lesson!.id,
-      path: "video-01.mp4",
+      title: "video-01.mp4",
       originalFootagePath: "/footage/raw-01.mp4",
     })
     .returning();
@@ -158,7 +155,7 @@ async function createFullCourseStructure() {
   // Archived video
   await testDb.insert(schema.videos).values({
     lessonId: lesson!.id,
-    path: "video-archived.mp4",
+    title: "video-archived.mp4",
     originalFootagePath: "/footage/archived.mp4",
     archived: true,
   });
@@ -173,7 +170,7 @@ async function createFullCourseStructure() {
 }
 
 describe("duplicateCourse", () => {
-  it("creates a new course with the provided name and filePath", async () => {
+  it("creates a new course with the provided name", async () => {
     const { course } = await createFullCourseStructure();
 
     const result = await run(
@@ -182,13 +179,11 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Duplicated Course",
-          filePath: "/tmp/duplicated",
         });
       })
     );
 
     expect(result.course.name).toBe("Duplicated Course");
-    expect(result.course.filePath).toBe("/tmp/duplicated");
   });
 
   it("copies the original course's memory field", async () => {
@@ -200,7 +195,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -217,7 +211,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -239,7 +232,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -251,7 +243,7 @@ describe("duplicateCourse", () => {
 
     // Only non-archived section copied
     expect(newSections).toHaveLength(1);
-    expect(newSections[0]!.path).toBe("01-intro");
+    expect(newSections[0]!.title).toBe("01-intro");
     expect(newSections[0]!.description).toBe("Introduction section");
     expect(newSections[0]!.order).toBe(1);
     expect(newSections[0]!.previousVersionSectionId).toBeNull();
@@ -266,7 +258,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -280,7 +271,6 @@ describe("duplicateCourse", () => {
     expect(lessons).toHaveLength(1);
     expect(lessons[0]!.title).toBe("First Lesson");
     expect(lessons[0]!.icon).toBe("code");
-    expect(lessons[0]!.fsStatus).toBe("real");
     expect(lessons[0]!.priority).toBe(3);
     expect(lessons[0]!.previousVersionLessonId).toBeNull();
   });
@@ -300,7 +290,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -310,7 +299,7 @@ describe("duplicateCourse", () => {
     });
 
     expect(newSections).toHaveLength(1);
-    expect(newSections[0]!.path).toBe("01-intro");
+    expect(newSections[0]!.title).toBe("01-intro");
   });
 
   it("copies videos and excludes archived videos", async () => {
@@ -322,7 +311,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -341,7 +329,7 @@ describe("duplicateCourse", () => {
     const videos = newSections[0]!.lessons[0]!.videos;
     // Only non-archived video copied
     expect(videos).toHaveLength(1);
-    expect(videos[0]!.path).toBe("video-01.mp4");
+    expect(videos[0]!.title).toBe("video-01.mp4");
     expect(videos[0]!.originalFootagePath).toBe("/footage/raw-01.mp4");
   });
 
@@ -354,7 +342,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -393,7 +380,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -429,7 +415,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -458,7 +443,7 @@ describe("duplicateCourse", () => {
   it("preserves entity ordering across sections and lessons", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Order Test", filePath: "/tmp/order" })
+      .values({ name: "Order Test" })
       .returning();
 
     const [version] = await testDb
@@ -468,9 +453,9 @@ describe("duplicateCourse", () => {
 
     // Create sections in reverse order values to verify ordering
     await testDb.insert(schema.sections).values([
-      { repoVersionId: version!.id, path: "01-first", order: 1 },
-      { repoVersionId: version!.id, path: "02-second", order: 2 },
-      { repoVersionId: version!.id, path: "03-third", order: 3 },
+      { repoVersionId: version!.id, title: "01-first", order: 1 },
+      { repoVersionId: version!.id, title: "02-second", order: 2 },
+      { repoVersionId: version!.id, title: "03-third", order: 3 },
     ]);
 
     const result = await run(
@@ -479,7 +464,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course!.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -490,11 +474,11 @@ describe("duplicateCourse", () => {
     });
 
     expect(newSections).toHaveLength(3);
-    expect(newSections[0]!.path).toBe("01-first");
+    expect(newSections[0]!.title).toBe("01-first");
     expect(newSections[0]!.order).toBe(1);
-    expect(newSections[1]!.path).toBe("02-second");
+    expect(newSections[1]!.title).toBe("02-second");
     expect(newSections[1]!.order).toBe(2);
-    expect(newSections[2]!.path).toBe("03-third");
+    expect(newSections[2]!.title).toBe("03-third");
     expect(newSections[2]!.order).toBe(3);
   });
 
@@ -506,7 +490,6 @@ describe("duplicateCourse", () => {
           return yield* courseOps.duplicateCourse({
             sourceCourseId: "non-existent-id",
             name: "Dup",
-            filePath: "/tmp/dup",
           });
         })
       )
@@ -516,7 +499,7 @@ describe("duplicateCourse", () => {
   it("fails with NotFoundError when source course has no versions", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "No Versions", filePath: "/tmp/no-versions" })
+      .values({ name: "No Versions" })
       .returning();
 
     await expect(
@@ -526,7 +509,6 @@ describe("duplicateCourse", () => {
           return yield* courseOps.duplicateCourse({
             sourceCourseId: course!.id,
             name: "Dup",
-            filePath: "/tmp/dup",
           });
         })
       )
@@ -536,7 +518,7 @@ describe("duplicateCourse", () => {
   it("handles course with sections but no lessons", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Empty Sections", filePath: "/tmp/empty" })
+      .values({ name: "Empty Sections" })
       .returning();
 
     const [version] = await testDb
@@ -546,7 +528,7 @@ describe("duplicateCourse", () => {
 
     await testDb.insert(schema.sections).values({
       repoVersionId: version!.id,
-      path: "01-empty",
+      title: "01-empty",
       order: 1,
     });
 
@@ -556,7 +538,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course!.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -567,14 +548,14 @@ describe("duplicateCourse", () => {
     });
 
     expect(newSections).toHaveLength(1);
-    expect(newSections[0]!.path).toBe("01-empty");
+    expect(newSections[0]!.title).toBe("01-empty");
     expect(newSections[0]!.lessons).toHaveLength(0);
   });
 
   it("copies null memory field", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "No Memory", filePath: "/tmp/no-memory" })
+      .values({ name: "No Memory" })
       .returning();
 
     await testDb
@@ -587,7 +568,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course!.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -598,7 +578,7 @@ describe("duplicateCourse", () => {
   it("uses the latest version when multiple versions exist", async () => {
     const [course] = await testDb
       .insert(schema.courses)
-      .values({ name: "Multi Version", filePath: "/tmp/multi" })
+      .values({ name: "Multi Version" })
       .returning();
 
     const [oldVersion] = await testDb
@@ -608,7 +588,7 @@ describe("duplicateCourse", () => {
 
     await testDb.insert(schema.sections).values({
       repoVersionId: oldVersion!.id,
-      path: "01-old-section",
+      title: "01-old-section",
       order: 1,
     });
 
@@ -619,7 +599,7 @@ describe("duplicateCourse", () => {
 
     await testDb.insert(schema.sections).values({
       repoVersionId: newVersion!.id,
-      path: "01-new-section",
+      title: "01-new-section",
       order: 1,
     });
 
@@ -629,7 +609,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course!.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
@@ -639,7 +618,7 @@ describe("duplicateCourse", () => {
     });
 
     expect(newSections).toHaveLength(1);
-    expect(newSections[0]!.path).toBe("01-new-section");
+    expect(newSections[0]!.title).toBe("01-new-section");
   });
 
   it("copies beats and excludes archived beats", async () => {
@@ -651,7 +630,6 @@ describe("duplicateCourse", () => {
         return yield* courseOps.duplicateCourse({
           sourceCourseId: course.id,
           name: "Dup",
-          filePath: "/tmp/dup",
         });
       })
     );
