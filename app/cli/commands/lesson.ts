@@ -253,17 +253,11 @@ const createCmd = Command.make(
           insertOrder = siblings[idx] ? siblings[idx]!.order : maxOrder + 1;
         }
 
-        const [lesson] = yield* svc
-          .createGhostLesson(section, {
-            title,
-            path: toSlug(title) || "untitled",
-            order: insertOrder,
-          })
-          .pipe(
-            Effect.catchTag("LessonPathTakenError", (e) =>
-              parseError(e.message, "lesson")
-            )
-          );
+        const [lesson] = yield* svc.createGhostLesson(section, {
+          title,
+          path: toSlug(title) || "untitled",
+          order: insertOrder,
+        });
 
         yield* emitObject(lesson);
       })
