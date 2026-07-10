@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { WriterContext } from "./writer-engine";
 import { estimateTokens, type SourceView } from "./inline-context-strip";
+import { formatBeatsContext } from "./format-beats-context";
 
 export interface ContextModel {
   sources: SourceView[];
@@ -16,6 +17,7 @@ export interface ContextModel {
   includeTranscript: boolean;
   includeCourseStructure: boolean;
   memoryEnabled: boolean;
+  beatsEnabled: boolean;
 
   // Mutation callbacks
   toggleItem: (itemId: string) => void;
@@ -32,6 +34,9 @@ export interface ContextModel {
   // Memory editing
   memoryText: string;
   setMemoryText: Dispatch<SetStateAction<string>>;
+
+  // Beats (read-only formatted text)
+  beatsText: string;
 
   // Links (read from context, mutation via callbacks on the host)
   links: Array<{
@@ -70,6 +75,11 @@ export function useContextModel(
   // (via revalidation) are included by default.
   const [disabledLinks, setDisabledLinks] = useState<Set<string>>(
     () => new Set()
+  );
+  const [beatsEnabled, setBeatsEnabled] = useState(false);
+  const beatsText = useMemo(
+    () => formatBeatsContext(context.beats),
+    [context.beats]
   );
 
   // ── Build sources ─────────────────────────────────────────────────────────
@@ -209,7 +219,25 @@ export function useContextModel(
       });
     }
 
-    // 4. Course structure (only if present)
+    // 4. Beats (only if non-empty)
+    if (beatsText.length > 0) {
+      const tokens = estimateTokens(beatsText);
+      const on = beatsEnabled;
+      result.push({
+        key: "beats",
+        label: "Beats",
+        note: "video beat plan with descriptions",
+        items: [
+          { id: "beats", label: "Beat plan", text: beatsText, on, tokens },
+        ],
+        onCount: on ? 1 : 0,
+        check: on,
+        atomic: true,
+        tokens: on ? tokens : 0,
+      });
+    }
+
+    // 5. Course structure (only if present)
     if (context.courseStructure !== null) {
       const text = JSON.stringify(context.courseStructure);
       const tokens = estimateTokens(text);
@@ -234,7 +262,7 @@ export function useContextModel(
       });
     }
 
-    // 5. Memory (only if non-empty)
+    // 6. Memory (only if non-empty)
     if (memoryText.length > 0) {
       const tokens = estimateTokens(memoryText);
       const on = memoryEnabled;
@@ -266,6 +294,7 @@ export function useContextModel(
     context.links,
     context.courseStructure,
     memoryText,
+    beatsText,
     enabledSections,
     enabledFiles,
     enabledFields,
@@ -274,6 +303,7 @@ export function useContextModel(
     includeTranscript,
     includeCourseStructure,
     memoryEnabled,
+    beatsEnabled,
   ]);
 
   const totalTokens = useMemo(
@@ -339,6 +369,10 @@ export function useContextModel(
       }
 
       // Atomic sources
+      if (itemId === "beats") {
+        setBeatsEnabled((prev) => !prev);
+        return;
+      }
       if (itemId === "courseStructure") {
         setIncludeCourseStructure((prev) => !prev);
         return;
@@ -396,6 +430,9 @@ export function useContextModel(
           }
           break;
         }
+        case "beats":
+          setBeatsEnabled((prev) => !prev);
+          break;
         case "courseStructure":
           setIncludeCourseStructure((prev) => !prev);
           break;
@@ -449,6 +486,7 @@ export function useContextModel(
     includeTranscript,
     includeCourseStructure,
     memoryEnabled,
+    beatsEnabled,
 
     toggleItem,
     toggleSource,
@@ -462,6 +500,8 @@ export function useContextModel(
 
     memoryText,
     setMemoryText,
+
+    beatsText,
 
     links,
   };
