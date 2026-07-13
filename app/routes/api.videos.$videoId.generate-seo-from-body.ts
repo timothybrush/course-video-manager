@@ -30,7 +30,10 @@ export const action = makeAction({
       const linkAuthOps = yield* LinkAuthOperationsService;
       const links = yield* linkAuthOps.getLinks();
 
-      const systemPrompt = generateSeoDescriptionFromBodyPrompt({ body, links });
+      const systemPrompt = generateSeoDescriptionFromBodyPrompt({
+        body,
+        links,
+      });
 
       const result = yield* Effect.tryPromise(() =>
         generateText({

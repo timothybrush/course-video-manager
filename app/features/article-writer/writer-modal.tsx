@@ -195,7 +195,11 @@ export function WriterModal({
                   >
                     Keep editing
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={handleCancel}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleCancel}
+                  >
                     Discard
                   </Button>
                 </div>

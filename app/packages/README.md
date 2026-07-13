@@ -29,7 +29,7 @@ template (or delete it).
 
 ## Don't use barrel files
 
-The public surface is *every* root file, so expose several small entry points
+The public surface is _every_ root file, so expose several small entry points
 (`index.ts`, `client.ts`, `server.ts`) instead of funnelling everything through
 one giant `index.ts` that re-exports a whole subtree. Adding an entry point is
 just adding a root file — no barrel needed.

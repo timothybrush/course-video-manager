@@ -4,6 +4,11 @@ import { useState, useMemo, useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { WriterContext } from "./writer-engine";
 import { estimateTokens, type SourceView } from "./inline-context-strip";
+import { useLocalStorage } from "@/hooks/use-local-storage";
+import {
+  MEMORY_ENABLED_STORAGE_KEY,
+  COURSE_STRUCTURE_STORAGE_KEY,
+} from "./write-utils";
 import { formatBeatsContext } from "./format-beats-context";
 
 export interface ContextModel {
@@ -68,8 +73,37 @@ export function useContextModel(
     () => new Set(context.chapters.map((s) => s.id))
   );
   const [includeTranscript, setIncludeTranscript] = useState(true);
-  const [includeCourseStructure, setIncludeCourseStructure] = useState(false);
-  const [memoryEnabled, setMemoryEnabled] = useState(false);
+  const [courseStructureRaw, setCourseStructureRaw] = useLocalStorage(
+    COURSE_STRUCTURE_STORAGE_KEY,
+    "false"
+  );
+  const includeCourseStructure = courseStructureRaw === "true";
+  const setIncludeCourseStructure: Dispatch<SetStateAction<boolean>> =
+    useCallback(
+      (value) => {
+        setCourseStructureRaw((prev) => {
+          const next =
+            typeof value === "function" ? value(prev === "true") : value;
+          return String(next);
+        });
+      },
+      [setCourseStructureRaw]
+    );
+  const [memoryEnabledRaw, setMemoryEnabledRaw] = useLocalStorage(
+    MEMORY_ENABLED_STORAGE_KEY,
+    "false"
+  );
+  const memoryEnabled = memoryEnabledRaw === "true";
+  const setMemoryEnabled: Dispatch<SetStateAction<boolean>> = useCallback(
+    (value) => {
+      setMemoryEnabledRaw((prev) => {
+        const next =
+          typeof value === "function" ? value(prev === "true") : value;
+        return String(next);
+      });
+    },
+    [setMemoryEnabledRaw]
+  );
   const [memoryText, setMemoryText] = useState(context.memory);
   // Links default to on; we track the *disabled* ids so links added after mount
   // (via revalidation) are included by default.

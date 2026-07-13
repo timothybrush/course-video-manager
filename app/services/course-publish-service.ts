@@ -453,7 +453,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
         // Emit the JSON Schema sidecar beside course.json (referenced by its
         // `$schema` field), so editors and validators can resolve it locally.
-        const courseSchemaPath = path.join(dropboxCourseDir, "course.schema.json");
+        const courseSchemaPath = path.join(
+          dropboxCourseDir,
+          "course.schema.json"
+        );
         yield* effectFs.writeFileString(
           courseSchemaPath,
           JSON.stringify(buildCourseJsonSchema(), null, 2)

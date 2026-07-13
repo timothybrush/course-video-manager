@@ -16,7 +16,8 @@ import { buildChapters } from "@/services/publish-to-dropbox";
 
 const CourseJsonChapter = Schema.Struct({
   title: Schema.String.annotations({
-    description: "The chapter name shown to viewers; maps 1:1 to a YouTube chapter.",
+    description:
+      "The chapter name shown to viewers; maps 1:1 to a YouTube chapter.",
   }),
   startTime: Schema.Number.annotations({
     description:
@@ -29,7 +30,8 @@ const CourseJsonChapter = Schema.Struct({
 
 const CourseJsonVideo = Schema.Struct({
   id: Schema.String.annotations({
-    description: "Stable lineage id of the video, carried across course versions.",
+    description:
+      "Stable lineage id of the video, carried across course versions.",
   }),
   relativePath: Schema.NullOr(Schema.String).annotations({
     description:
@@ -40,7 +42,8 @@ const CourseJsonVideo = Schema.Struct({
       "Long-form written companion to the video (its article body), or null when none was authored.",
   }),
   description: Schema.NullOr(Schema.String).annotations({
-    description: "Short description of the video, or null when none was authored.",
+    description:
+      "Short description of the video, or null when none was authored.",
   }),
   hash: Schema.NullOr(Schema.String).annotations({
     description:
@@ -56,10 +59,12 @@ const CourseJsonVideo = Schema.Struct({
 
 const ExplainerLessonSchema = Schema.Struct({
   type: Schema.Literal("explainer").annotations({
-    description: "Discriminant marking this lesson as a single-video explainer.",
+    description:
+      "Discriminant marking this lesson as a single-video explainer.",
   }),
   id: Schema.String.annotations({
-    description: "Stable lineage id of the lesson, carried across course versions.",
+    description:
+      "Stable lineage id of the lesson, carried across course versions.",
   }),
   title: Schema.String.annotations({
     description: "The lesson title shown to learners.",
@@ -77,7 +82,8 @@ const ProblemLessonSchema = Schema.Struct({
     description: "Discriminant marking this lesson as a problem/solution pair.",
   }),
   id: Schema.String.annotations({
-    description: "Stable lineage id of the lesson, carried across course versions.",
+    description:
+      "Stable lineage id of the lesson, carried across course versions.",
   }),
   title: Schema.String.annotations({
     description: "The lesson title shown to learners.",
@@ -105,7 +111,8 @@ const CourseJsonLessonSchema = Schema.Union(
 
 const CourseJsonSectionSchema = Schema.Struct({
   id: Schema.String.annotations({
-    description: "Stable lineage id of the section, carried across course versions.",
+    description:
+      "Stable lineage id of the section, carried across course versions.",
   }),
   title: Schema.String.annotations({
     description: "The section title shown to learners.",

@@ -41,9 +41,7 @@ export function LessonBodyWriterModal({
 
   const context = useMemo(
     () =>
-      dataFetcher.data
-        ? toWriterContext(dataFetcher.data.writerContext)
-        : null,
+      dataFetcher.data ? toWriterContext(dataFetcher.data.writerContext) : null,
     [dataFetcher.data]
   );
 
