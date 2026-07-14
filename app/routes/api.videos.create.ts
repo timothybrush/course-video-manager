@@ -5,6 +5,9 @@ import { data } from "react-router";
 
 const createVideoSchema = Schema.Struct({
   title: Schema.String,
+  format: Schema.optional(
+    Schema.Union(Schema.Literal("standard"), Schema.Literal("short"))
+  ),
 });
 
 export const action = makeAction({
@@ -17,6 +20,7 @@ export const action = makeAction({
 
       const video = yield* videoOps.createStandaloneVideo({
         title: result.title,
+        ...(result.format ? { format: result.format } : {}),
       });
 
       return data({ id: video.id });

@@ -5,8 +5,9 @@ import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { makeLoader } from "@/services/route-action.server";
 import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
-import { Clapperboard, VideoIcon } from "lucide-react";
-import { Link } from "react-router";
+import { Clapperboard, Plus, VideoIcon } from "lucide-react";
+import { Link, useFetcher, useNavigate } from "react-router";
+import { useEffect } from "react";
 import type { Route } from "./+types/_app.tiktoks._index";
 
 export const meta: Route.MetaFunction = () => {
@@ -56,6 +57,45 @@ const STATUS_LABELS: Record<ShortStatus, string> = {
   rendered: "Rendered",
 };
 
+function RecordTile() {
+  const fetcher = useFetcher<{ id: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.id) {
+      navigate(`/videos/${fetcher.data.id}/edit`);
+    }
+  }, [fetcher.state, fetcher.data, navigate]);
+
+  const isCreating = fetcher.state !== "idle";
+
+  return (
+    <button
+      type="button"
+      disabled={isCreating}
+      onClick={() => {
+        const formData = new FormData();
+        formData.set("title", `Short ${new Date().toLocaleDateString()}`);
+        formData.set("format", "short");
+        fetcher.submit(formData, {
+          method: "post",
+          action: "/api/videos/create",
+        });
+      }}
+      className="group flex flex-col rounded-lg border border-dashed border-muted-foreground/30 bg-card overflow-hidden hover:border-foreground/30 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+    >
+      <div className="aspect-[9/16] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-muted-foreground group-hover:text-foreground/70 transition-colors">
+          <Plus className="w-8 h-8" />
+          <span className="text-xs font-medium">
+            {isCreating ? "Creating..." : "Record"}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function TikToksIndex(props: Route.ComponentProps) {
   const { shorts, renderedMap } = props.loaderData;
 
@@ -72,56 +112,47 @@ export default function TikToksIndex(props: Route.ComponentProps) {
             </h1>
           </div>
 
-          {shorts.length === 0 ? (
-            <div className="text-center py-12">
-              <Clapperboard className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No shorts yet</h3>
-              <p className="text-muted-foreground">
-                Short-form videos will appear here as a portrait gallery.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {shorts.map((video) => {
-                const status = getShortStatus(video.id, renderedMap);
-                const totalDuration = video.clips.reduce(
-                  (acc, clip) =>
-                    acc + (clip.sourceEndTime - clip.sourceStartTime),
-                  0
-                );
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <RecordTile />
+            {shorts.map((video) => {
+              const status = getShortStatus(video.id, renderedMap);
+              const totalDuration = video.clips.reduce(
+                (acc, clip) =>
+                  acc + (clip.sourceEndTime - clip.sourceStartTime),
+                0
+              );
 
-                return (
-                  <Link
-                    key={video.id}
-                    to={`/videos/${video.id}/edit`}
-                    className="group flex flex-col rounded-lg border bg-card overflow-hidden hover:border-foreground/20 transition-colors"
-                  >
-                    <div className="aspect-[9/16] bg-muted/50 flex items-center justify-center relative">
-                      <VideoIcon className="w-8 h-8 text-muted-foreground/30" />
-                      <div className="absolute top-2 right-2">
-                        <Badge
-                          variant="secondary"
-                          className={`text-[10px] ${STATUS_COLORS[status]}`}
-                        >
-                          {STATUS_LABELS[status]}
-                        </Badge>
+              return (
+                <Link
+                  key={video.id}
+                  to={`/videos/${video.id}/edit`}
+                  className="group flex flex-col rounded-lg border bg-card overflow-hidden hover:border-foreground/20 transition-colors"
+                >
+                  <div className="aspect-[9/16] bg-muted/50 flex items-center justify-center relative">
+                    <VideoIcon className="w-8 h-8 text-muted-foreground/30" />
+                    <div className="absolute top-2 right-2">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] ${STATUS_COLORS[status]}`}
+                      >
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                    </div>
+                    {totalDuration > 0 && (
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                        {formatSecondsToTimeCode(totalDuration)}
                       </div>
-                      {totalDuration > 0 && (
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-                          {formatSecondsToTimeCode(totalDuration)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-2">
-                      <p className="text-xs font-medium truncate group-hover:text-foreground/80">
-                        {video.title}
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-medium truncate group-hover:text-foreground/80">
+                      {video.title}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

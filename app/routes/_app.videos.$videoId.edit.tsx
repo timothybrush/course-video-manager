@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { DB } from "@/db/schema";
 import type {
   ClipOnDatabase,
@@ -28,6 +28,7 @@ import { Effect } from "effect";
 import { useEffectReducer } from "use-effect-reducer";
 import { getActiveDiagramId } from "@/lib/diagram-window";
 import { isDiagramFocused } from "@/lib/diagram-focus-tracking";
+import { useAiNameShort } from "@/features/video-editor/hooks/use-ai-name-short";
 import { useBrowserLinkCapture } from "@/features/video-editor/hooks/use-browser-link-capture";
 import { openClipWindow, drainClipWebLinks } from "@/lib/browser-link-window";
 import type { Route } from "./+types/_app.videos.$videoId.edit";
@@ -310,6 +311,13 @@ export const ComponentInner = (props: Route.ComponentProps) => {
     ),
     ensureProfile: obsConnector.ensureProfile,
     onError: (message) => console.error("[OBS profile switch]", message),
+  });
+
+  useAiNameShort({
+    videoId: props.loaderData.video.id,
+    format: props.loaderData.video.format,
+    clipState,
+    onNamed: useCallback(() => revalidator.revalidate(), [revalidator]),
   });
 
   // Sync OBS recording state to clip-state-reducer sessions
