@@ -23,6 +23,7 @@ import { BeatOperationsService } from "./db-beat-operations.server";
 import { DeliverableOperationsService } from "./db-deliverable-operations.server";
 import { ThumbnailOperationsService } from "./db-thumbnail-operations.server";
 import { LinkAuthOperationsService } from "./db-link-auth-operations.server";
+import { RenderVerticalVideoService } from "./render-vertical-video-service";
 
 const CloudinaryMarkdownLayer = CloudinaryMarkdownService.Default.pipe(
   Layer.provide(CloudinaryService.Default)
@@ -60,6 +61,14 @@ const publishLayer = CoursePublishService.Default.pipe(
   Layer.provide(coreLayer)
 );
 
-export const layerLive = Layer.merge(coreLayer, publishLayer);
+const renderVerticalLayer = RenderVerticalVideoService.Default.pipe(
+  Layer.provide(coreLayer)
+);
+
+export const layerLive = Layer.mergeAll(
+  coreLayer,
+  publishLayer,
+  renderVerticalLayer
+);
 
 export const runtimeLive = ManagedRuntime.make(layerLive);

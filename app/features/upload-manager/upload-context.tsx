@@ -45,6 +45,7 @@ export interface UploadContextType {
     dependsOn?: string
   ) => string;
   startExportUpload: (videoId: string, title: string) => string;
+  startRenderVerticalUpload: (videoId: string, title: string) => string;
   startBatchExportUpload: (
     versionId: string,
     includeTodoLessons: boolean
@@ -285,6 +286,32 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     return uploadId;
   }, []);
 
+  const startRenderVerticalUpload = useCallback(
+    (videoId: string, title: string) => {
+      const uploadId = generateUploadId();
+
+      const action = {
+        type: "START_UPLOAD" as const,
+        uploadId,
+        videoId,
+        title,
+        uploadType: "render-vertical" as const,
+      };
+      dispatch(action);
+
+      initiateFromRegistry(
+        "render-vertical",
+        action,
+        undefined,
+        dispatch,
+        abortControllersRef.current
+      );
+
+      return uploadId;
+    },
+    []
+  );
+
   const startBatchExportUpload = useCallback(
     (versionId: string, includeTodoLessons: boolean) => {
       const abortController = startSSEBatchExport(
@@ -499,6 +526,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         startAiHeroUpload,
         startSkillsChangelogUpload,
         startExportUpload,
+        startRenderVerticalUpload,
         startBatchExportUpload,
         startDropboxPublish,
         startPublish,

@@ -48,6 +48,8 @@ export const ActionsDropdown = (props: {
   allClipsHaveText: boolean;
   /** Callback to start export via upload manager */
   onExport: () => void;
+  /** Callback to start vertical render via upload manager */
+  onRenderVertical?: () => void;
   /** Fetcher for exporting to DaVinci Resolve */
   exportToDavinciResolveFetcher: FetcherWithComponents<unknown>;
   /** Video ID for navigation and actions */
@@ -294,6 +296,18 @@ export const ActionsDropdown = (props: {
                 </span>
               </div>
             </DropdownMenuItem>
+
+            {props.onRenderVertical && (
+              <DropdownMenuItem onSelect={props.onRenderVertical}>
+                <FilmIcon className="w-4 h-4 mr-2" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Render Vertical</span>
+                  <span className="text-xs text-muted-foreground">
+                    Render captioned 9:16 video
+                  </span>
+                </div>
+              </DropdownMenuItem>
+            )}
 
             <DropdownMenuItem
               onSelect={() => {

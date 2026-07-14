@@ -3,6 +3,7 @@ import { startSSEAiHeroPost } from "./sse-ai-hero-client";
 import { startSSEDropboxPublish } from "./sse-dropbox-publish-client";
 import { startSSEExport } from "./sse-export-client";
 import { startSSEPublish } from "./sse-publish-client";
+import { startSSERenderVertical } from "./sse-render-vertical-client";
 import { startSSESkillsChangelogPost } from "./sse-skills-changelog-client";
 import { startSSESocialPost } from "./sse-social-client";
 import { startSSEUpload } from "./sse-upload-client";
@@ -527,6 +528,62 @@ const publishConfig: UploadTypeConfig<
   supportsDependsOn: false,
 };
 
+const renderVerticalConfig: UploadTypeConfig<
+  undefined,
+  uploadReducer.RenderVerticalUploadEntry
+> = {
+  createEntry: (base) => ({
+    ...base,
+    uploadType: "render-vertical" as const,
+    renderVerticalStage: "concatenating-clips" as const,
+  }),
+
+  resetEntry: (base) => ({
+    ...base,
+    uploadType: "render-vertical" as const,
+    renderVerticalStage: "concatenating-clips" as const,
+  }),
+
+  applySuccess: (entry) => ({
+    ...entry,
+    status: "success" as const,
+    progress: 100,
+    errorMessage: null,
+    renderVerticalStage: null,
+  }),
+
+  initiate: (uploadId, entry, _params, dispatch, abortControllers) => {
+    withAbortManagement(uploadId, abortControllers, () =>
+      startSSERenderVertical(
+        { videoId: entry.videoId },
+        {
+          onStageChange: (stage) => {
+            dispatch({
+              type: "UPDATE_RENDER_VERTICAL_STAGE",
+              uploadId,
+              stage,
+            });
+          },
+          onComplete: () => {
+            dispatch({ type: "UPLOAD_SUCCESS", uploadId });
+            abortControllers.delete(uploadId);
+          },
+          onError: (message) => {
+            dispatch({
+              type: "UPLOAD_ERROR",
+              uploadId,
+              errorMessage: message,
+            });
+            abortControllers.delete(uploadId);
+          },
+        }
+      )
+    );
+  },
+
+  supportsDependsOn: false,
+};
+
 export const uploadTypeRegistry: Record<
   uploadReducer.UploadType,
   UploadTypeConfig<any, any>
@@ -538,4 +595,5 @@ export const uploadTypeRegistry: Record<
   "skills-changelog": skillsChangelogConfig,
   "dropbox-publish": dropboxPublishConfig,
   publish: publishConfig,
+  "render-vertical": renderVerticalConfig,
 };
