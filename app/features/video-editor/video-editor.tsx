@@ -2,6 +2,7 @@ import { ChapterNamingModal as ChapterNamingModalComponent } from "./components/
 import { CreateVideoFromSelectionModal } from "./components/create-video-from-selection-modal";
 import { FilePasteModalWithFsData } from "./components/file-paste-modal-with-fs-data";
 import { VideoPlayerPanel } from "./components/video-player-panel";
+import { PortraitStudioPanel } from "./components/portrait-studio-panel";
 import { ClipTimeline } from "./components/clip-timeline";
 import { ErrorOverlay } from "./components/error-overlay";
 import { type ReferenceCandidate } from "./components/reference-panel";
@@ -50,6 +51,7 @@ import {
   VideoEditorContext,
   type SuggestionState,
 } from "./video-editor-context";
+import type { VideoFormat } from "@/features/videos/video-format";
 import {
   getClipsToAggressivelyPreload,
   getTotalDuration,
@@ -68,6 +70,7 @@ import {
 } from "./video-editor-selectors";
 
 export const VideoEditor = (props: {
+  videoFormat: VideoFormat;
   obsConnectorState: OBSConnectionOuterState;
   items: TimelineItem[];
   sessions: RecordingSession[];
@@ -370,6 +373,7 @@ export const VideoEditor = (props: {
       databaseClipToShowLastFrameOf,
 
       // Route-level props
+      videoFormat: props.videoFormat,
       items: timelineItems,
       allItems: props.items,
       sessions: props.sessions,
@@ -480,6 +484,7 @@ export const VideoEditor = (props: {
       allClipsHaveSilenceDetected,
       areAnyClipsDangerous,
       databaseClipToShowLastFrameOf,
+      props.videoFormat,
       props.items,
       props.videoTitle,
       props.videoId,
@@ -590,6 +595,10 @@ export const VideoEditor = (props: {
     </>
   );
 
+  const isShort = props.videoFormat === "short";
+
+  const playerPanel = isShort ? <PortraitStudioPanel /> : <VideoPlayerPanel />;
+
   const body: ReactNode =
     activeTab !== null ? (
       <>
@@ -616,12 +625,12 @@ export const VideoEditor = (props: {
           />
         </div>
         <div className="order-1 lg:order-3 lg:flex-[1.5] h-full min-h-0 flex flex-col">
-          <VideoPlayerPanel />
+          {playerPanel}
         </div>
       </>
     ) : (
       <>
-        <VideoPlayerPanel />
+        {playerPanel}
         <ClipTimeline />
       </>
     );

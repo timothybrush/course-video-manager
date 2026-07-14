@@ -44,7 +44,13 @@ export interface UploadContextType {
     newsletterCopy: string,
     dependsOn?: string
   ) => string;
+  startYoutubeShortsUpload: (
+    videoId: string,
+    title: string,
+    description: string
+  ) => string;
   startExportUpload: (videoId: string, title: string) => string;
+  startRenderVerticalUpload: (videoId: string, title: string) => string;
   startBatchExportUpload: (
     versionId: string,
     includeTodoLessons: boolean
@@ -171,6 +177,38 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const startYoutubeShortsUpload = useCallback(
+    (videoId: string, title: string, description: string) => {
+      const uploadId = generateUploadId();
+
+      const params = { description };
+      paramsMapRef.current.set(uploadId, {
+        type: "youtube-shorts",
+        params,
+      });
+
+      const action = {
+        type: "START_UPLOAD" as const,
+        uploadId,
+        videoId,
+        title,
+        uploadType: "youtube-shorts" as const,
+      };
+      dispatch(action);
+
+      initiateFromRegistry(
+        "youtube-shorts",
+        action,
+        params,
+        dispatch,
+        abortControllersRef.current
+      );
+
+      return uploadId;
+    },
+    []
+  );
+
   const startAiHeroUpload = useCallback(
     (
       videoId: string,
@@ -284,6 +322,32 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
     return uploadId;
   }, []);
+
+  const startRenderVerticalUpload = useCallback(
+    (videoId: string, title: string) => {
+      const uploadId = generateUploadId();
+
+      const action = {
+        type: "START_UPLOAD" as const,
+        uploadId,
+        videoId,
+        title,
+        uploadType: "render-vertical" as const,
+      };
+      dispatch(action);
+
+      initiateFromRegistry(
+        "render-vertical",
+        action,
+        undefined,
+        dispatch,
+        abortControllersRef.current
+      );
+
+      return uploadId;
+    },
+    []
+  );
 
   const startBatchExportUpload = useCallback(
     (versionId: string, includeTodoLessons: boolean) => {
@@ -496,9 +560,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         uploads: state.uploads,
         startUpload,
         startSocialUpload,
+        startYoutubeShortsUpload,
         startAiHeroUpload,
         startSkillsChangelogUpload,
         startExportUpload,
+        startRenderVerticalUpload,
         startBatchExportUpload,
         startDropboxPublish,
         startPublish,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { DB } from "@/db/schema";
 import type {
   ClipOnDatabase,
@@ -14,6 +14,8 @@ import {
 } from "@/features/video-editor/clip-state-reducer";
 import type { PauseType } from "@/services/video-processing-service";
 import { useOBSConnector } from "@/features/video-editor/obs-connector";
+import { useEnsureOBSProfile } from "@/features/video-editor/use-ensure-obs-profile";
+import { targetProfileForFormat } from "@/features/video-editor/ensure-obs-profile";
 import { useSilenceLength } from "@/features/video-editor/use-silence-length";
 import { VideoEditor } from "@/features/video-editor/video-editor";
 import { createEditEffectHandlers } from "@/features/video-editor/edit-effect-handlers";
@@ -26,6 +28,7 @@ import { Effect } from "effect";
 import { useEffectReducer } from "use-effect-reducer";
 import { getActiveDiagramId } from "@/lib/diagram-window";
 import { isDiagramFocused } from "@/lib/diagram-focus-tracking";
+import { useAiNameShort } from "@/features/video-editor/hooks/use-ai-name-short";
 import { useBrowserLinkCapture } from "@/features/video-editor/hooks/use-browser-link-capture";
 import type { Route } from "./+types/_app.videos.$videoId.edit";
 
@@ -297,6 +300,22 @@ export const ComponentInner = (props: Route.ComponentProps) => {
     silenceLength,
   });
 
+  useEnsureOBSProfile({
+    obsState: obsConnector.state,
+    targetProfile: targetProfileForFormat(
+      props.loaderData.video.format as "standard" | "short"
+    ),
+    ensureProfile: obsConnector.ensureProfile,
+    onError: (message) => console.error("[OBS profile switch]", message),
+  });
+
+  useAiNameShort({
+    videoId: props.loaderData.video.id,
+    format: props.loaderData.video.format,
+    clipState,
+    onNamed: useCallback(() => revalidator.revalidate(), [revalidator]),
+  });
+
   // Sync OBS recording state to clip-state-reducer sessions
   const prevOBSStateTypeRef = useRef(obsConnector.state.type);
   useEffect(() => {
@@ -320,6 +339,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
 
   return (
     <VideoEditor
+      videoFormat={props.loaderData.video.format as "standard" | "short"}
       onClipsRemoved={(clipIds) => {
         dispatch({ type: "clips-deleted", clipIds: clipIds });
       }}

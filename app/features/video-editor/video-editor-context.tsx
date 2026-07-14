@@ -17,6 +17,7 @@ import type { SilenceLength } from "@/silence-detection-constants";
 import type { ClipComputedProps } from "./types";
 import type { ReferenceCandidate } from "./components/reference-panel";
 import type { FetcherWithComponents } from "react-router";
+import type { VideoFormat } from "@/features/videos/video-format";
 
 export type FileMetadata = {
   path: string;
@@ -60,6 +61,7 @@ export type VideoEditorContextType = {
   databaseClipToShowLastFrameOf: ClipOnDatabase | undefined;
 
   // Route-level props
+  videoFormat: VideoFormat;
   items: TimelineItem[];
   allItems: TimelineItem[];
   sessions: RecordingSession[];

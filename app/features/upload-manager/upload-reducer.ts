@@ -9,17 +9,28 @@ export namespace uploadReducer {
     | "error";
   export type UploadType =
     | "youtube"
+    | "youtube-shorts"
     | "buffer"
     | "ai-hero"
     | "skills-changelog"
     | "export"
     | "dropbox-publish"
-    | "publish";
-  export type BufferStage = "copying" | "syncing" | "sending-webhook";
+    | "publish"
+    | "render-vertical";
+  export type BufferStage =
+    | "uploading-blob"
+    | "creating-post"
+    | "polling"
+    | "cleaning-up";
   export type ExportStage =
     | "queued"
     | "concatenating-clips"
     | "normalizing-audio";
+  export type RenderVerticalStage =
+    | "concatenating-clips"
+    | "transcribing"
+    | "rendering-overlay"
+    | "compositing";
   export type PublishStage =
     | "validating"
     | "uploading"
@@ -39,6 +50,11 @@ export namespace uploadReducer {
 
   export interface YouTubeUploadEntry extends BaseUploadEntry {
     uploadType: "youtube";
+    youtubeVideoId: string | null;
+  }
+
+  export interface YouTubeShortsUploadEntry extends BaseUploadEntry {
+    uploadType: "youtube-shorts";
     youtubeVideoId: string | null;
   }
 
@@ -75,14 +91,21 @@ export namespace uploadReducer {
     courseId: string;
   }
 
+  export interface RenderVerticalUploadEntry extends BaseUploadEntry {
+    uploadType: "render-vertical";
+    renderVerticalStage: RenderVerticalStage | null;
+  }
+
   export type UploadEntry =
     | YouTubeUploadEntry
+    | YouTubeShortsUploadEntry
     | BufferUploadEntry
     | AiHeroUploadEntry
     | SkillsChangelogUploadEntry
     | ExportUploadEntry
     | DropboxPublishUploadEntry
-    | PublishUploadEntry;
+    | PublishUploadEntry
+    | RenderVerticalUploadEntry;
 
   export interface State {
     uploads: Record<string, UploadEntry>;
@@ -134,6 +157,11 @@ export namespace uploadReducer {
         type: "PUBLISH_COMPLETE";
         uploadId: string;
         newDraftVersionId: string;
+      }
+    | {
+        type: "UPDATE_RENDER_VERTICAL_STAGE";
+        uploadId: string;
+        stage: RenderVerticalStage;
       };
 }
 
@@ -193,6 +221,13 @@ export const uploadReducer = (
       const upload = state.uploads[action.uploadId];
       if (!upload || upload.uploadType !== "buffer") return state;
 
+      const bufferStageProgress: Record<uploadReducer.BufferStage, number> = {
+        "uploading-blob": 20,
+        "creating-post": 50,
+        polling: 70,
+        "cleaning-up": 90,
+      };
+
       return {
         ...state,
         uploads: {
@@ -200,6 +235,7 @@ export const uploadReducer = (
           [action.uploadId]: {
             ...upload,
             bufferStage: action.stage,
+            progress: bufferStageProgress[action.stage],
           },
         },
       };
@@ -279,6 +315,33 @@ export const uploadReducer = (
           [action.uploadId]: {
             ...upload,
             newDraftVersionId: action.newDraftVersionId,
+          },
+        },
+      };
+    }
+
+    case "UPDATE_RENDER_VERTICAL_STAGE": {
+      const upload = state.uploads[action.uploadId];
+      if (!upload || upload.uploadType !== "render-vertical") return state;
+
+      const renderVerticalStageProgress: Record<
+        uploadReducer.RenderVerticalStage,
+        number
+      > = {
+        "concatenating-clips": 10,
+        transcribing: 30,
+        "rendering-overlay": 60,
+        compositing: 85,
+      };
+
+      return {
+        ...state,
+        uploads: {
+          ...state.uploads,
+          [action.uploadId]: {
+            ...upload,
+            renderVerticalStage: action.stage,
+            progress: renderVerticalStageProgress[action.stage],
           },
         },
       };

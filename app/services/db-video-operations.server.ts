@@ -14,6 +14,7 @@ import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { Effect } from "effect";
 import { copyVideoImpl } from "@/services/db-video-operations.copy.server";
 import { createVideoWriteOps } from "@/services/db-video-operations.write.server";
+import type { VideoFormat } from "@/features/videos/video-format";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -131,14 +132,18 @@ export const createVideoOperations = (
   );
 
   const getAllStandaloneVideos = Effect.fn("getAllStandaloneVideos")(
-    function* () {
+    function* (opts?: { format?: VideoFormat }) {
+      const conditions = [
+        isNull(videos.lessonId),
+        isNull(videos.pitchId),
+        eq(videos.archived, false),
+      ];
+      if (opts?.format) {
+        conditions.push(eq(videos.format, opts.format));
+      }
       const standaloneVideos = yield* makeDbCall(() =>
         db.query.videos.findMany({
-          where: and(
-            isNull(videos.lessonId),
-            isNull(videos.pitchId),
-            eq(videos.archived, false)
-          ),
+          where: and(...conditions),
           orderBy: desc(videos.updatedAt),
           with: {
             clips: {
@@ -304,7 +309,7 @@ export const createVideoOperations = (
   });
 
   const createStandaloneVideo = Effect.fn("createStandaloneVideo")(
-    function* (video: { title: string }) {
+    function* (video: { title: string; format?: VideoFormat }) {
       const videoResults = yield* makeDbCall(() =>
         db
           .insert(videos)
@@ -312,6 +317,7 @@ export const createVideoOperations = (
             title: video.title,
             originalFootagePath: "",
             lessonId: null,
+            ...(video.format ? { format: video.format } : {}),
           })
           .returning()
       );
