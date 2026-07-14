@@ -258,7 +258,6 @@ describe("recording session sub-handler", () => {
           sessionId,
           activeDiagramId: "diagram-1",
           diagramFocused: true,
-          webLinks: [],
         },
         createExec()
       );

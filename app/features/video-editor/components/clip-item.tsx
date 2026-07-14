@@ -40,7 +40,7 @@ import {
   fetchMeta,
 } from "@/features/diagrams/use-diagram-snapshot-scene";
 import { resolveForClip } from "@/lib/diagram-action-resolver";
-import { getWebLinkLabel } from "@/lib/clip-web-link-timeline";
+import { getWebLinkLabel } from "@/lib/clip-web-link";
 import {
   openPlayground,
   openPlaygroundWithDiagram,

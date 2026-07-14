@@ -27,7 +27,6 @@ import { useEffectReducer } from "use-effect-reducer";
 import { getActiveDiagramId } from "@/lib/diagram-window";
 import { isDiagramFocused } from "@/lib/diagram-focus-tracking";
 import { useBrowserLinkCapture } from "@/features/video-editor/hooks/use-browser-link-capture";
-import { openClipWindow, drainClipWebLinks } from "@/lib/browser-link-window";
 import type { Route } from "./+types/_app.videos.$videoId.edit";
 
 export const handle = { fullscreen: true };
@@ -268,16 +267,14 @@ export const ComponentInner = (props: Route.ComponentProps) => {
   const silenceLengthRef = useRef(silenceLength);
   silenceLengthRef.current = silenceLength;
 
-  // Records browser link-capture events from the Chrome extension so the drain
-  // below can attach on-screen URLs to the clip being recorded. Best-effort: no
-  // extension / hub means no capture.
-  useBrowserLinkCapture();
+  // Feeds browser link-capture events from the Chrome extension into the clip
+  // reducer, which folds them to the currently-visible page and accumulates the
+  // set of pages shown while a clip records. Best-effort: no extension / hub
+  // means no capture.
+  useBrowserLinkCapture((event) => dispatch({ type: "browser-event", event }));
 
   const obsConnector = useOBSConnector({
     onNewClipOptimisticallyAdded: ({ scene, profile, soundDetectionId }) => {
-      // A clip's live window opens when speech is detected. Mark it so the
-      // browser-link timeline knows where this clip's window begins.
-      openClipWindow(Date.now());
       dispatch({
         type: "new-optimistic-clip-detected",
         scene,
@@ -295,7 +292,6 @@ export const ComponentInner = (props: Route.ComponentProps) => {
         sessionId: activeSession.id,
         activeDiagramId: getActiveDiagramId(),
         diagramFocused: isDiagramFocused(),
-        webLinks: drainClipWebLinks(Date.now()),
       });
     },
     silenceLength,

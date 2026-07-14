@@ -1,7 +1,7 @@
 import type { DB } from "@/db/schema";
 import type { PauseType } from "@/services/video-processing-service";
 import type { SilenceLength } from "@/silence-detection-constants";
-import type { CapturedWebLink } from "@/lib/clip-web-link-timeline";
+import type { BrowserLinkEvent, CapturedWebLink } from "@/lib/clip-web-link";
 import type { Brand } from "./utils";
 
 export type DatabaseId = Brand<string, "DatabaseId">;
@@ -188,6 +188,21 @@ export type ClipReducerState = {
    * a single recording. Session numbering resets on page reload.
    */
   sessions: RecordingSession[];
+  /**
+   * Live browser link-capture state, fed by `browser-event` actions from the
+   * Chrome extension. `browserFocus` + `browserUrl` fold to the single web page
+   * currently visible on screen; this is ambient device state, not part of the
+   * saved video document. Undefined is treated as "no focus / no URL".
+   */
+  browserFocus?: boolean;
+  browserUrl?: string | null;
+  browserTitle?: string | null;
+  /**
+   * The optimistic clip currently being recorded (set when speech is detected,
+   * cleared when its audio window closes). While set, the effective visible URL
+   * from each `browser-event` is accumulated into that clip's `pendingWebLinks`.
+   */
+  recordingClipFrontendId?: FrontendId | null;
 };
 
 export type ClipReducerAction =
@@ -208,6 +223,10 @@ export type ClipReducerAction =
       scene: string;
       profile: string;
       soundDetectionId: string;
+    }
+  | {
+      type: "browser-event";
+      event: BrowserLinkEvent;
     }
   | {
       type: "new-database-clips";
@@ -318,7 +337,6 @@ export type ClipReducerAction =
       sessionId: SessionId;
       activeDiagramId: string | null;
       diagramFocused: boolean;
-      webLinks: CapturedWebLink[];
     }
   | {
       type: "set-clip-web-links";
