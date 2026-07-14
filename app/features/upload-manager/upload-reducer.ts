@@ -9,6 +9,7 @@ export namespace uploadReducer {
     | "error";
   export type UploadType =
     | "youtube"
+    | "youtube-shorts"
     | "buffer"
     | "ai-hero"
     | "skills-changelog"
@@ -45,6 +46,11 @@ export namespace uploadReducer {
 
   export interface YouTubeUploadEntry extends BaseUploadEntry {
     uploadType: "youtube";
+    youtubeVideoId: string | null;
+  }
+
+  export interface YouTubeShortsUploadEntry extends BaseUploadEntry {
+    uploadType: "youtube-shorts";
     youtubeVideoId: string | null;
   }
 
@@ -88,6 +94,7 @@ export namespace uploadReducer {
 
   export type UploadEntry =
     | YouTubeUploadEntry
+    | YouTubeShortsUploadEntry
     | BufferUploadEntry
     | AiHeroUploadEntry
     | SkillsChangelogUploadEntry

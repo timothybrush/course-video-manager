@@ -22,6 +22,7 @@ import {
   type ChangeEvent,
 } from "react";
 import { UploadContext } from "@/features/upload-manager/upload-context";
+import { ShortsPostingModal } from "@/features/video-posting/shorts-posting-modal";
 
 export const PortraitStudioPanel = () => {
   const videoTitle = useContextSelector(
@@ -138,6 +139,8 @@ export const PortraitStudioPanel = () => {
   );
   const revealVideoFetcher = useFetcher();
 
+  const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
+
   const [exportFileExists, setExportFileExists] = useState(false);
   useEffect(() => {
     fetch(`/api/videos/${videoId}/export-file-exists`)
@@ -180,6 +183,7 @@ export const PortraitStudioPanel = () => {
             onRenderVertical={() =>
               startRenderVerticalUpload(videoId, videoTitle)
             }
+            onPostShorts={() => setIsPostingModalOpen(true)}
             videoId={videoId}
             isCopied={isCopied}
             copyTranscriptToClipboard={copyTranscriptToClipboard}
@@ -203,7 +207,7 @@ export const PortraitStudioPanel = () => {
             isLogPathCopied={isLogPathCopied}
             copyLogPathToClipboard={copyLogPathToClipboard}
           />
-          <Button disabled>
+          <Button onClick={() => setIsPostingModalOpen(true)}>
             <SendIcon className="w-4 h-4 mr-2" />
             Post
           </Button>
@@ -302,6 +306,13 @@ export const PortraitStudioPanel = () => {
           </div>
         )}
       </div>
+
+      <ShortsPostingModal
+        open={isPostingModalOpen}
+        onOpenChange={setIsPostingModalOpen}
+        videoId={videoId}
+        videoTitle={videoTitle}
+      />
     </div>
   );
 };

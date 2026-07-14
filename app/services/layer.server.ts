@@ -24,6 +24,7 @@ import { DeliverableOperationsService } from "./db-deliverable-operations.server
 import { ThumbnailOperationsService } from "./db-thumbnail-operations.server";
 import { LinkAuthOperationsService } from "./db-link-auth-operations.server";
 import { RenderVerticalVideoService } from "./render-vertical-video-service";
+import { VideoPostOperationsService } from "./db-video-post-operations.server";
 
 const CloudinaryMarkdownLayer = CloudinaryMarkdownService.Default.pipe(
   Layer.provide(CloudinaryService.Default)
@@ -41,6 +42,7 @@ const coreLayer = Layer.mergeAll(
   DeliverableOperationsService.Default,
   ThumbnailOperationsService.Default,
   LinkAuthOperationsService.Default,
+  VideoPostOperationsService.Default,
   DatabaseDumpService.Default,
   VideoProcessingService.Default,
   BackgroundRemovalService.Default,

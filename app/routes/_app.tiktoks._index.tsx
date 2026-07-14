@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { useFocusRevalidate } from "@/hooks/use-focus-revalidate";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { VideoOperationsService } from "@/services/db-video-operations.server";
+import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
 import { makeLoader } from "@/services/route-action.server";
 import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
@@ -18,6 +19,7 @@ export const loader = makeLoader({
   effect: () =>
     Effect.gen(function* () {
       const videoOps = yield* VideoOperationsService;
+      const videoPostOps = yield* VideoPostOperationsService;
       const fs = yield* FileSystem.FileSystem;
       const finishedDir = yield* Config.string("FINISHED_VIDEOS_DIRECTORY");
 
@@ -26,23 +28,29 @@ export const loader = makeLoader({
       });
 
       const renderedMap: Record<string, boolean> = {};
+      const postedMap: Record<string, boolean> = {};
       yield* Effect.forEach(shorts, (video) =>
         Effect.gen(function* () {
           const mp4Path = `${finishedDir}/${video.id}.mp4`;
           renderedMap[video.id] = yield* fs.exists(mp4Path);
+
+          const posts = yield* videoPostOps.listByVideoId(video.id);
+          postedMap[video.id] = posts.some((p) => p.postedAt !== null);
         })
       );
 
-      return { shorts, renderedMap };
+      return { shorts, renderedMap, postedMap };
     }),
 });
 
-type ShortStatus = "recorded" | "rendered";
+type ShortStatus = "recorded" | "rendered" | "posted";
 
 function getShortStatus(
   videoId: string,
-  renderedMap: Record<string, boolean>
+  renderedMap: Record<string, boolean>,
+  postedMap: Record<string, boolean>
 ): ShortStatus {
+  if (postedMap[videoId]) return "posted";
   if (renderedMap[videoId]) return "rendered";
   return "recorded";
 }
@@ -50,11 +58,13 @@ function getShortStatus(
 const STATUS_COLORS: Record<ShortStatus, string> = {
   recorded: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400",
   rendered: "bg-green-500/15 text-green-700 dark:text-green-400",
+  posted: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
 };
 
 const STATUS_LABELS: Record<ShortStatus, string> = {
   recorded: "Recorded",
   rendered: "Rendered",
+  posted: "Posted",
 };
 
 function RecordTile() {
@@ -97,7 +107,7 @@ function RecordTile() {
 }
 
 export default function TikToksIndex(props: Route.ComponentProps) {
-  const { shorts, renderedMap } = props.loaderData;
+  const { shorts, renderedMap, postedMap } = props.loaderData;
 
   useFocusRevalidate({ enabled: true });
 
@@ -115,7 +125,7 @@ export default function TikToksIndex(props: Route.ComponentProps) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             <RecordTile />
             {shorts.map((video) => {
-              const status = getShortStatus(video.id, renderedMap);
+              const status = getShortStatus(video.id, renderedMap, postedMap);
               const totalDuration = video.clips.reduce(
                 (acc, clip) =>
                   acc + (clip.sourceEndTime - clip.sourceStartTime),

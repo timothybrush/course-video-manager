@@ -290,6 +290,29 @@ export const clipWebLinks = createTable("clip_web_link", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const videoPosts = createTable("video_post", {
+  id: varchar("id", { length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  videoId: varchar("video_id", { length: 255 })
+    .references(() => videos.id, { onDelete: "cascade" })
+    .notNull(),
+  platform: text("platform").notNull(),
+  remoteId: text("remote_id"),
+  remoteUrl: text("remote_url"),
+  postedAt: timestamp("posted_at", {
+    mode: "date",
+    withTimezone: true,
+  }),
+  createdAt: timestamp("created_at", {
+    mode: "date",
+    withTimezone: true,
+  })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const chapters = createTable("chapter", {
   id: varchar("id", { length: 255 })
     .notNull()
@@ -370,6 +393,13 @@ export const clipWebLinksRelations = relations(clipWebLinks, ({ one }) => ({
   }),
 }));
 
+export const videoPostsRelations = relations(videoPosts, ({ one }) => ({
+  video: one(videos, {
+    fields: [videoPosts.videoId],
+    references: [videos.id],
+  }),
+}));
+
 export const chaptersRelations = relations(chapters, ({ one }) => ({
   video: one(videos, {
     fields: [chapters.videoId],
@@ -396,6 +426,7 @@ export const videosRelations = relations(videos, ({ one, many }) => ({
   chapters: many(chapters),
   thumbnails: many(thumbnails),
   beats: many(beats),
+  videoPosts: many(videoPosts),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one, many }) => ({

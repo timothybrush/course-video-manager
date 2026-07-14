@@ -7,6 +7,7 @@ import { startSSERenderVertical } from "./sse-render-vertical-client";
 import { startSSESkillsChangelogPost } from "./sse-skills-changelog-client";
 import { startSSESocialPost } from "./sse-social-client";
 import { startSSEUpload } from "./sse-upload-client";
+import { startSSEYoutubeShortsPost } from "./sse-youtube-shorts-client";
 
 type StartUploadAction = Extract<
   uploadReducer.Action,
@@ -175,6 +176,70 @@ const youtubeConfig: UploadTypeConfig<
   },
 
   supportsDependsOn: true,
+};
+
+export interface YouTubeShortsParams {
+  description: string;
+}
+
+const youtubeShortsConfig: UploadTypeConfig<
+  YouTubeShortsParams,
+  uploadReducer.YouTubeShortsUploadEntry
+> = {
+  createEntry: (base) => ({
+    ...base,
+    uploadType: "youtube-shorts" as const,
+    youtubeVideoId: null,
+  }),
+
+  resetEntry: (base, prev) => ({
+    ...base,
+    uploadType: "youtube-shorts" as const,
+    youtubeVideoId: prev.youtubeVideoId,
+  }),
+
+  applySuccess: (entry, action) => ({
+    ...entry,
+    status: "success" as const,
+    progress: 100,
+    errorMessage: null,
+    youtubeVideoId: action.youtubeVideoId ?? null,
+  }),
+
+  initiate: (uploadId, entry, params, dispatch, abortControllers) => {
+    withAbortManagement(uploadId, abortControllers, () =>
+      startSSEYoutubeShortsPost(
+        {
+          videoId: entry.videoId,
+          title: entry.title,
+          description: params.description,
+        },
+        {
+          onProgress: (percentage) => {
+            dispatch({
+              type: "UPDATE_PROGRESS",
+              uploadId,
+              progress: percentage,
+            });
+          },
+          onComplete: (youtubeVideoId) => {
+            dispatch({ type: "UPLOAD_SUCCESS", uploadId, youtubeVideoId });
+            abortControllers.delete(uploadId);
+          },
+          onError: (message) => {
+            dispatch({
+              type: "UPLOAD_ERROR",
+              uploadId,
+              errorMessage: message,
+            });
+            abortControllers.delete(uploadId);
+          },
+        }
+      )
+    );
+  },
+
+  supportsDependsOn: false,
 };
 
 export interface BufferParams {
@@ -590,6 +655,7 @@ export const uploadTypeRegistry: Record<
 > = {
   export: exportConfig,
   youtube: youtubeConfig,
+  "youtube-shorts": youtubeShortsConfig,
   buffer: bufferConfig,
   "ai-hero": aiHeroConfig,
   "skills-changelog": skillsChangelogConfig,

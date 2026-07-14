@@ -31,6 +31,7 @@ export const StudioActionsDropdown = (props: {
   allClipsHaveText: boolean;
   onExport: () => void;
   onRenderVertical?: () => void;
+  onPostShorts?: () => void;
   videoId: string;
   isCopied: boolean;
   copyTranscriptToClipboard: () => void;
@@ -87,7 +88,10 @@ export const StudioActionsDropdown = (props: {
           </div>
         </DropdownMenuItem>
 
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem
+          disabled={!props.onPostShorts}
+          onSelect={props.onPostShorts}
+        >
           <SendIcon className="w-4 h-4 mr-2" />
           <div className="flex flex-col">
             <span className="font-medium">Post Shorts</span>
