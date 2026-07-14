@@ -14,6 +14,8 @@ import {
 } from "@/features/video-editor/clip-state-reducer";
 import type { PauseType } from "@/services/video-processing-service";
 import { useOBSConnector } from "@/features/video-editor/obs-connector";
+import { useEnsureOBSProfile } from "@/features/video-editor/use-ensure-obs-profile";
+import { targetProfileForFormat } from "@/features/video-editor/ensure-obs-profile";
 import { useSilenceLength } from "@/features/video-editor/use-silence-length";
 import { VideoEditor } from "@/features/video-editor/video-editor";
 import { createEditEffectHandlers } from "@/features/video-editor/edit-effect-handlers";
@@ -299,6 +301,15 @@ export const ComponentInner = (props: Route.ComponentProps) => {
       });
     },
     silenceLength,
+  });
+
+  useEnsureOBSProfile({
+    obsState: obsConnector.state,
+    targetProfile: targetProfileForFormat(
+      props.loaderData.video.format as "standard" | "short"
+    ),
+    ensureProfile: obsConnector.ensureProfile,
+    onError: (message) => console.error("[OBS profile switch]", message),
   });
 
   // Sync OBS recording state to clip-state-reducer sessions
