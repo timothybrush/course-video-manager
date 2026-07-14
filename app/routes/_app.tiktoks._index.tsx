@@ -7,8 +7,7 @@ import { makeLoader } from "@/services/route-action.server";
 import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
 import { Clapperboard, Plus, VideoIcon } from "lucide-react";
-import { Link, useFetcher, useNavigate } from "react-router";
-import { useEffect } from "react";
+import { Link, useFetcher } from "react-router";
 import type { Route } from "./+types/_app.tiktoks._index";
 
 export const meta: Route.MetaFunction = () => {
@@ -68,14 +67,7 @@ const STATUS_LABELS: Record<ShortStatus, string> = {
 };
 
 function RecordTile() {
-  const fetcher = useFetcher<{ id: string }>();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.id) {
-      navigate(`/videos/${fetcher.data.id}/edit`);
-    }
-  }, [fetcher.state, fetcher.data, navigate]);
+  const fetcher = useFetcher();
 
   const isCreating = fetcher.state !== "idle";
 
@@ -87,6 +79,7 @@ function RecordTile() {
         const formData = new FormData();
         formData.set("title", `Short ${new Date().toLocaleDateString()}`);
         formData.set("format", "short");
+        formData.set("redirectTo", "/videos/{id}/edit");
         fetcher.submit(formData, {
           method: "post",
           action: "/api/videos/create",

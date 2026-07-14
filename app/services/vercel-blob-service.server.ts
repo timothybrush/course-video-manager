@@ -1,5 +1,5 @@
+import { FileSystem } from "@effect/platform";
 import { Data, Effect, Config } from "effect";
-import * as fs from "fs";
 
 export class VercelBlobError extends Data.TaggedError("VercelBlobError")<{
   message: string;
@@ -12,20 +12,30 @@ const createVercelBlobOperations = (token: string) => ({
     onProgress?: (percentage: number) => void;
   }) =>
     Effect.gen(function* () {
-      const stat = yield* Effect.try({
-        try: () => fs.statSync(opts.filePath),
-        catch: () =>
-          new VercelBlobError({
-            message: `File not found: ${opts.filePath}`,
-          }),
-      });
+      const fs = yield* FileSystem.FileSystem;
+
+      const stat = yield* fs.stat(opts.filePath).pipe(
+        Effect.mapError(
+          () =>
+            new VercelBlobError({
+              message: `File not found: ${opts.filePath}`,
+            })
+        )
+      );
 
       opts.onProgress?.(0);
 
+      const fileContent = yield* fs.readFile(opts.filePath).pipe(
+        Effect.mapError(
+          () =>
+            new VercelBlobError({
+              message: `Failed to read file: ${opts.filePath}`,
+            })
+        )
+      );
+
       const result = yield* Effect.tryPromise({
         try: async () => {
-          const fileBuffer = fs.readFileSync(opts.filePath);
-
           const res = await fetch(
             `https://blob.vercel-storage.com/${opts.pathname}`,
             {
@@ -37,7 +47,7 @@ const createVercelBlobOperations = (token: string) => ({
                 "Content-Length": String(stat.size),
                 "x-content-length": String(stat.size),
               },
-              body: fileBuffer,
+              body: Buffer.from(fileContent),
             }
           );
 

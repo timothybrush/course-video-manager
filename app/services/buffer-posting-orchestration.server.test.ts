@@ -331,9 +331,7 @@ describe("bufferPostProgram", () => {
             })
           );
           expect(posts[0]!.remoteId).toBe("bp-custom-id");
-          expect(posts[0]!.remoteUrl).toBe(
-            "https://blob.vercel-storage.com/buffer-posts/test.mp4"
-          );
+          expect(posts[0]!.remoteUrl).toBeNull();
           expect(posts[0]!.postedAt).toBeInstanceOf(Date);
         })
     );

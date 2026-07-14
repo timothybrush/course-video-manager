@@ -44,7 +44,7 @@ export const createVideoPostOperations = (db: Database) => {
   const updateRemoteInfo = Effect.fn("updateRemoteInfo")(function* (opts: {
     id: string;
     remoteId: string;
-    remoteUrl: string;
+    remoteUrl: string | null;
   }) {
     const results = yield* makeDbCall(() =>
       db

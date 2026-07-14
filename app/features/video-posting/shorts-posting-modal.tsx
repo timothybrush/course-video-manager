@@ -1,6 +1,7 @@
 "use client";
 
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,42 +35,18 @@ export function ShortsPostingModal({
   videoId: string;
   videoTitle: string;
 }) {
-  const [title, setTitle] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      return localStorage.getItem(SHORTS_TITLE_KEY(videoId)) ?? videoTitle;
-    }
-    return videoTitle;
-  });
-  const [description, setDescription] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      return localStorage.getItem(SHORTS_DESC_KEY(videoId)) ?? "";
-    }
-    return "";
-  });
-  const [caption, setCaption] = useState(() => {
-    if (typeof localStorage !== "undefined") {
-      return localStorage.getItem(SHORTS_CAPTION_KEY(videoId)) ?? "";
-    }
-    return "";
-  });
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(SHORTS_TITLE_KEY(videoId), title);
-    }
-  }, [title, videoId]);
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(SHORTS_DESC_KEY(videoId), description);
-    }
-  }, [description, videoId]);
-
-  useEffect(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(SHORTS_CAPTION_KEY(videoId), caption);
-    }
-  }, [caption, videoId]);
+  const [title, setTitle] = useLocalStorage(
+    SHORTS_TITLE_KEY(videoId),
+    videoTitle
+  );
+  const [description, setDescription] = useLocalStorage(
+    SHORTS_DESC_KEY(videoId),
+    ""
+  );
+  const [caption, setCaption] = useLocalStorage(
+    SHORTS_CAPTION_KEY(videoId),
+    ""
+  );
 
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);

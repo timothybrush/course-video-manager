@@ -59,7 +59,7 @@ export const bufferPostProgram = (opts: {
     yield* videoPostOps.updateRemoteInfo({
       id: post.id,
       remoteId: bufferPost.id,
-      remoteUrl: blob.url,
+      remoteUrl: null,
     });
 
     opts.sendEvent("polling", { status: "buffer" });
