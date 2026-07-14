@@ -343,6 +343,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
 
   return (
     <VideoEditor
+      videoFormat={props.loaderData.video.format as "standard" | "short"}
       onClipsRemoved={(clipIds) => {
         dispatch({ type: "clips-deleted", clipIds: clipIds });
       }}
