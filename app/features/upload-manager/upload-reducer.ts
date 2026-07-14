@@ -17,7 +17,11 @@ export namespace uploadReducer {
     | "dropbox-publish"
     | "publish"
     | "render-vertical";
-  export type BufferStage = "copying" | "syncing" | "sending-webhook";
+  export type BufferStage =
+    | "uploading-blob"
+    | "creating-post"
+    | "polling"
+    | "cleaning-up";
   export type ExportStage =
     | "queued"
     | "concatenating-clips"
@@ -217,6 +221,13 @@ export const uploadReducer = (
       const upload = state.uploads[action.uploadId];
       if (!upload || upload.uploadType !== "buffer") return state;
 
+      const bufferStageProgress: Record<uploadReducer.BufferStage, number> = {
+        "uploading-blob": 20,
+        "creating-post": 50,
+        polling: 70,
+        "cleaning-up": 90,
+      };
+
       return {
         ...state,
         uploads: {
@@ -224,6 +235,7 @@ export const uploadReducer = (
           [action.uploadId]: {
             ...upload,
             bufferStage: action.stage,
+            progress: bufferStageProgress[action.stage],
           },
         },
       };

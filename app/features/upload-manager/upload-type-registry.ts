@@ -253,13 +253,13 @@ const bufferConfig: UploadTypeConfig<
   createEntry: (base) => ({
     ...base,
     uploadType: "buffer" as const,
-    bufferStage: "copying" as const,
+    bufferStage: "uploading-blob" as const,
   }),
 
   resetEntry: (base) => ({
     ...base,
     uploadType: "buffer" as const,
-    bufferStage: "copying" as const,
+    bufferStage: "uploading-blob" as const,
   }),
 
   applySuccess: (entry) => ({

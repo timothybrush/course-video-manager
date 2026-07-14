@@ -77,7 +77,8 @@ export function ShortsPostingModal({
   const [shortLinkUrl, setShortLinkUrl] = useState<string | null>(null);
   const [isCreatingShortLink, setIsCreatingShortLink] = useState(false);
 
-  const { startYoutubeShortsUpload } = useContext(UploadContext);
+  const { startYoutubeShortsUpload, startSocialUpload } =
+    useContext(UploadContext);
 
   const handleGenerate = async (
     mode: "youtube-title-single" | "youtube-description" | "social-caption",
@@ -140,8 +141,17 @@ export function ShortsPostingModal({
     }
 
     startYoutubeShortsUpload(videoId, title.trim(), description.trim());
+
+    if (caption.trim()) {
+      startSocialUpload(videoId, title.trim(), caption.trim());
+    }
+
     onOpenChange(false);
-    toast("YouTube Shorts upload started");
+    toast(
+      caption.trim()
+        ? "YouTube Shorts + Buffer posting started"
+        : "YouTube Shorts upload started"
+    );
   };
 
   return (
@@ -150,8 +160,8 @@ export function ShortsPostingModal({
         <DialogHeader>
           <DialogTitle>Post Short</DialogTitle>
           <DialogDescription>
-            Upload to YouTube Shorts. The finished vertical render will be
-            posted without a custom thumbnail.
+            Post to YouTube Shorts and Buffer (TikTok / X / Bluesky). The
+            finished vertical render will be used.
           </DialogDescription>
         </DialogHeader>
 
@@ -247,7 +257,8 @@ export function ShortsPostingModal({
               className="min-h-[80px] resize-y"
             />
             <p className="text-xs text-muted-foreground">
-              Used for TikTok/Buffer posting (ticket #8). Saved locally for now.
+              Posted to TikTok / X / Bluesky via Buffer. Leave empty to skip
+              Buffer posting.
             </p>
           </div>
 
@@ -282,7 +293,7 @@ export function ShortsPostingModal({
             disabled={!title.trim() || !description.trim()}
           >
             <SendIcon className="w-4 h-4 mr-2" />
-            Post to YouTube Shorts
+            Post Short
           </Button>
         </DialogFooter>
       </DialogContent>
