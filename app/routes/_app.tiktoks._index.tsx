@@ -148,7 +148,7 @@ export default function TikToksIndex(props: Route.ComponentProps) {
                     )}
                   </div>
                   <div className="p-2">
-                    <p className="text-xs font-medium truncate group-hover:text-foreground/80">
+                    <p className="text-xs font-medium group-hover:text-foreground/80">
                       {video.title}
                     </p>
                   </div>
