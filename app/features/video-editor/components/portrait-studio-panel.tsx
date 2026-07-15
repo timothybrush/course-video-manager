@@ -10,6 +10,7 @@ import {
   getShouldShowLastFrameOverlay as getShouldShowLastFrameOverlaySelector,
   getShowCenterLine as getShowCenterLineSelector,
 } from "../video-editor-selectors";
+import { formatSecondsToTimeCode } from "@/services/utils";
 import { SendIcon, VideoOffIcon } from "lucide-react";
 import { useFetcher } from "react-router";
 import { useContextSelector } from "use-context-selector";
@@ -28,6 +29,10 @@ export const PortraitStudioPanel = () => {
   const videoTitle = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.videoTitle
+  );
+  const totalDuration = useContextSelector(
+    VideoEditorContext,
+    (ctx) => ctx.totalDuration
   );
   const liveMediaStream = useContextSelector(
     VideoEditorContext,
@@ -174,7 +179,10 @@ export const PortraitStudioPanel = () => {
     <div className="lg:flex-1 relative order-1 lg:order-2 h-full min-h-0 flex flex-col">
       {/* Header bar: title + Post + Actions */}
       <div className="flex items-center justify-between mb-4 shrink-0">
-        <h1 className="text-lg font-bold truncate mr-4">{videoTitle}</h1>
+        <h1 className="text-lg font-bold truncate mr-4">
+          {videoTitle}
+          {" (" + formatSecondsToTimeCode(totalDuration) + ")"}
+        </h1>
         <div className="flex gap-2 shrink-0">
           <StudioActionsDropdown
             allClipsHaveSilenceDetected={allClipsHaveSilenceDetected}
@@ -224,11 +232,11 @@ export const PortraitStudioPanel = () => {
             </p>
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center">
+          <div className="h-full flex flex-col items-center max-h-full">
             {liveMediaStream && (
               <div
                 className={cn(
-                  "h-full aspect-[9/16] relative",
+                  "flex-1 min-h-0 aspect-[9/16] relative",
                   "hidden",
                   !showVideoPlayer &&
                     (showLiveStream || showLastFrame) &&
@@ -261,7 +269,7 @@ export const PortraitStudioPanel = () => {
             )}
             <div
               className={cn(
-                "h-full aspect-[9/16]",
+                "flex-1 min-h-0 aspect-[9/16]",
                 !showVideoPlayer && "hidden"
               )}
             >
@@ -282,7 +290,7 @@ export const PortraitStudioPanel = () => {
             </div>
 
             {isOBSActive && (
-              <div className="mt-2 flex justify-center">
+              <div className="mt-2 flex justify-center shrink-0">
                 <SilenceLengthToggle />
               </div>
             )}
@@ -290,7 +298,7 @@ export const PortraitStudioPanel = () => {
             {currentClip?.type === "on-database" && (
               <input
                 type="range"
-                className="scrub-slider mt-2 w-full max-w-xs"
+                className="scrub-slider mt-2 w-full max-w-xs shrink-0"
                 min={currentClip.sourceStartTime}
                 max={currentClip.sourceEndTime}
                 step={0.01}
