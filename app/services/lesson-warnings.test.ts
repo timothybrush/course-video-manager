@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeLessonWarnings,
   computeCourseViewLintCount,
+  collectCourseViewLints,
   deriveVideoRole,
 } from "./lesson-warnings";
 
@@ -207,5 +208,71 @@ describe("computeCourseViewLintCount", () => {
       },
     ];
     expect(computeCourseViewLintCount(sections)).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("collectCourseViewLints", () => {
+  const makeVideo = (
+    title: string,
+    clips: { order: string; archived: boolean }[] = [],
+    chapters: { order: string; archived: boolean }[] = []
+  ) => ({ title, clips, chapters });
+
+  it("count is exactly the number of itemised lints", () => {
+    const sections = [
+      {
+        path: "01-intro",
+        lessons: [
+          { path: "01-a", videos: [makeVideo("Solution")] },
+          {
+            path: "02-b",
+            videos: [
+              makeVideo("Explainer", [{ order: "a0", archived: false }], []),
+            ],
+          },
+        ],
+      },
+    ];
+    expect(collectCourseViewLints(sections)).toHaveLength(
+      computeCourseViewLintCount(sections)
+    );
+  });
+
+  it("tags a lesson-level lint with its section and lesson path", () => {
+    const lints = collectCourseViewLints([
+      {
+        path: "01-intro",
+        lessons: [{ path: "01-a", videos: [makeVideo("Solution")] }],
+      },
+    ]);
+    expect(lints).toContainEqual({
+      scope: "lesson",
+      sectionPath: "01-intro",
+      lessonPath: "01-a",
+      kind: "solutionWithoutProblem",
+    });
+  });
+
+  it("tags a video-level lint with the offending video title", () => {
+    const lints = collectCourseViewLints([
+      {
+        path: "01-intro",
+        lessons: [
+          {
+            path: "01-a",
+            videos: [
+              makeVideo("Explainer", [{ order: "a0", archived: false }], []),
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(lints).toContainEqual({
+      scope: "video",
+      sectionPath: "01-intro",
+      lessonPath: "01-a",
+      videoTitle: "Explainer",
+      kind: "missingOpeningChapter",
+    });
   });
 });

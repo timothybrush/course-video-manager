@@ -1,4 +1,4 @@
-import { computeVideoWarnings } from "./video-warnings";
+import { computeVideoWarnings, type VideoWarningKind } from "./video-warnings";
 
 export type LessonWarningKind =
   | "solutionWithoutProblem"
@@ -79,34 +79,83 @@ export const computeLessonWarnings = (input: {
   return warnings;
 };
 
-type LintLesson = {
-  videos: Array<{
-    title: string;
-    lessonId?: string | null;
-    body?: string | null;
-    description?: string | null;
-    clips: Array<{ order: string; archived: boolean }>;
-    chapters: Array<{ order: string; archived: boolean }>;
-  }>;
+type LintVideo = {
+  title: string;
+  lessonId?: string | null;
+  body?: string | null;
+  description?: string | null;
+  clips: Array<{ order: string; archived: boolean }>;
+  chapters: Array<{ order: string; archived: boolean }>;
 };
 
-export function computeCourseViewLintCount(
-  sections: { lessons: LintLesson[] }[]
-): number {
-  let count = 0;
+type LintLesson = { path?: string; videos: LintVideo[] };
+type LintSection = { path?: string; lessons: LintLesson[] };
+
+/**
+ * One course-view warning, tagged with where it lives so the publish page can
+ * name it (not just count it). `scope` distinguishes a lesson-level warning
+ * (an invalid video-role combo) from a video-level one (a missing chapter,
+ * body, or SEO description).
+ */
+export type CourseViewLint =
+  | {
+      scope: "lesson";
+      sectionPath: string;
+      lessonPath: string;
+      kind: LessonWarningKind;
+    }
+  | {
+      scope: "video";
+      sectionPath: string;
+      lessonPath: string;
+      videoTitle: string;
+      kind: VideoWarningKind;
+    };
+
+/**
+ * The full, itemised list of course-view warnings across a course. This is the
+ * single source of truth: {@link computeCourseViewLintCount} is its length, and
+ * the publish page renders each entry so a warning is never merely counted.
+ */
+export function collectCourseViewLints(
+  sections: LintSection[]
+): CourseViewLint[] {
+  const lints: CourseViewLint[] = [];
   for (const section of sections) {
+    const sectionPath = section.path ?? "";
     for (const lesson of section.lessons) {
-      count += computeLessonWarnings({ videos: lesson.videos }).length;
+      const lessonPath = lesson.path ?? "";
+      for (const warning of computeLessonWarnings({ videos: lesson.videos })) {
+        lints.push({
+          scope: "lesson",
+          sectionPath,
+          lessonPath,
+          kind: warning.kind,
+        });
+      }
       for (const video of lesson.videos) {
-        count += computeVideoWarnings({
+        const videoWarnings = computeVideoWarnings({
           clips: video.clips,
           chapters: video.chapters,
           lessonId: video.lessonId,
           body: video.body,
           description: video.description,
-        }).length;
+        });
+        for (const warning of videoWarnings) {
+          lints.push({
+            scope: "video",
+            sectionPath,
+            lessonPath,
+            videoTitle: video.title,
+            kind: warning.kind,
+          });
+        }
       }
     }
   }
-  return count;
+  return lints;
+}
+
+export function computeCourseViewLintCount(sections: LintSection[]): number {
+  return collectCourseViewLints(sections).length;
 }

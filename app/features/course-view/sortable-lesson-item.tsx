@@ -40,22 +40,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { LessonWarning } from "@/services/lesson-warnings";
-
 import { useLessonDependencyDrag } from "./use-lesson-dependency-drag";
-
-const WARNING_LABELS: Record<LessonWarning["kind"], string> = {
-  solutionWithoutProblem: "Solution without a Problem video",
-  explainerBesideProblem: "Explainer beside a Problem video",
-  duplicateRoles: "Duplicate video roles",
-  numberedRoleName:
-    "Numbered role name (a lesson has one video per role — name it e.g. “Explainer”, not “Explainer 2”)",
-  tooManyVideos: "Too many videos on this lesson",
-};
-
-function lessonWarningLabel(warnings: LessonWarning[]): string {
-  return warnings.map((w) => WARNING_LABELS[w.kind]).join("; ");
-}
+import { lessonWarningLabel } from "./lesson-warning-labels";
 import { Suspense, use, useCallback, useRef, useState } from "react";
 import { useNavigate, useFetcher } from "react-router";
 

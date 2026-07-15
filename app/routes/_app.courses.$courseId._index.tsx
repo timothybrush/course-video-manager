@@ -131,16 +131,16 @@ export default function Component(props: Route.ComponentProps) {
 
   const courseWarningCount = useMemo(() => {
     if (!loaderData.isLatestVersion) return 0;
+    // Count every warning (lesson- and video-level, all kinds) so this badge
+    // matches the publish page's course-warning count exactly — see
+    // collectCourseViewLints. Counting a narrower subset here is what let the
+    // two surfaces drift apart.
     let count = 0;
     for (const section of displaySections) {
       for (const lesson of section.lessons) {
-        if (lesson.lessonWarnings && lesson.lessonWarnings.length > 0) {
-          count++;
-        }
+        count += lesson.lessonWarnings?.length ?? 0;
         for (const video of lesson.videos) {
-          if (video.warnings.some((w) => w.kind === "missingOpeningChapter")) {
-            count++;
-          }
+          count += video.warnings.length;
         }
       }
     }

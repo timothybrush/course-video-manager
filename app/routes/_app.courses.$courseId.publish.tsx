@@ -11,6 +11,8 @@ import {
   ZERO_SEMVER,
   type BumpLevel,
 } from "@/lib/semver";
+import { LESSON_WARNING_LABELS } from "@/features/course-view/lesson-warning-labels";
+import { VIDEO_WARNING_LABELS } from "@/features/course-view/video-warning-labels";
 import { CoursePublishService } from "@/services/course-publish-service";
 import { CourseOperationsService } from "@/services/db-course-operations.server";
 import { VersionOperationsService } from "@/services/db-version-operations.server";
@@ -58,11 +60,13 @@ export const loader = makeLoader({
         previousVersionName: previousVersion?.name ?? null,
         withTodo: {
           courseViewLintCount: withTodo.courseViewLintCount,
+          courseViewLints: withTodo.courseViewLints,
           invalidLessonCombos: withTodo.invalidLessonCombos,
           incompleteVideos: withTodo.incompleteVideos,
         },
         withoutTodo: {
           courseViewLintCount: withoutTodo.courseViewLintCount,
+          courseViewLints: withoutTodo.courseViewLints,
           invalidLessonCombos: withoutTodo.invalidLessonCombos,
           incompleteVideos: withoutTodo.incompleteVideos,
         },
@@ -112,6 +116,7 @@ export default function Component(props: Route.ComponentProps) {
   // server round-trip.
   const effective = includeTodoLessons ? withTodo : withoutTodo;
   const courseViewLintCount = effective.courseViewLintCount;
+  const courseViewLints = effective.courseViewLints;
   const invalidLessonCombos = effective.invalidLessonCombos;
   const incompleteVideos = effective.incompleteVideos;
 
@@ -233,10 +238,12 @@ export default function Component(props: Route.ComponentProps) {
           </div>
         </div>
 
-        {/* Course-view Lints */}
+        {/* Course-view Lints — each warning is listed (not just counted) so it
+            can be found and fixed in the course view. The label wording matches
+            the course view exactly, keeping the two surfaces in lockstep. */}
         {hasCourseViewLints && (
           <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               <span className="text-sm font-medium text-amber-500">
                 {courseViewLintCount} course warning
@@ -244,6 +251,35 @@ export default function Component(props: Route.ComponentProps) {
                 before publishing
               </span>
             </div>
+            <ul className="space-y-1.5">
+              {courseViewLints.map((lint, index) => (
+                <li
+                  key={`${lint.sectionPath}/${lint.lessonPath}/${
+                    lint.scope === "video" ? lint.videoTitle : "lesson"
+                  }/${lint.kind}/${index}`}
+                  className="text-xs text-muted-foreground"
+                >
+                  <span className="font-medium text-foreground">
+                    {lint.scope === "video"
+                      ? lint.videoTitle
+                      : lint.lessonPath || "Lesson"}
+                  </span>{" "}
+                  <span className="text-amber-500">
+                    (
+                    {lint.scope === "video"
+                      ? VIDEO_WARNING_LABELS[lint.kind]
+                      : LESSON_WARNING_LABELS[lint.kind]}
+                    )
+                  </span>
+                  <span className="block text-muted-foreground/70">
+                    {lint.sectionPath}
+                    {lint.scope === "video" && lint.lessonPath
+                      ? ` / ${lint.lessonPath}`
+                      : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
