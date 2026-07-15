@@ -2,6 +2,7 @@ import { getImageInstructions } from "./image-instructions";
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
 import { SCREENSHOT_INSTRUCTIONS } from "./screenshot-instructions";
 import { CODE_SAMPLES, STYLE_GUIDE_BASE } from "./style-guide";
+import { getTranscriptSection } from "./transcript-instructions";
 
 const taskInstructions = `
 ${STYLE_GUIDE_BASE}
@@ -26,17 +27,7 @@ export const generateArticlePrompt = (opts: {
   courseStructure?: string;
   links: GlobalLink[];
 }) => {
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video:
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-Some clips are annotated with a «on screen: …» marker directly after their [N] index. This means those web pages were visible on screen during that part of the video. Treat them as context, not narration — do not read the marker out as prose. Where it genuinely helps the reader, you may link to those URLs at the relevant point. Each page is annotated only once, at its first appearance.
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(opts.transcript);
 
   const sectionNamesSection =
     opts.sectionNames && opts.sectionNames.length > 0

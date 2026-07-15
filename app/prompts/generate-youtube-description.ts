@@ -1,4 +1,5 @@
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
+import { getTranscriptSection } from "./transcript-instructions";
 
 export const generateYoutubeDescriptionPrompt = (opts: {
   code: {
@@ -11,15 +12,7 @@ export const generateYoutubeDescriptionPrompt = (opts: {
   youtubeChapters: { timestamp: string; name: string }[];
   links: GlobalLink[];
 }) => {
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video:
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(opts.transcript);
 
   const codeSection =
     opts.code.length > 0

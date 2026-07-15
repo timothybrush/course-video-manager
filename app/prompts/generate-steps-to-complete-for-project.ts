@@ -2,6 +2,7 @@ import { getImageInstructions } from "./image-instructions";
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
 import { PROJECT_STYLE_GUIDE } from "./project-style-guide";
 import PROJECT_STEPS_SAMPLE from "./project-steps-sample.md?raw";
+import { getTranscriptSection } from "./transcript-instructions";
 
 export const generateStepsToCompleteForProjectPrompt = (opts: {
   code: {
@@ -13,15 +14,7 @@ export const generateStepsToCompleteForProjectPrompt = (opts: {
   courseStructure?: string;
   links: GlobalLink[];
 }) => {
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video:
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(opts.transcript);
 
   const courseStructureSection = opts.courseStructure
     ? `This lesson is part of a larger course. Here is the full structure:

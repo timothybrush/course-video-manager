@@ -2,6 +2,7 @@ import { NEWSLETTER_GREETING_SIGIL } from "@/features/article-writer/lint-rules"
 import { getImageInstructions } from "./image-instructions";
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
 import { SCREENSHOT_INSTRUCTIONS } from "./screenshot-instructions";
+import { getTranscriptSection } from "./transcript-instructions";
 
 export const generateNewsletterPrompt = (opts: {
   code: {
@@ -14,15 +15,7 @@ export const generateNewsletterPrompt = (opts: {
   links: GlobalLink[];
   aiHeroUrl?: string;
 }) => {
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video:
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(opts.transcript);
 
   const codeSection =
     opts.code.length > 0
