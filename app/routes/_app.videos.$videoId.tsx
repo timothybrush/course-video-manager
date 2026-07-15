@@ -6,6 +6,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { getBackButtonUrl } from "@/features/video-editor/video-editor-selectors";
 import { cn } from "@/lib/utils";
 import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { makeLoader } from "@/services/route-action.server";
@@ -50,6 +51,7 @@ export const loader = makeLoader({
           lessonId: null,
           pitchId: video.pitchId,
           isStandalone: true,
+          format: video.format,
           nextVideoId,
           previousVideoId,
           videoCount: 1,
@@ -66,6 +68,7 @@ export const loader = makeLoader({
         lessonId: lesson.id,
         pitchId: video.pitchId,
         isStandalone: false,
+        format: video.format,
         nextVideoId,
         previousVideoId,
         videoCount: lesson.videos.length,
@@ -143,6 +146,7 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
     lessonId,
     pitchId,
     isStandalone,
+    format,
     nextVideoId,
     previousVideoId,
     videoCount,
@@ -181,12 +185,7 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
               ? "newsletter"
               : "edit";
 
-  // Build back button URL
-  const backButtonUrl = pitchId
-    ? `/pitches/${pitchId}`
-    : repoId && lessonId
-      ? `/courses/${repoId}#${lessonId}`
-      : "/videos";
+  const backButtonUrl = getBackButtonUrl(repoId, lessonId, format, pitchId);
 
   // Build breadcrumb text
   const breadcrumb = isStandalone
