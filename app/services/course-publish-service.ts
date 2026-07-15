@@ -18,7 +18,7 @@ import {
   DoesNotExistOnDbError,
   resolveSectionsWithVideos,
 } from "./publish-to-dropbox";
-import { computeCourseViewLintCount } from "./lesson-warnings";
+import { collectCourseViewLints } from "./lesson-warnings";
 import {
   buildCourseJson,
   buildCourseJsonSchema,
@@ -306,8 +306,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
                 }
               }
             }
-            const courseViewLintCount =
-              computeCourseViewLintCount(effectiveSections);
+            const courseViewLints = collectCourseViewLints(effectiveSections);
+            const courseViewLintCount = courseViewLints.length;
 
             // Publish blockers computed from the exact same walk buildCourseJson
             // uses (its backstop), so the pre-publish warnings and the build
@@ -318,6 +318,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             return {
               unexportedVideoIds,
               courseViewLintCount,
+              courseViewLints,
               invalidLessonCombos,
               incompleteVideos,
             };
