@@ -1,5 +1,6 @@
 import { getImageInstructions } from "./image-instructions";
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
+import { getTranscriptSection } from "./transcript-instructions";
 
 export const generateInterviewPrompt = (opts: {
   code: {
@@ -11,15 +12,10 @@ export const generateInterviewPrompt = (opts: {
   courseStructure?: string;
   links: GlobalLink[];
 }) => {
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video (if available):
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(
+    opts.transcript,
+    "Here is the transcript of the video (if available):"
+  );
 
   const codeSection =
     opts.code.length > 0

@@ -1,5 +1,6 @@
 import { getLinkInstructions, type GlobalLink } from "./link-instructions";
 import { getSkillBuildingSharedTemplate } from "./skill-building-shared-template";
+import { getTranscriptSection } from "./transcript-instructions";
 
 export const refineSkillBuildingWithStyleGuidePrompt = (opts: {
   code: {
@@ -22,15 +23,10 @@ export const refineSkillBuildingWithStyleGuidePrompt = (opts: {
     );
   }
 
-  const transcriptSection = opts.transcript
-    ? `Here is the transcript of the video (for additional context):
-
-<transcript>
-${opts.transcript}
-</transcript>
-
-`
-    : "";
+  const transcriptSection = getTranscriptSection(
+    opts.transcript,
+    "Here is the transcript of the video (for additional context):"
+  );
 
   const courseStructureSection = opts.courseStructure
     ? `This lesson is part of a larger course. Here is the full structure:
