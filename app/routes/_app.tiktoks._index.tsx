@@ -132,7 +132,16 @@ export default function TikToksIndex(props: Route.ComponentProps) {
                   className="group flex flex-col rounded-lg border bg-card overflow-hidden hover:border-foreground/20 transition-colors"
                 >
                   <div className="aspect-[9/16] bg-muted/50 flex items-center justify-center relative">
-                    <VideoIcon className="w-8 h-8 text-muted-foreground/30" />
+                    {video.clips[0] ? (
+                      <img
+                        src={`/clips/${video.clips[0].id}/first-frame`}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <VideoIcon className="w-8 h-8 text-muted-foreground/30" />
+                    )}
                     <div className="absolute top-2 right-2">
                       <Badge
                         variant="secondary"
