@@ -11,13 +11,14 @@ while IFS= read -r file; do
     *) continue ;;
   esac
 
-  if grep -nP '\b__dirname\b|\b__filename\b' "$file" | grep -vP '^\d+:\s*//' > /dev/null 2>&1; then
+  matches=$(grep -nP '\b__dirname\b|\b__filename\b' "$file" | grep -vP '^\d+:\s*//' || true)
+  if [ -n "$matches" ]; then
     if [ "$found_violations" -eq 0 ]; then
       echo ""
       echo "ERROR: CJS globals found — use import.meta.dirname / import.meta.filename instead:"
       echo ""
     fi
-    grep -nP '\b__dirname\b|\b__filename\b' "$file" | grep -vP '^\d+:\s*//' | while IFS= read -r match; do
+    echo "$matches" | while IFS= read -r match; do
       echo "  $file:$match"
     done
     found_violations=1
