@@ -7,7 +7,6 @@ import { StudioActionsDropdown } from "./studio-actions-dropdown";
 import { PreloadableClipManager } from "../preloadable-clip";
 import {
   getIsOBSActive as getIsOBSActiveSelector,
-  getShouldShowLastFrameOverlay as getShouldShowLastFrameOverlaySelector,
   getShowCenterLine as getShowCenterLineSelector,
   getShowScrubSlider as getShowScrubSliderSelector,
 } from "../video-editor-selectors";
@@ -47,10 +46,6 @@ export const PortraitStudioPanel = () => {
     VideoEditorContext,
     (ctx) => ctx.showLiveStream
   );
-  const showLastFrame = useContextSelector(
-    VideoEditorContext,
-    (ctx) => ctx.showLastFrame
-  );
   const obsConnectorState = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.obsConnectorState
@@ -58,10 +53,6 @@ export const PortraitStudioPanel = () => {
   const speechDetectorState = useContextSelector(
     VideoEditorContext,
     (ctx) => ctx.speechDetectorState
-  );
-  const databaseClipToShowLastFrameOf = useContextSelector(
-    VideoEditorContext,
-    (ctx) => ctx.databaseClipToShowLastFrameOf
   );
   const clipsToAggressivelyPreload = useContextSelector(
     VideoEditorContext,
@@ -169,11 +160,6 @@ export const PortraitStudioPanel = () => {
   }, [videoId]);
 
   const isOBSActive = getIsOBSActiveSelector(obsConnectorState);
-  const shouldShowLastFrameOverlay = getShouldShowLastFrameOverlaySelector(
-    databaseClipToShowLastFrameOf,
-    showLastFrame,
-    obsConnectorState
-  );
   const showCenterLine = getShowCenterLineSelector(obsConnectorState);
   const showScrubSlider = getShowScrubSliderSelector(
     currentClip?.type,
@@ -243,9 +229,7 @@ export const PortraitStudioPanel = () => {
                 className={cn(
                   "flex-1 min-h-0 aspect-[9/16] relative",
                   "hidden",
-                  !showVideoPlayer &&
-                    (showLiveStream || showLastFrame) &&
-                    "block"
+                  !showVideoPlayer && showLiveStream && "block"
                 )}
               >
                 {obsConnectorState.type === "obs-recording" && (
@@ -260,16 +244,6 @@ export const PortraitStudioPanel = () => {
                     showCenterLine={showCenterLine}
                   />
                 )}
-                {!showVideoPlayer &&
-                  shouldShowLastFrameOverlay &&
-                  databaseClipToShowLastFrameOf && (
-                    <div className="absolute inset-0 rounded-lg">
-                      <img
-                        className="w-full h-full rounded-lg opacity-50 object-contain"
-                        src={`/clips/${databaseClipToShowLastFrameOf.databaseId}/last-frame`}
-                      />
-                    </div>
-                  )}
               </div>
             )}
             <div
