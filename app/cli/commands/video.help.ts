@@ -19,6 +19,12 @@ A Standalone Video has no lesson association (lessonId = NULL) and is used for
 reference or temporary content; it may be packaged by a Pitch. A lesson-bound
 Video belongs to a Lesson inside a Section of a Course Version.
 
+Every Video has a Video Format (the 'format' field): one of 'landscape' (a
+horizontal, long-form video — the default) or 'short' (a vertical, short-form
+video, the kind posted to YouTube Shorts / TikTok / etc.). Format distinguishes
+a Short from a Landscape video, and is a SEPARATE axis from Standalone (a
+Standalone video may be either format; every Short is standalone).
+
 This command exposes ONLY Standalone Videos for 'list' (the complete set, not
 the UI's recent-5). 'get', 'tree' and 'transcript' accept ANY video id
 (standalone or lesson-bound).
@@ -31,9 +37,9 @@ Verbs:
   get <id...>          a Video plus its Clips and Chapters (variadic; NDJSON when >1 id)
   tree <id>            skeleton: video -> clips/chapters (id/kind/name/children)
   transcript <id>      the ordered text projection (Clips + Chapters as prose)
-  create --name <n>    create a Video (--lesson <id> | --pitch <id> | neither=standalone) (WRITE)
+  create --name <n>    create a Video (--lesson <id> | --pitch <id> | neither=standalone; --format for standalone) (WRITE)
   move <id>            re-home a Video to a lesson/pitch (--lesson | --pitch) (WRITE)
-  update <id>          patch a Video's name / body / SEO description (WRITE)
+  update <id>          patch a Video's name / body / SEO description / format (WRITE)
 
 Worked example (find a video, then read it):
   cvm video list | jq -r '.id'                     # map name -> id
@@ -54,17 +60,21 @@ Key fields:
              so you never have to guess the label field
   title      the video's name within its lesson (its display/file name)
   pitchId    set when a Pitch packages this standalone video; else null
+  format     the Video Format: 'landscape' (long-form, default) or 'short'
   archived   soft-delete flag (always false here unless --archived)
   clips[]    the video's clips in timeline order (order, text, source times)
 
 Flags:
-  --archived   include the ARCHIVE instead: only soft-deleted Standalone Videos
-               (getArchivedStandaloneVideos). Standalone Videos are the only
-               videos with a viewable archive.
+  --archived        include the ARCHIVE instead: only soft-deleted Standalone
+                    Videos (getArchivedStandaloneVideos). Standalone Videos are
+                    the only videos with a viewable archive.
+  --format <f>      filter to a single Video Format: 'landscape' or 'short'.
+                    Combines with --archived (filters the archive too).
 
 Examples:
   cvm video list
   cvm video list --archived
+  cvm video list --format short
   cvm video list | jq -r '"\\(.id)\\t\\(.title)"'`;
 
 export const GET_HELP = `Get one or more Videos by id (variadic), each with its immediate children.
@@ -141,6 +151,10 @@ Choose the parent with a flag (they are mutually exclusive):
   --lesson <id>   create the video inside that Lesson.
   --pitch <id>    create the video packaged by that Pitch (a Standalone video).
   (neither)       create a free Standalone video (no lesson, no pitch).
+  --format <f>    the Video Format ('landscape' or 'short') for the new video.
+                  Standalone/pitch videos only; a Short is always standalone, so
+                  combining --format with --lesson is invalid input (exit 3).
+                  Defaults to 'landscape'.
 
 --name is ALWAYS required, including under --pitch. Passing both --lesson and
 --pitch is invalid input (exit 3). An unknown --lesson / --pitch id is a
@@ -150,7 +164,8 @@ lesson is invalid input (exit 3). Echoes the created video row.
 Examples:
   cvm video create --name "Intro"
   cvm video create --name "01-setup" --lesson les_abc
-  cvm video create --name "My Pitch Cut" --pitch pit_123`;
+  cvm video create --name "My Pitch Cut" --pitch pit_123
+  cvm video create --name "Quick tip" --format short`;
 
 export const MOVE_HELP = `Re-home an existing Video to a Lesson or a Pitch. Requires EXACTLY ONE of
 --lesson <id> / --pitch <id> (passing both, or neither, is invalid input,
@@ -168,8 +183,8 @@ Examples:
 
 export const UPDATE_HELP = `Patch a Video by id. A PARTIAL update: pass only the fields you want to change,
 and only those columns are written (unset flags are left untouched). At least one
-of --name / --body / --body-file / --description is required (an update with none
-is invalid input, exit 3).
+of --name / --body / --body-file / --description / --format is required (an
+update with none is invalid input, exit 3).
 
 Fields:
   --name <n>          the Video's 'name' (its 'title' column). For lesson-bound
@@ -182,6 +197,10 @@ Fields:
                       invalid input (exit 3).
   --description <s>   the Video's SEO DESCRIPTION (the 'video_description'
                       column) as inline text.
+  --format <f>        the Video Format: 'landscape' or 'short'. IMPORTANT:
+                      setting a format calls updateVideoFormat, which ALSO NULLs
+                      the video's lessonId (re-homing it to standalone) — this is
+                      existing app behavior, since a Short is always standalone.
 
 Body and SEO description are the DB-owned fields the AI Hero auto-link publishes.
 Passing an empty string ("") stores an empty value (it does not clear to null).
@@ -194,4 +213,5 @@ Examples:
   cvm video update --body "# Intro\\n\\nWelcome…" vid_123
   cvm video update --body-file ./notes.md vid_123
   some-tool | cvm video update --body-file - vid_123
-  cvm video update --name "03-final" --description "The finished cut" vid_123`;
+  cvm video update --name "03-final" --description "The finished cut" vid_123
+  cvm video update --format short vid_123   # also re-homes to standalone`;

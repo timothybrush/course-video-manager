@@ -117,7 +117,7 @@ describe("ensureOBSProfile", () => {
 
 describe("targetProfileForFormat", () => {
   it("returns Landscape Recording for standard format", () => {
-    expect(targetProfileForFormat("standard")).toBe(OBS_PROFILE_LANDSCAPE);
+    expect(targetProfileForFormat("landscape")).toBe(OBS_PROFILE_LANDSCAPE);
   });
 
   it("returns TikTok for short format", () => {

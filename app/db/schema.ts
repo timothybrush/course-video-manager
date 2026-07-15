@@ -209,7 +209,7 @@ export const videos = createTable(
     body: text("body"),
     description: text("video_description"),
     archived: boolean("archived").notNull().default(false),
-    format: text("format").notNull().default("standard"),
+    format: text("format").notNull().default("landscape"),
     createdAt: timestamp("created_at", {
       mode: "date",
       withTimezone: true,

@@ -15,6 +15,7 @@ import {
   withName,
 } from "@/cli/helpers";
 import { withBackupCoordination } from "@/cli/backup-coordinator";
+import { VIDEO_FORMATS } from "@/features/videos/video-format";
 import {
   formatProseTranscript,
   toTranscriptItems,
@@ -85,15 +86,26 @@ const buildVideoTree = (
 // ---------------------------------------------------------------------------
 
 const archived = Options.boolean("archived");
+const formatOption = Options.choice("format", [...VIDEO_FORMATS]).pipe(
+  Options.withDescription(
+    "Filter to a single Video Format: 'landscape' or 'short'."
+  ),
+  Options.optional
+);
 
-const listCmd = Command.make("list", { archived }, ({ archived }) =>
-  Effect.gen(function* () {
-    const svc = yield* VideoOperationsService;
-    const videos = archived
-      ? yield* svc.getArchivedStandaloneVideos()
-      : yield* svc.getAllStandaloneVideos();
-    yield* emitNdjson(videos.map(withName));
-  })
+const listCmd = Command.make(
+  "list",
+  { archived, format: formatOption },
+  ({ archived, format }) =>
+    Effect.gen(function* () {
+      const svc = yield* VideoOperationsService;
+      const formatFilter = Option.getOrUndefined(format);
+      const opts = formatFilter ? { format: formatFilter } : undefined;
+      const videos = archived
+        ? yield* svc.getArchivedStandaloneVideos(opts)
+        : yield* svc.getAllStandaloneVideos(opts);
+      yield* emitNdjson(videos.map(withName));
+    })
 ).pipe(Command.withDescription(detail(LIST_HELP)));
 
 const ids = Args.text({ name: "id" }).pipe(Args.repeated);
@@ -190,10 +202,23 @@ const requirePitch = (pitchId: string) =>
       .pipe(Effect.catchTag("NotFoundError", () => notFound("pitch", pitchId)))
   );
 
+const createFormatOption = Options.choice("format", [...VIDEO_FORMATS]).pipe(
+  Options.withDescription(
+    "The Video Format ('landscape' or 'short'). Standalone/pitch videos only; " +
+      "not applicable with --lesson."
+  ),
+  Options.optional
+);
+
 const createCmd = Command.make(
   "create",
-  { name: nameOption, lesson: lessonOption, pitch: pitchOption },
-  ({ name, lesson, pitch }) =>
+  {
+    name: nameOption,
+    lesson: lessonOption,
+    pitch: pitchOption,
+    format: createFormatOption,
+  },
+  ({ name, lesson, pitch, format }) =>
     withBackupCoordination(
       Effect.gen(function* () {
         if (name.trim() === "") {
@@ -201,12 +226,21 @@ const createCmd = Command.make(
         }
         const lessonId = Option.getOrUndefined(lesson);
         const pitchId = Option.getOrUndefined(pitch);
+        const videoFormat = Option.getOrUndefined(format);
         yield* rejectBothFlags({
           a: lessonId,
           b: pitchId,
           flags: ["--lesson", "--pitch"],
           entity: "video",
         });
+
+        if (lessonId !== undefined && videoFormat !== undefined) {
+          return yield* parseError(
+            "--format is not applicable with --lesson (lesson videos are " +
+              "always landscape; Shorts are always standalone)",
+            "video"
+          );
+        }
 
         const svc = yield* VideoOperationsService;
 
@@ -224,7 +258,10 @@ const createCmd = Command.make(
 
         if (pitchId !== undefined) {
           yield* requirePitch(pitchId);
-          const created = yield* svc.createStandaloneVideo({ title: name });
+          const created = yield* svc.createStandaloneVideo({
+            title: name,
+            format: videoFormat,
+          });
           const linked = yield* svc.linkVideoToPitch({
             videoId: created.id,
             pitchId,
@@ -232,7 +269,10 @@ const createCmd = Command.make(
           return yield* emitObject(linked);
         }
 
-        const created = yield* svc.createStandaloneVideo({ title: name });
+        const created = yield* svc.createStandaloneVideo({
+          title: name,
+          format: videoFormat,
+        });
         yield* emitObject(created);
       })
     )
@@ -312,6 +352,13 @@ const updateDescriptionOption = Options.text("description").pipe(
   ),
   Options.optional
 );
+const updateFormatOption = Options.choice("format", [...VIDEO_FORMATS]).pipe(
+  Options.withDescription(
+    "The Video Format ('landscape' or 'short'). NOTE: setting a format " +
+      "re-homes the video to standalone (NULLs its lessonId)."
+  ),
+  Options.optional
+);
 
 /**
  * Read the markdown body from a file path, or from STDIN when the path is '-'.
@@ -338,14 +385,16 @@ const updateCmd = Command.make(
     body: updateBodyOption,
     bodyFile: updateBodyFileOption,
     description: updateDescriptionOption,
+    format: updateFormatOption,
   },
-  ({ id, name, body, bodyFile, description }) =>
+  ({ id, name, body, bodyFile, description, format }) =>
     withBackupCoordination(
       Effect.gen(function* () {
         const newName = Option.getOrUndefined(name);
         const inlineBody = Option.getOrUndefined(body);
         const bodyFilePath = Option.getOrUndefined(bodyFile);
         const newDescription = Option.getOrUndefined(description);
+        const newFormat = Option.getOrUndefined(format);
 
         yield* rejectBothFlags({
           a: inlineBody,
@@ -358,10 +407,11 @@ const updateCmd = Command.make(
           newName === undefined &&
           inlineBody === undefined &&
           bodyFilePath === undefined &&
-          newDescription === undefined
+          newDescription === undefined &&
+          newFormat === undefined
         ) {
           return yield* parseError(
-            "update needs at least one of --name / --body / --body-file / --description",
+            "update needs at least one of --name / --body / --body-file / --description / --format",
             "video"
           );
         }
@@ -397,6 +447,9 @@ const updateCmd = Command.make(
             videoId: id,
             description: newDescription,
           });
+        }
+        if (newFormat !== undefined) {
+          yield* svc.updateVideoFormat({ videoId: id, format: newFormat });
         }
 
         const updated = yield* svc.getVideoRowById(id);

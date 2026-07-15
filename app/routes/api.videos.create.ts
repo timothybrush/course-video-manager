@@ -6,7 +6,7 @@ import { data, redirect } from "react-router";
 const createVideoSchema = Schema.Struct({
   title: Schema.String,
   format: Schema.optional(
-    Schema.Union(Schema.Literal("standard"), Schema.Literal("short"))
+    Schema.Union(Schema.Literal("landscape"), Schema.Literal("short"))
   ),
   redirectTo: Schema.optional(Schema.String),
 });

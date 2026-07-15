@@ -97,7 +97,7 @@ export function AppSidebar({ variant }: AppSidebarProps) {
     );
 
   const onPitchesPath = location.pathname.startsWith("/pitches");
-  const onTikToksPath = location.pathname.startsWith("/tiktoks");
+  const onShortsPath = location.pathname.startsWith("/shorts");
   const onVideosPath =
     location.pathname === "/videos" ||
     location.pathname === "/videos/concatenate";
@@ -195,9 +195,9 @@ export function AppSidebar({ variant }: AppSidebarProps) {
 
       <EntityCard
         icon={<Clapperboard className="w-4 h-4 text-muted-foreground" />}
-        label="TikToks"
-        href="/tiktoks"
-        active={onTikToksPath}
+        label="Shorts"
+        href="/shorts"
+        active={onShortsPath}
       />
 
       <EntityCard

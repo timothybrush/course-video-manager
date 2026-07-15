@@ -31,14 +31,14 @@ beforeEach(async () => {
 });
 
 describe("video format", () => {
-  it.effect("defaults to standard when not specified", () =>
+  it.effect("defaults to landscape when not specified", () =>
     Effect.gen(function* () {
       const videoOps = yield* VideoOperationsService;
       const video = yield* videoOps.createStandaloneVideo({
         title: "Test Video",
       });
 
-      expect(video.format).toBe("standard");
+      expect(video.format).toBe("landscape");
     }).pipe(Effect.provide(testLayer))
   );
 
@@ -119,7 +119,7 @@ describe("video format", () => {
         expect(shorts[0]!.title).toBe("Short");
 
         const standards = yield* videoOps.getAllStandaloneVideos({
-          format: "standard",
+          format: "landscape",
         });
         expect(standards).toHaveLength(1);
         expect(standards[0]!.title).toBe("Standard");
@@ -178,7 +178,7 @@ describe("video format", () => {
         });
 
         const standardOnly = yield* videoOps.getArchivedStandaloneVideos({
-          format: "standard",
+          format: "landscape",
         });
         expect(standardOnly).toHaveLength(1);
         expect(standardOnly[0]!.title).toBe("Archived Standard");
