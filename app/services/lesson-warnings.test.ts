@@ -253,6 +253,55 @@ describe("collectCourseViewLints", () => {
     });
   });
 
+  it("excludes archived videos from lesson warnings", () => {
+    // Three live videos would trip the "too many videos" lesson warning, but two
+    // of them are archived — so the lesson has one active video and no warning.
+    const sections = [
+      {
+        path: "01-intro",
+        lessons: [
+          {
+            path: "01-a",
+            videos: [
+              { ...makeVideo("Explainer"), archived: false },
+              { ...makeVideo("Problem"), archived: true },
+              { ...makeVideo("Solution"), archived: true },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(
+      collectCourseViewLints(sections).filter((l) => l.scope === "lesson")
+    ).toEqual([]);
+  });
+
+  it("excludes archived videos from video warnings", () => {
+    // The archived video is missing its opening chapter, but archived videos are
+    // never published, so it must not raise a warning.
+    const sections = [
+      {
+        path: "01-intro",
+        lessons: [
+          {
+            path: "01-a",
+            videos: [
+              {
+                ...makeVideo(
+                  "Explainer",
+                  [{ order: "a0", archived: false }],
+                  []
+                ),
+                archived: true,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    expect(collectCourseViewLints(sections)).toEqual([]);
+  });
+
   it("tags a video-level lint with the offending video title", () => {
     const lints = collectCourseViewLints([
       {
