@@ -383,7 +383,7 @@ export const getBackButtonUrl = (
 ): string => {
   if (pitchId) return `/pitches/${pitchId}`;
   if (repoId && lessonId) return `/courses/${repoId}#${lessonId}`;
-  return format === "short" ? "/tiktoks" : "/videos";
+  return format === "short" ? "/shorts" : "/videos";
 };
 
 export const getShowCenterLine = (

@@ -57,8 +57,19 @@ A container of clips and chapters that represents a single producible video outp
 _Avoid_: Recording
 
 **Standalone Video**:
-A video with no lesson association (`lessonId = NULL`), used for reference or temporary content.
+A video with no lesson association (`lessonId = NULL`), used for reference or temporary content. A SEPARATE axis from **Video Format**: a Standalone video may be either **Landscape** or **Short**, and every **Short** is Standalone. Never use "Standalone" to mean a format.
 _Avoid_: Orphan video, Unlinked video
+
+**Video Format**:
+An axis on every **Video** (the `video.format` column). One of two values: **Landscape** or **Short**. Defaults to Landscape.
+
+**Landscape**:
+A **Video** with `format: "landscape"`: a horizontal, long-form video. The default format. Shown in the app under `/videos`.
+_Avoid_: Standard (the old value name)
+
+**Short**:
+A **Video** with `format: "short"`: a vertical, short-form video (the kind posted to YouTube Shorts / TikTok / etc.). Shown in the app under `/shorts`. "Short" is canonical everywhere.
+_Avoid_: TikTok (reserved for the actual TikTok platform — the OBS recording profile and Buffer posting destinations — and NOT the canonical name for a Short)
 
 **Clip**:
 A timestamped segment of source footage within a video, defined by start/end times and a source filename.

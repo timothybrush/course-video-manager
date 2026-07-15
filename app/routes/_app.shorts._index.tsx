@@ -8,10 +8,10 @@ import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
 import { Clapperboard, Plus, VideoIcon } from "lucide-react";
 import { Link, useFetcher } from "react-router";
-import type { Route } from "./+types/_app.tiktoks._index";
+import type { Route } from "./+types/_app.shorts._index";
 
 export const meta: Route.MetaFunction = () => {
-  return [{ title: "CVM - TikToks" }];
+  return [{ title: "CVM - Shorts" }];
 };
 
 export const loader = makeLoader({
@@ -75,7 +75,7 @@ function RecordTile() {
   );
 }
 
-export default function TikToksIndex(props: Route.ComponentProps) {
+export default function ShortsIndex(props: Route.ComponentProps) {
   const { shorts, exportedMap, postedMap } = props.loaderData;
 
   useFocusRevalidate({ enabled: true });
@@ -87,7 +87,7 @@ export default function TikToksIndex(props: Route.ComponentProps) {
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Clapperboard className="w-6 h-6" />
-              TikToks
+              Shorts
             </h1>
           </div>
 

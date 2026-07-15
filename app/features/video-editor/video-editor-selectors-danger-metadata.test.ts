@@ -402,27 +402,27 @@ describe("getShouldShowLastFrameOverlay", () => {
 
 describe("getBackButtonUrl", () => {
   it("returns lesson-specific URL when repoId and lessonId exist", () => {
-    expect(getBackButtonUrl("repo-1", "lesson-1", "standard", null)).toBe(
+    expect(getBackButtonUrl("repo-1", "lesson-1", "landscape", null)).toBe(
       "/courses/repo-1#lesson-1"
     );
   });
 
   it("returns /videos when repoId is missing", () => {
-    expect(getBackButtonUrl(null, "lesson-1", "standard", null)).toBe(
+    expect(getBackButtonUrl(null, "lesson-1", "landscape", null)).toBe(
       "/videos"
     );
   });
 
   it("returns /videos when lessonId is missing", () => {
-    expect(getBackButtonUrl("repo-1", null, "standard", null)).toBe("/videos");
+    expect(getBackButtonUrl("repo-1", null, "landscape", null)).toBe("/videos");
   });
 
   it("returns /videos when both are missing", () => {
-    expect(getBackButtonUrl(null, null, "standard", null)).toBe("/videos");
+    expect(getBackButtonUrl(null, null, "landscape", null)).toBe("/videos");
   });
 
-  it("returns /tiktoks when format is short and video is standalone", () => {
-    expect(getBackButtonUrl(null, null, "short", null)).toBe("/tiktoks");
+  it("returns /shorts when format is short and video is standalone", () => {
+    expect(getBackButtonUrl(null, null, "short", null)).toBe("/shorts");
   });
 
   it("returns lesson URL when format is short but video has a lesson", () => {
@@ -432,13 +432,13 @@ describe("getBackButtonUrl", () => {
   });
 
   it("returns pitch URL when pitchId exists", () => {
-    expect(getBackButtonUrl(null, null, "standard", "pitch-1")).toBe(
+    expect(getBackButtonUrl(null, null, "landscape", "pitch-1")).toBe(
       "/pitches/pitch-1"
     );
   });
 
   it("returns pitch URL even when repoId and lessonId exist", () => {
-    expect(getBackButtonUrl("repo-1", "lesson-1", "standard", "pitch-1")).toBe(
+    expect(getBackButtonUrl("repo-1", "lesson-1", "landscape", "pitch-1")).toBe(
       "/pitches/pitch-1"
     );
   });

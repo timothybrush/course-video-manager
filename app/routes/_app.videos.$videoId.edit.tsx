@@ -312,7 +312,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
   useEnsureOBSProfile({
     obsState: obsConnector.state,
     targetProfile: targetProfileForFormat(
-      props.loaderData.video.format as "standard" | "short"
+      props.loaderData.video.format as "landscape" | "short"
     ),
     ensureProfile: obsConnector.ensureProfile,
     onError: (message) => console.error("[OBS profile switch]", message),
@@ -341,7 +341,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
 
   return (
     <VideoEditor
-      videoFormat={props.loaderData.video.format as "standard" | "short"}
+      videoFormat={props.loaderData.video.format as "landscape" | "short"}
       onClipsRemoved={(clipIds) => {
         dispatch({ type: "clips-deleted", clipIds: clipIds });
       }}

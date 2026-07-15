@@ -1,0 +1,2 @@
+ALTER TABLE "course-video-manager_video" ALTER COLUMN "format" SET DEFAULT 'landscape';--> statement-breakpoint
+UPDATE "course-video-manager_video" SET "format" = 'landscape' WHERE "format" = 'standard';
