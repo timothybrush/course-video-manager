@@ -207,7 +207,7 @@ function renderOverlay(
     yield* effectFs.writeFileString(propsFile, propsJson);
 
     const binPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       "../../packages/subtitle-overlay-renderer/bin.mjs"
     );
 

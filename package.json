@@ -28,7 +28,8 @@
     "db:studio": "drizzle-kit studio",
     "db:clone-local": "./scripts/clone-db-to-local.sh",
     "sandcastle": "npx tsx ./.sandcastle/main.ts",
-    "check:file-tokens": "./scripts/check-file-tokens.sh"
+    "check:file-tokens": "./scripts/check-file-tokens.sh",
+    "check:no-dirname": "./scripts/check-no-dirname.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
