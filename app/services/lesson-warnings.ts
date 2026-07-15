@@ -81,6 +81,7 @@ export const computeLessonWarnings = (input: {
 
 type LintVideo = {
   title: string;
+  archived?: boolean;
   lessonId?: string | null;
   body?: string | null;
   description?: string | null;
@@ -125,7 +126,12 @@ export function collectCourseViewLints(
     const sectionPath = section.path ?? "";
     for (const lesson of section.lessons) {
       const lessonPath = lesson.path ?? "";
-      for (const warning of computeLessonWarnings({ videos: lesson.videos })) {
+      // Archived videos are "deleted" — never shown in the course view and
+      // never published — so they can't be the subject of a warning. Excluding
+      // them here keeps this walk in step with collectPublishBlockers (which
+      // lints only `activeVideos`) and with the course view's DB-level filter.
+      const activeVideos = lesson.videos.filter((v) => !v.archived);
+      for (const warning of computeLessonWarnings({ videos: activeVideos })) {
         lints.push({
           scope: "lesson",
           sectionPath,
@@ -133,7 +139,7 @@ export function collectCourseViewLints(
           kind: warning.kind,
         });
       }
-      for (const video of lesson.videos) {
+      for (const video of activeVideos) {
         const videoWarnings = computeVideoWarnings({
           clips: video.clips,
           chapters: video.chapters,
