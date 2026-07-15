@@ -27,7 +27,10 @@ export const SubtitleOverlay = ({ subtitles, cta }: OverlayProps) => {
           durationInFrames={
             index === arr.length - 1
               ? Infinity
-              : subtitle.endFrame - subtitle.startFrame
+              : // A very short word can have its start/end round to the same
+                // frame, collapsing this segment to zero (or fewer) frames.
+                // Remotion requires a positive duration, so clamp to >= 1.
+                Math.max(1, subtitle.endFrame - subtitle.startFrame)
           }
         >
           <AbsoluteFill className="flex items-center justify-center">
@@ -38,7 +41,10 @@ export const SubtitleOverlay = ({ subtitles, cta }: OverlayProps) => {
       {cta !== null && (
         <Sequence durationInFrames={cta.durationInFrames}>
           <AbsoluteFill className="flex flex-col">
-            <CTAPill variant={cta.variant} durationInFrames={cta.durationInFrames} />
+            <CTAPill
+              variant={cta.variant}
+              durationInFrames={cta.durationInFrames}
+            />
           </AbsoluteFill>
         </Sequence>
       )}
@@ -78,7 +84,7 @@ const CTAPill = ({
     {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
-    },
+    }
   );
 
   // Drift up from 0px to -MOVE_DISTANCE px over the animation.
@@ -86,7 +92,7 @@ const CTAPill = ({
     frame,
     [0, durationInFrames - FADE_OUT_BUFFER_BEFORE_END],
     [0, -MOVE_DISTANCE],
-    {},
+    {}
   );
 
   const { src, padding } = CTA_IMAGES[variant];
@@ -128,7 +134,7 @@ const Subtitle = ({ text, isFirst }: { text: string; isFirst: boolean }) => {
     ],
     {
       extrapolateRight: "clamp",
-    },
+    }
   );
 
   const y = interpolate(
@@ -142,7 +148,7 @@ const Subtitle = ({ text, isFirst }: { text: string; isFirst: boolean }) => {
     {
       extrapolateRight: "clamp",
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-    },
+    }
   );
 
   return (
