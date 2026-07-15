@@ -408,7 +408,7 @@ export class VideoProcessingService extends Effect.Service<VideoProcessingServic
       const runDavinciResolveScript = Effect.fn("runDavinciResolveScript")(
         function* (script: string, env: Record<string, string>) {
           const scriptPath = path.resolve(
-            __dirname,
+            import.meta.dirname,
             "../../resources/resolve",
             script
           );
