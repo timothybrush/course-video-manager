@@ -25,7 +25,7 @@ import {
   HistoryIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, Outlet, useLocation, useMatches } from "react-router";
 import type { Route } from "./+types/_app.videos.$videoId";
 
 export const loader = makeLoader({
@@ -197,11 +197,14 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
     ? videoTitle
     : `${sectionPath}/${lessonPath}/${videoTitle}`;
 
-  const isEditTab = location.pathname.endsWith("/edit");
+  const matches = useMatches();
+  const isFullscreenChild = matches.some(
+    (m) => (m.handle as { fullscreen?: boolean } | undefined)?.fullscreen
+  );
 
   return (
     <div className="h-screen flex flex-col">
-      {!isEditTab && (
+      {!isFullscreenChild && (
         <>
           {/* Shared header */}
           <div className="flex items-center gap-2 p-4 border-b justify-between">

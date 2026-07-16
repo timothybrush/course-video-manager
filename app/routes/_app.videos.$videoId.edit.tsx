@@ -38,6 +38,7 @@ import type { Route } from "./+types/_app.videos.$videoId.edit";
 export const handle = { fullscreen: true };
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import { getBackButtonUrl } from "@/features/video-editor/video-editor-selectors";
+import type { loader as parentLoader } from "./_app.videos.$videoId";
 import { getVideoFilePath } from "@/services/video-files";
 import { Array as EffectArray } from "effect";
 import { sortByOrder } from "@/lib/sort-by-order";
@@ -207,20 +208,7 @@ export default function Component(props: Route.ComponentProps) {
   return <ComponentInner {...props} key={props.loaderData.video.id} />;
 }
 
-type ParentLoaderData = {
-  videoId: string;
-  videoTitle: string;
-  videoFormat: string;
-  lessonPath: string | null;
-  sectionPath: string | null;
-  repoId: string | null;
-  lessonId: string | null;
-  pitchId: string | null;
-  isStandalone: boolean;
-  format: string;
-  nextVideoId: string | null;
-  previousVideoId: string | null;
-};
+type ParentLoaderData = Awaited<ReturnType<typeof parentLoader>>;
 
 export const ComponentInner = (props: Route.ComponentProps) => {
   const navigate = useNavigate();
