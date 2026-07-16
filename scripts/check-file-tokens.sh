@@ -6,7 +6,7 @@ found_violations=0
 # Patterns to exclude from the check
 EXCLUDE_PATTERNS=(
   "*.lock"
-  "package-lock.json"
+  "pnpm-lock.yaml"
   "docs/*"
   "progress.txt"
   "public/*"

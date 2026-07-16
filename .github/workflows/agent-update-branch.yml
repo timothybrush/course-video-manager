@@ -45,13 +45,19 @@ jobs:
       - name: Ensure branch is checked out by name
         run: git checkout "$BRANCH" 2>/dev/null || git checkout -B "$BRANCH"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
@@ -66,7 +72,7 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OUTPUT_DIR: ${{ runner.temp }}
-        run: npx tsx .sandcastle/update-branch/update-branch.ts
+        run: pnpm exec tsx .sandcastle/update-branch/update-branch.ts
 
       - name: Push branch (abort cleanly if non-fast-forward)
         if: success()

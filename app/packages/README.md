@@ -37,7 +37,7 @@ just adding a root file — no barrel needed.
 ## Run the check
 
 ```
-npm run lint:boundaries
+pnpm run lint:boundaries
 ```
 
 It runs in the pre-commit hook alongside `typecheck`. Config lives in

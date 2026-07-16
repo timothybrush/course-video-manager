@@ -6,14 +6,17 @@ user-invocable: false
 
 ## Installing Effect Ecosystem Packages
 
-When installing any `@effect/*` package, **always use `npm install --force`**:
+This repo uses **pnpm**. To add any `@effect/*` package:
 
 ```bash
-npm install --force @effect/package-name
+pnpm add @effect/package-name
 ```
 
-### Why not `--legacy-peer-deps`?
+pnpm resolves peer dependencies without rewriting the rest of the lockfile, so it
+does not suffer from the npm failure mode this skill originally guarded against
+(npm's `--legacy-peer-deps` silently stripping existing `@effect/*` peers such as
+`@effect/rpc`, `@effect/sql`, `@effect/experimental` and corrupting the lockfile).
 
-The `--legacy-peer-deps` flag corrupts the lockfile by removing existing `@effect/*` peer dependencies (e.g., `@effect/rpc`, `@effect/sql`, `@effect/experimental`). The corruption is silent — `npm install` succeeds but the lockfile is broken, and you only discover the damage later when other Effect packages fail to resolve.
-
-`--force` installs the package while preserving the existing dependency tree.
+If a new `@effect/*` package reports a peer-dependency conflict, install the
+matching peer versions explicitly rather than forcing the tree — check
+`pnpm why <package>` to see what is already resolved before adding.

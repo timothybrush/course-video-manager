@@ -160,15 +160,22 @@ jobs:
             echo "is_first=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Setup pnpm
+        if: steps.shape.outputs.mode == 'run'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js 22
         if: steps.shape.outputs.mode == 'run'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
 
       - name: Install dependencies
         if: steps.shape.outputs.mode == 'run'
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Claude Code
         if: steps.shape.outputs.mode == 'run'
@@ -185,7 +192,7 @@ jobs:
           SUB_ISSUE_NUMBER: ${{ steps.shape.outputs.next_open_number }}
           SUB_ISSUE_TITLE: ${{ steps.shape.outputs.next_open_title }}
           OUTPUT_DIR: ${{ runner.temp }}
-        run: npx tsx .sandcastle/implement-prd/implement-prd.ts
+        run: pnpm exec tsx .sandcastle/implement-prd/implement-prd.ts
 
       - name: Push branch
         if: steps.shape.outputs.mode == 'run' && success()
@@ -219,7 +226,7 @@ jobs:
           PRD_NUMBER: ${{ env.PRD_NUMBER }}
           PRD_TITLE: ${{ env.PRD_TITLE }}
           OUTPUT_DIR: ${{ runner.temp }}
-        run: npx tsx .sandcastle/write-prd-pr/write-prd-pr.ts
+        run: pnpm exec tsx .sandcastle/write-prd-pr/write-prd-pr.ts
 
       - name: Open draft PR if one doesn't exist for this branch
         if: steps.shape.outputs.mode == 'run' && success()

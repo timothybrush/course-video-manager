@@ -14,7 +14,7 @@ Single-context layout: `CONTEXT.md` at the repo root, ADRs under `docs/adr/`. Se
 
 ### Deep-module packages
 
-Packages under `app/packages/` are deep modules — import only through a package's entry points (its root files); everything in `lib/`/`tests/` is private. See [app/packages/README.md](./app/packages/README.md) before adding or importing one. `npm run lint:boundaries` enforces it (runs in pre-commit alongside `typecheck`).
+Packages under `app/packages/` are deep modules — import only through a package's entry points (its root files); everything in `lib/`/`tests/` is private. See [app/packages/README.md](./app/packages/README.md) before adding or importing one. `pnpm run lint:boundaries` enforces it (runs in pre-commit alongside `typecheck`).
 
 ### cvm CLI
 

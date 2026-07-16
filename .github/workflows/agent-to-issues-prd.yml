@@ -79,15 +79,22 @@ jobs:
           ref: main
           fetch-depth: 1
 
+      - name: Setup pnpm
+        if: steps.shape.outputs.mode == 'run'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js 22
         if: steps.shape.outputs.mode == 'run'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
 
       - name: Install dependencies
         if: steps.shape.outputs.mode == 'run'
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Claude Code
         if: steps.shape.outputs.mode == 'run'
@@ -100,7 +107,7 @@ jobs:
           PRD_NUMBER: ${{ env.PRD_NUMBER }}
           PRD_TITLE: ${{ env.PRD_TITLE }}
           GH_REPO: ${{ env.GH_REPO }}
-        run: npx tsx .sandcastle/to-issues-prd/to-issues-prd.ts
+        run: pnpm exec tsx .sandcastle/to-issues-prd/to-issues-prd.ts
 
       - name: Mark blocked on failure
         if: steps.shape.outputs.mode == 'run' && failure()

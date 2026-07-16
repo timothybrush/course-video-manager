@@ -192,7 +192,7 @@ project):
 
 1. `actions/checkout@v4` (depth and `ref` vary per workflow — see each section).
 2. `actions/setup-node@v4` with Node 22 (or your project's runtime).
-3. `npm install` (install the project's own deps — agents run the project's typecheck/tests).
+3. `pnpm install` (install the project's own deps — agents run the project's typecheck/tests).
 4. Install the agent runner. _Reference:_ `npm install -g @anthropic-ai/claude-code`.
 5. Configure a git identity for any workflow that commits/pushes:
    `git config user.name "claude-code[bot]"` / `user.email "claude-code[bot]@users.noreply.github.com"`.
@@ -555,12 +555,12 @@ the sub-issues **already created before** the failure (so a human can clean up p
 
 **Preconditions & refusals.** Compute shape, then:
 
-| Condition                             | Action                                                                                                                                                                      |
+| Condition | Action |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------ |
-| Has sub-issues (is a PRD)             | **Silent skip** — [Implement PRD](#43-implement-prd) owns this trigger for PRDs.                                                                                            |
-| Is a sub-issue (has parent)           | **Refuse:** remove trigger, add `agent:blocked`, comment "label the parent PRD, not the sub-issue".                                                                         |
+| Has sub-issues (is a PRD) | **Silent skip** — [Implement PRD](#43-implement-prd) owns this trigger for PRDs. |
+| Is a sub-issue (has parent) | **Refuse:** remove trigger, add `agent:blocked`, comment "label the parent PRD, not the sub-issue". |
 | An open PR already targets this issue | **Refuse:** remove trigger, comment with the existing PR URL, exit. Detect via `gh pr list --state open --search "in:body \"#N\""` then filter bodies matching `(?i)(closes | fixes | resolves)\s+#N\b`. |
-| Otherwise                             | Run.                                                                                                                                                                        |
+| Otherwise | Run. |
 
 **Step sequence.**
 
@@ -1054,7 +1054,7 @@ wanting a concrete starting point.
 
 - **Orchestrator** = GitHub Actions workflows in `.github/workflows/agent-*.yml`.
 - **Agent runner** = TypeScript entry scripts under `.sandcastle/<workflow>/<workflow>.ts`, run
-  with `npx tsx`, using `@ai-hero/sandcastle` driving `claudeCode("claude-opus-4-6")` in a
+  with `pnpm exec tsx`, using `@ai-hero/sandcastle` driving `claudeCode("claude-opus-4-6")` in a
   `noSandbox()` sandbox. `OUTPUT_DIR` = the GitHub Actions `runner.temp`.
 - **Prompts** = `.sandcastle/<workflow>/prompt.md` (the work) + `extraction.md` (the
   "emit `<output>` now" pass), with `{{VAR}}` interpolation and `` !`cmd` `` command

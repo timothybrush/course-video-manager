@@ -3,7 +3,7 @@ import { SubtitleOverlay } from "./Composition";
 import "./index.css";
 import { COMPOSITION_ID, type OverlayProps } from "../src/props";
 
-// Sample props so Remotion Studio (`npm run studio`) has something to show. The
+// Sample props so Remotion Studio (`pnpm run studio`) has something to show. The
 // real render always supplies its own props via `inputProps`.
 const sampleProps: OverlayProps = {
   width: 1080,
