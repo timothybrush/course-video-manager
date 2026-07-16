@@ -25,7 +25,7 @@ import {
   HistoryIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import { Link, Outlet, useLocation, useMatches } from "react-router";
 import type { Route } from "./+types/_app.videos.$videoId";
 
 export const loader = makeLoader({
@@ -197,105 +197,114 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
     ? videoTitle
     : `${sectionPath}/${lessonPath}/${videoTitle}`;
 
+  const matches = useMatches();
+  const isFullscreenChild = matches.some(
+    (m) => (m.handle as { fullscreen?: boolean } | undefined)?.fullscreen
+  );
+
   return (
     <div className="h-screen flex flex-col">
-      {/* Shared header */}
-      <div className="flex items-center gap-2 p-4 border-b justify-between">
-        <div className="flex items-center gap-2">
-          {/* Back button */}
-          <Button variant="ghost" size="icon" asChild>
-            <Link to={backButtonUrl}>
-              <ChevronLeftIcon className="size-6" />
-            </Link>
-          </Button>
-
-          {/* Breadcrumb */}
-          <h1 className="text-lg">{breadcrumb}</h1>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Top-level tab switcher (hidden for short-format videos) */}
-          {videoFormat !== "short" && (
-            <div className="flex gap-1">
-              {topTabs.map((tab) => {
-                const isActive =
-                  tab.id === "post"
-                    ? isPostTab(activeTab)
-                    : activeTab === tab.id;
-                return (
-                  <Link
-                    key={tab.id}
-                    to={`/videos/${videoId}/${tab.path}`}
-                    className={cn(
-                      "px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1.5",
-                      isActive
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <tab.icon className="size-4" />
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Navigation buttons */}
-          <div className="flex items-center gap-2">
-            {previousVideoId ? (
-              <Button variant="ghost" size="sm" asChild>
-                <Link to={`/videos/${previousVideoId}/${activeTab}`}>
-                  <ChevronLeftIcon className="size-4 mr-1" />
-                  Previous
+      {!isFullscreenChild && (
+        <>
+          {/* Shared header */}
+          <div className="flex items-center gap-2 p-4 border-b justify-between">
+            <div className="flex items-center gap-2">
+              {/* Back button */}
+              <Button variant="ghost" size="icon" asChild>
+                <Link to={backButtonUrl}>
+                  <ChevronLeftIcon className="size-6" />
                 </Link>
               </Button>
-            ) : null}
-            {nextVideoId ? (
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
+
+              {/* Breadcrumb */}
+              <h1 className="text-lg">{breadcrumb}</h1>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Top-level tab switcher (hidden for short-format videos) */}
+              {videoFormat !== "short" && (
+                <div className="flex gap-1">
+                  {topTabs.map((tab) => {
+                    const isActive =
+                      tab.id === "post"
+                        ? isPostTab(activeTab)
+                        : activeTab === tab.id;
+                    return (
+                      <Link
+                        key={tab.id}
+                        to={`/videos/${videoId}/${tab.path}`}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1.5",
+                          isActive
+                            ? "bg-muted text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <tab.icon className="size-4" />
+                        {tab.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Navigation buttons */}
+              <div className="flex items-center gap-2">
+                {previousVideoId ? (
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to={`/videos/${nextVideoId}/${activeTab}`}>
-                      Next
-                      <ChevronRightIcon className="size-4 ml-1" />
+                    <Link to={`/videos/${previousVideoId}/${activeTab}`}>
+                      <ChevronLeftIcon className="size-4 mr-1" />
+                      Previous
                     </Link>
                   </Button>
-                </ContextMenuTrigger>
-                {lessonId && (
-                  <ContextMenuContent>
-                    <ContextMenuItem
-                      onSelect={() => setAddVideoModalOpen(true)}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add New Video
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                )}
-              </ContextMenu>
-            ) : null}
+                ) : null}
+                {nextVideoId ? (
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to={`/videos/${nextVideoId}/${activeTab}`}>
+                          Next
+                          <ChevronRightIcon className="size-4 ml-1" />
+                        </Link>
+                      </Button>
+                    </ContextMenuTrigger>
+                    {lessonId && (
+                      <ContextMenuContent>
+                        <ContextMenuItem
+                          onSelect={() => setAddVideoModalOpen(true)}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add New Video
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    )}
+                  </ContextMenu>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Post sub-tabs */}
-      {isPostTab(activeTab) && (
-        <div className="flex gap-1 px-4 py-2 border-b">
-          {postSubTabs.map((tab) => (
-            <Link
-              key={tab.id}
-              to={`/videos/${videoId}/${tab.path}`}
-              className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1.5",
-                activeTab === tab.id
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <tab.icon className="size-4" />
-              {tab.label}
-            </Link>
-          ))}
-        </div>
+          {/* Post sub-tabs */}
+          {isPostTab(activeTab) && (
+            <div className="flex gap-1 px-4 py-2 border-b">
+              {postSubTabs.map((tab) => (
+                <Link
+                  key={tab.id}
+                  to={`/videos/${videoId}/${tab.path}`}
+                  className={cn(
+                    "px-3 py-1.5 text-sm font-medium rounded transition-colors flex items-center gap-1.5",
+                    activeTab === tab.id
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <tab.icon className="size-4" />
+                  {tab.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Child route content */}
