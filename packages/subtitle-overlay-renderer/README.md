@@ -22,9 +22,13 @@ explicit props (see [`src/props.ts`](./src/props.ts)):
   "fps": 60,
   "durationInFrames": 300,
   "subtitles": [
-    { "startFrame": 0, "endFrame": 55, "text": "There's an idea floating around" }
+    {
+      "startFrame": 0,
+      "endFrame": 55,
+      "text": "There's an idea floating around",
+    },
   ],
-  "cta": { "variant": "ai", "durationInFrames": 120 } // or null
+  "cta": { "variant": "ai", "durationInFrames": 120 }, // or null
 }
 ```
 
@@ -61,10 +65,10 @@ JSON on stdout; progress goes to stderr.
 ## Develop
 
 ```bash
-npm install      # installs Remotion + downloads Chromium on first render
-npm run studio   # Remotion Studio preview
-npm test         # props unit tests + a real render smoke test
-npm run typecheck
+pnpm install      # installs Remotion + downloads Chromium on first render
+pnpm run studio   # Remotion Studio preview
+pnpm test        # props unit tests + a real render smoke test
+pnpm run typecheck
 ```
 
 ## Transparency

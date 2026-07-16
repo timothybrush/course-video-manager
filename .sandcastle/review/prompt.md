@@ -74,9 +74,9 @@ Default to Address. Decline when you have a real reason. Defer only when a reply
 
 # EXECUTION
 
-1. Run `npm run typecheck` and `npm run test` — confirm the current state passes.
+1. Run `pnpm run typecheck` and `pnpm run test` — confirm the current state passes.
 2. Make improvements + write any new edge-case tests. Stage and commit them as a **single squashed commit** on this branch with a message starting with `RALPH: Review -`.
-3. Run `npm run typecheck` and `npm run test` again. If either fails, fix it before continuing — do not leave the branch broken.
+3. Run `pnpm run typecheck` and `pnpm run test` again. If either fails, fix it before continuing — do not leave the branch broken.
 4. Decide which inline review comments to leave (line-anchored notes about your changes or remaining findings) and which thread replies to make.
 
 If the code is already clean and there are no human comments to address, make no commits.

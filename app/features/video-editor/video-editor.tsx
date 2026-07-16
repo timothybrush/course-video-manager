@@ -1,5 +1,6 @@
 import { ChapterNamingModal as ChapterNamingModalComponent } from "./components/chapter-naming-modal";
 import { CreateVideoFromSelectionModal } from "./components/create-video-from-selection-modal";
+import { EditorCompactHeader } from "./components/editor-compact-header";
 import { FilePasteModalWithFsData } from "./components/file-paste-modal-with-fs-data";
 import { VideoPlayerPanel } from "./components/video-player-panel";
 import { PortraitStudioPanel } from "./components/portrait-studio-panel";
@@ -79,6 +80,15 @@ export const VideoEditor = (props: {
   repoName?: string;
   repoId?: string;
   lessonId?: string;
+  navigation?: {
+    backButtonUrl: string;
+    breadcrumb: string;
+    nextVideoId: string | null;
+    previousVideoId: string | null;
+    showTabSwitcher: boolean;
+    videoId: string;
+    lessonId: string | null;
+  };
   videoId: string;
   liveMediaStream: MediaStream | null;
   speechDetectorState: FrontendSpeechDetectorState;
@@ -636,11 +646,14 @@ export const VideoEditor = (props: {
     );
 
   return (
-    <div className="flex flex-col lg:flex-row h-full p-6 gap-6">
-      <VideoEditorContext.Provider value={contextValue}>
-        {body}
-        {modals}
-      </VideoEditorContext.Provider>
-    </div>
+    <VideoEditorContext.Provider value={contextValue}>
+      <div className="flex flex-col h-full p-2 gap-2">
+        {props.navigation && <EditorCompactHeader {...props.navigation} />}
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2">
+          {body}
+        </div>
+      </div>
+      {modals}
+    </VideoEditorContext.Provider>
   );
 };

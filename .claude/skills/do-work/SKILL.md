@@ -21,8 +21,8 @@ If you're touching frontend code with complex state (creating/modifying reducers
 
 Run each check, fix issues, and re-run until clean. Do these sequentially:
 
-1. **Type checking**: `npm run typecheck`
-2. **Tests**: `npm test`
+1. **Type checking**: `pnpm run typecheck`
+2. **Tests**: `pnpm test`
 
 If a check fails, fix the issue and re-run that check before moving to the next one. Do not move on with failing checks.
 

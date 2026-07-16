@@ -1,5 +1,5 @@
-npx lint-staged
-npm run typecheck
-npm run lint:boundaries
-npm run check:file-tokens
-npm run check:no-dirname
+pnpm exec lint-staged
+pnpm run typecheck
+pnpm run lint:boundaries
+pnpm run check:file-tokens
+pnpm run check:no-dirname

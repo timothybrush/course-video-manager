@@ -50,13 +50,19 @@ jobs:
         id: pre
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
@@ -67,7 +73,7 @@ jobs:
       # agent's commit step can never sweep it into the PR branch. Scoped to the
       # claude-code agent so the step exits 0 (other agents reject -g installs).
       - name: Install code-review skill
-        run: npx --yes skills@latest add mattpocock/skills -g -s code-review -a claude-code -y --copy
+        run: pnpm dlx skills@latest add mattpocock/skills -g -s code-review -a claude-code -y --copy
 
       - name: Configure git identity
         run: |
@@ -79,7 +85,7 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OUTPUT_DIR: ${{ runner.temp }}
-        run: npx tsx .sandcastle/review/review.ts
+        run: pnpm exec tsx .sandcastle/review/review.ts
 
       - name: Push branch (abort cleanly if non-fast-forward)
         id: push

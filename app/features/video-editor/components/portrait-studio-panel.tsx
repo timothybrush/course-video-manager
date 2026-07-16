@@ -176,55 +176,8 @@ export const PortraitStudioPanel = () => {
 
   return (
     <div className="lg:flex-1 relative order-1 lg:order-2 h-full min-h-0 flex flex-col">
-      {/* Header bar: title + Post + Actions */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <h1 className="text-lg font-bold truncate mr-4">
-          {videoTitle}
-          {" (" + formatSecondsToTimeCode(totalDuration) + ")"}
-        </h1>
-        <div className="flex gap-2 shrink-0">
-          <StudioActionsDropdown
-            allClipsHaveSilenceDetected={allClipsHaveSilenceDetected}
-            allClipsHaveText={allClipsHaveText}
-            onExport={() => startExportUpload(videoId, videoTitle)}
-            onRenderVertical={() =>
-              startRenderVerticalUpload(videoId, videoTitle)
-            }
-            onPostShorts={() => openPostingModal("both")}
-            onPostYoutube={() => openPostingModal("youtube")}
-            onPostTiktok={() => openPostingModal("tiktok")}
-            videoId={videoId}
-            isCopied={isCopied}
-            copyTranscriptToClipboard={copyTranscriptToClipboard}
-            youtubeChapters={youtubeChapters}
-            isChaptersCopied={isChaptersCopied}
-            copyYoutubeChaptersToClipboard={copyYoutubeChaptersToClipboard}
-            onRenameVideoClick={() => setIsRenameVideoModalOpen(true)}
-            onRevealInFileSystem={
-              exportFileExists
-                ? () => {
-                    revealVideoFetcher.submit(
-                      {},
-                      {
-                        method: "post",
-                        action: `/api/videos/${videoId}/reveal`,
-                      }
-                    );
-                  }
-                : undefined
-            }
-            isLogPathCopied={isLogPathCopied}
-            copyLogPathToClipboard={copyLogPathToClipboard}
-          />
-          <Button onClick={() => openPostingModal("both")}>
-            <SendIcon className="w-4 h-4 mr-2" />
-            Post
-          </Button>
-        </div>
-      </div>
-
       {/* 9:16 height-driven preview */}
-      <div className="flex-1 min-h-0 flex items-center justify-center">
+      <div className="flex-1 min-h-0 flex items-center justify-center relative">
         {!liveMediaStream && clips.length === 0 ? (
           <div className="h-full aspect-[9/16] bg-card rounded-lg flex flex-col items-center justify-center gap-3">
             <VideoOffIcon className="size-10 text-muted-foreground" />
@@ -302,6 +255,53 @@ export const PortraitStudioPanel = () => {
             )}
           </div>
         )}
+      </div>
+
+      {/* Compact actions bar */}
+      <div className="flex items-center justify-between mt-1 shrink-0">
+        <span className="text-xs text-muted-foreground truncate">
+          {videoTitle}
+          {" · " + formatSecondsToTimeCode(totalDuration)}
+        </span>
+        <div className="flex gap-1 shrink-0">
+          <StudioActionsDropdown
+            allClipsHaveSilenceDetected={allClipsHaveSilenceDetected}
+            allClipsHaveText={allClipsHaveText}
+            onExport={() => startExportUpload(videoId, videoTitle)}
+            onRenderVertical={() =>
+              startRenderVerticalUpload(videoId, videoTitle)
+            }
+            onPostShorts={() => openPostingModal("both")}
+            onPostYoutube={() => openPostingModal("youtube")}
+            onPostTiktok={() => openPostingModal("tiktok")}
+            videoId={videoId}
+            isCopied={isCopied}
+            copyTranscriptToClipboard={copyTranscriptToClipboard}
+            youtubeChapters={youtubeChapters}
+            isChaptersCopied={isChaptersCopied}
+            copyYoutubeChaptersToClipboard={copyYoutubeChaptersToClipboard}
+            onRenameVideoClick={() => setIsRenameVideoModalOpen(true)}
+            onRevealInFileSystem={
+              exportFileExists
+                ? () => {
+                    revealVideoFetcher.submit(
+                      {},
+                      {
+                        method: "post",
+                        action: `/api/videos/${videoId}/reveal`,
+                      }
+                    );
+                  }
+                : undefined
+            }
+            isLogPathCopied={isLogPathCopied}
+            copyLogPathToClipboard={copyLogPathToClipboard}
+          />
+          <Button size="sm" onClick={() => openPostingModal("both")}>
+            <SendIcon className="w-3.5 h-3.5 mr-1" />
+            Post
+          </Button>
+        </div>
       </div>
 
       <ShortsPostingModal

@@ -36,7 +36,9 @@ import { useBrowserLinkCapture } from "@/features/video-editor/hooks/use-browser
 import type { Route } from "./+types/_app.videos.$videoId.edit";
 
 export const handle = { fullscreen: true };
-import { useNavigate, useRevalidator } from "react-router";
+import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
+import { getBackButtonUrl } from "@/features/video-editor/video-editor-selectors";
+import type { loader as parentLoader } from "./_app.videos.$videoId";
 import { getVideoFilePath } from "@/services/video-files";
 import { Array as EffectArray } from "effect";
 import { sortByOrder } from "@/lib/sort-by-order";
@@ -206,8 +208,35 @@ export default function Component(props: Route.ComponentProps) {
   return <ComponentInner {...props} key={props.loaderData.video.id} />;
 }
 
+type ParentLoaderData = Awaited<ReturnType<typeof parentLoader>>;
+
 export const ComponentInner = (props: Route.ComponentProps) => {
   const navigate = useNavigate();
+
+  const parentData = useRouteLoaderData("routes/_app.videos.$videoId") as
+    | ParentLoaderData
+    | undefined;
+
+  const navigation = useMemo(() => {
+    if (!parentData) return undefined;
+    const breadcrumb = parentData.isStandalone
+      ? parentData.videoTitle
+      : `${parentData.sectionPath}/${parentData.lessonPath}/${parentData.videoTitle}`;
+    return {
+      backButtonUrl: getBackButtonUrl(
+        parentData.repoId,
+        parentData.lessonId,
+        parentData.format,
+        parentData.pitchId
+      ),
+      breadcrumb,
+      nextVideoId: parentData.nextVideoId,
+      previousVideoId: parentData.previousVideoId,
+      showTabSwitcher: parentData.videoFormat !== "short",
+      videoId: parentData.videoId,
+      lessonId: parentData.lessonId,
+    };
+  }, [parentData]);
 
   const initialItems: TimelineItem[] = props.loaderData.items.map(
     (item): TimelineItem => {
@@ -342,6 +371,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
   return (
     <VideoEditor
       videoFormat={props.loaderData.video.format as "landscape" | "short"}
+      navigation={navigation}
       onClipsRemoved={(clipIds) => {
         dispatch({ type: "clips-deleted", clipIds: clipIds });
       }}
