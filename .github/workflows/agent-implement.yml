@@ -130,8 +130,6 @@ jobs:
       - name: Setup pnpm
         if: steps.shape.outputs.proceed == 'true' && steps.preflight.outputs.refused != 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js 22
         if: steps.shape.outputs.proceed == 'true' && steps.preflight.outputs.refused != 'true'

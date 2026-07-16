@@ -86,8 +86,6 @@ jobs:
       - name: Setup pnpm
         if: steps.state.outputs.proceed == 'true' && steps.inputs.outputs.proceed == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js 22
         if: steps.state.outputs.proceed == 'true' && steps.inputs.outputs.proceed == 'true'
