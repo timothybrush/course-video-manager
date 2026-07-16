@@ -22,7 +22,7 @@ Use red-green-refactor where applicable.
 3. REPEAT until the issue is done
 4. REFACTOR
 
-Before committing, run `npm run typecheck` and `npm run test`.
+Before committing, run `pnpm run typecheck` and `pnpm run test`.
 
 # COMMIT
 

@@ -2,6 +2,7 @@
   "name": "course-video-manager",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.12.3",
   "bin": {
     "cvm": "app/cli/bin.mjs"
   },
@@ -27,7 +28,7 @@
     "db:backfill-search-text": "tsx scripts/backfill-search-text.ts",
     "db:studio": "drizzle-kit studio",
     "db:clone-local": "./scripts/clone-db-to-local.sh",
-    "sandcastle": "npx tsx ./.sandcastle/main.ts",
+    "sandcastle": "tsx ./.sandcastle/main.ts",
     "check:file-tokens": "./scripts/check-file-tokens.sh",
     "check:no-dirname": "./scripts/check-no-dirname.sh"
   },
@@ -110,6 +111,16 @@
   },
   "lint-staged": {
     "*": "prettier --write"
+  },
+  "pnpm": {
+    "overrides": {
+      "@ai-sdk/anthropic": "3.0.58",
+      "@ai-sdk/provider": "3.0.8",
+      "@ai-sdk/provider-utils": "4.0.19",
+      "@ai-sdk/react": "3.0.118",
+      "ai": "6.0.116",
+      "@types/hast": "3.0.4"
+    }
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.10.0",

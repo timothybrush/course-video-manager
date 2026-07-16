@@ -1,5 +1,5 @@
 /**
- * This config only applies to the Remotion Studio / CLI (`npm run studio`).
+ * This config only applies to the Remotion Studio / CLI (`pnpm run studio`).
  * The programmatic render path in `src/render.ts` passes these same options
  * directly to `@remotion/renderer` (the config file does not apply there).
  *

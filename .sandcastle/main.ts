@@ -63,7 +63,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           branch: issue.branch,
           hooks: {
             host: {
-              onSandboxReady: [{ command: "npm install" }],
+              onSandboxReady: [{ command: "pnpm install --frozen-lockfile" }],
             },
           },
         });
