@@ -349,17 +349,17 @@ export const VideoPlayerPanel = () => {
     <>
       <div className="lg:flex-1 relative order-1 lg:order-2 overflow-y-auto h-full">
         <div className="">
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold mb-1 flex items-center">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs text-muted-foreground">
               {videoTitle}
-              {" (" + formatSecondsToTimeCode(totalDuration) + ")"}
-              {areAnyClipsDangerous && (
-                <span className="text-orange-500 ml-4 text-base font-medium inline-flex items-center">
-                  <AlertTriangleIcon className="size-6 mr-2" />
-                  Possible duplicate clips
-                </span>
-              )}
-            </h1>
+              {" · " + formatSecondsToTimeCode(totalDuration)}
+            </span>
+            {areAnyClipsDangerous && (
+              <span className="text-orange-500 text-xs font-medium inline-flex items-center">
+                <AlertTriangleIcon className="size-3.5 mr-1" />
+                Possible duplicates
+              </span>
+            )}
           </div>
 
           {!liveMediaStream && clips.length === 0 ? (
