@@ -27,7 +27,7 @@ import { LinkAuthOperationsService } from "./db-link-auth-operations.server";
 import { RenderVerticalVideoService } from "./render-vertical-video-service";
 import { VideoPostOperationsService } from "./db-video-post-operations.server";
 import { BufferApiService } from "./buffer-api-service.server";
-import { VercelBlobService } from "./vercel-blob-service.server";
+import { ObjectStoreService } from "./object-store-service.server";
 
 const CloudinaryMarkdownLayer = CloudinaryMarkdownService.Default.pipe(
   Layer.provide(CloudinaryService.Default)
@@ -47,7 +47,7 @@ const coreLayer = Layer.mergeAll(
   LinkAuthOperationsService.Default,
   VideoPostOperationsService.Default,
   BufferApiService.Default,
-  VercelBlobService.Default,
+  ObjectStoreService.Default,
   DatabaseDumpService.Default,
   VideoProcessingService.Default,
   BackgroundRemovalService.Default,

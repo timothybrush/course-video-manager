@@ -2,28 +2,8 @@ import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
 import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
 import { BufferApiService } from "@/services/buffer-api-service.server";
-import { VercelBlobService } from "@/services/vercel-blob-service.server";
-import { selectStaleBlobs } from "@/lib/select-stale-blobs";
+import { ObjectStoreService } from "@/services/object-store-service.server";
 import type { SendEvent } from "@/lib/create-sse-response.server";
-
-const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-// Prune blobs older than 24h from the `buffer-posts/` prefix. Blob lifetime is
-// now managed by this sweep rather than a per-post cleanup, so any failure here
-// must never fail the post — errors are swallowed. Exported so it can be tested
-// directly; the orchestration forks it off the critical path.
-export const prunePendingBlobs = (blobService: VercelBlobService) =>
-  blobService.list("buffer-posts/").pipe(
-    Effect.flatMap((blobs) =>
-      Effect.forEach(
-        selectStaleBlobs(blobs, new Date(), BLOB_MAX_AGE_MS),
-        (url) => blobService.del(url),
-        { discard: true }
-      )
-    ),
-    Effect.catchAll(() => Effect.void),
-    Effect.ignore
-  );
 
 export const bufferPostProgram = (opts: {
   videoId: string;
@@ -36,7 +16,7 @@ export const bufferPostProgram = (opts: {
     const fs = yield* FileSystem.FileSystem;
     const videoPostOps = yield* VideoPostOperationsService;
     const bufferApi = yield* BufferApiService;
-    const blobService = yield* VercelBlobService;
+    const objectStore = yield* ObjectStoreService;
 
     const filePath = `${finishedDir}/${opts.videoId}.mp4`;
     const exists = yield* fs.exists(filePath);
@@ -47,10 +27,6 @@ export const bufferPostProgram = (opts: {
       return;
     }
 
-    // Kick off the stale-blob prune as a detached daemon so a slow `list`/`del`
-    // never sits on the critical path of the post itself.
-    yield* Effect.forkDaemon(prunePendingBlobs(blobService));
-
     const post = yield* videoPostOps.createVideoPost({
       videoId: opts.videoId,
       platform: "buffer",
@@ -58,9 +34,9 @@ export const bufferPostProgram = (opts: {
 
     opts.sendEvent("uploading-blob", { percentage: 0 });
 
-    const blobPathname = `buffer-posts/${opts.videoId}.mp4`;
-    const blob = yield* blobService.upload({
-      pathname: blobPathname,
+    const objectKey = `cvm/buffer-posts/${opts.videoId}.mp4`;
+    const uploaded = yield* objectStore.upload({
+      pathname: objectKey,
       filePath,
       onProgress: (percentage) => {
         opts.sendEvent("uploading-blob", { percentage });
@@ -72,7 +48,7 @@ export const bufferPostProgram = (opts: {
     const bufferPost = yield* bufferApi.createPost({
       channelId,
       text: opts.caption,
-      videoUrl: blob.url,
+      videoUrl: uploaded.url,
     });
 
     yield* videoPostOps.updateRemoteInfo({
@@ -82,8 +58,9 @@ export const bufferPostProgram = (opts: {
     });
 
     // "Posted" now means "submitted to Buffer" — Buffer downloads the freshly
-    // uploaded blob asynchronously (kept alive by the 24h prune), so we mark the
-    // post as posted immediately and do not delete the blob here.
+    // uploaded object asynchronously. The object is cleaned up by an S3
+    // lifecycle rule (1-day expiry on cvm/buffer-posts/), not by app code, so
+    // we mark the post as posted immediately and do not delete anything here.
     yield* videoPostOps.markPosted(post.id);
 
     opts.sendEvent("complete", {});

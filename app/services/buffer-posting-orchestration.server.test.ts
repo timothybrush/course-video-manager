@@ -4,11 +4,8 @@ import { Effect, Layer, ConfigProvider } from "effect";
 import { FileSystem } from "@effect/platform";
 import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
 import { BufferApiService } from "@/services/buffer-api-service.server";
-import { VercelBlobService } from "@/services/vercel-blob-service.server";
-import {
-  bufferPostProgram,
-  prunePendingBlobs,
-} from "@/services/buffer-posting-orchestration.server";
+import { ObjectStoreService } from "@/services/object-store-service.server";
+import { bufferPostProgram } from "@/services/buffer-posting-orchestration.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -17,6 +14,9 @@ import {
   truncateAllTables,
   type TestDb,
 } from "@/test-utils/pglite";
+
+const UPLOADED_URL =
+  "https://cvm-bucket.s3.eu-west-2.amazonaws.com/cvm/buffer-posts/test.mp4";
 
 let testDb: TestDb;
 
@@ -41,11 +41,7 @@ async function createTestVideo(title = "Test Short") {
   return video!;
 }
 
-function makeFakeBlobService(opts?: {
-  delShouldFail?: boolean;
-  listShouldFail?: boolean;
-  listResult?: Array<{ url: string; pathname: string; uploadedAt: Date }>;
-}) {
+function makeFakeObjectStore() {
   return {
     upload: vi.fn(
       (_opts: {
@@ -57,25 +53,9 @@ function makeFakeBlobService(opts?: {
           _opts.onProgress?.(0);
           _opts.onProgress?.(100);
           return {
-            url: "https://blob.vercel-storage.com/buffer-posts/test.mp4",
+            url: UPLOADED_URL,
           };
         })
-    ),
-    list: vi.fn((_prefix: string) =>
-      opts?.listShouldFail
-        ? Effect.fail({
-            _tag: "VercelBlobError" as const,
-            message: "list failed",
-          })
-        : Effect.succeed(opts?.listResult ?? [])
-    ),
-    del: vi.fn((_url: string) =>
-      opts?.delShouldFail
-        ? Effect.fail({
-            _tag: "VercelBlobError" as const,
-            message: "delete failed",
-          })
-        : Effect.void
     ),
   };
 }
@@ -96,7 +76,7 @@ function makeFakeFileSystem(opts?: { fileExists?: boolean }) {
 }
 
 function makeTestLayer(fakes: {
-  blobService: ReturnType<typeof makeFakeBlobService>;
+  objectStore: ReturnType<typeof makeFakeObjectStore>;
   bufferApi: ReturnType<typeof makeFakeBufferApi>;
   fileExists?: boolean;
 }) {
@@ -118,9 +98,9 @@ function makeTestLayer(fakes: {
     makeFakeFileSystem({ fileExists: fakes.fileExists })
   );
 
-  const blobLayer = Layer.succeed(
-    VercelBlobService,
-    fakes.blobService as unknown as VercelBlobService
+  const objectStoreLayer = Layer.succeed(
+    ObjectStoreService,
+    fakes.objectStore as unknown as ObjectStoreService
   );
 
   const bufferApiLayer = Layer.succeed(
@@ -132,7 +112,7 @@ function makeTestLayer(fakes: {
     videoPostLayer,
     configLayer,
     fsLayer,
-    blobLayer,
+    objectStoreLayer,
     bufferApiLayer
   );
 }
@@ -147,118 +127,31 @@ function makeSendEvent() {
 
 describe("bufferPostProgram", () => {
   describe("happy path — submitted to Buffer", () => {
-    it.effect(
-      "uploads blob, creates post, marks posted immediately, keeps blob",
-      () =>
-        Effect.gen(function* () {
-          const video = yield* Effect.promise(() => createTestVideo());
-          const blobService = makeFakeBlobService();
-          const bufferApi = makeFakeBufferApi();
-          const { sendEvent, events } = makeSendEvent();
-
-          const layer = makeTestLayer({ blobService, bufferApi });
-
-          yield* bufferPostProgram({
-            videoId: video.id,
-            caption: "Check this out! #coding",
-            sendEvent,
-          }).pipe(Effect.provide(layer));
-
-          expect(blobService.upload).toHaveBeenCalledOnce();
-          expect(blobService.upload.mock.calls[0]![0]).toMatchObject({
-            pathname: `buffer-posts/${video.id}.mp4`,
-          });
-
-          expect(bufferApi.createPost).toHaveBeenCalledWith({
-            channelId: "channel-abc",
-            text: "Check this out! #coding",
-            videoUrl: "https://blob.vercel-storage.com/buffer-posts/test.mp4",
-          });
-
-          // The freshly-uploaded blob is NOT deleted (no stale blobs listed).
-          // The prune itself runs on a detached daemon fiber and is covered
-          // directly by the `prunePendingBlobs` tests below.
-          expect(blobService.del).not.toHaveBeenCalled();
-
-          const posts = yield* Effect.promise(() =>
-            testDb.query.videoPosts.findMany({
-              where: eq(schema.videoPosts.videoId, video.id),
-            })
-          );
-          expect(posts).toHaveLength(1);
-          expect(posts[0]!.platform).toBe("buffer");
-          expect(posts[0]!.remoteId).toBe("buffer-post-123");
-          expect(posts[0]!.postedAt).toBeInstanceOf(Date);
-
-          const eventTypes = events.map((e) => e.event);
-          expect(eventTypes).toContain("uploading-blob");
-          expect(eventTypes).toContain("creating-post");
-          expect(eventTypes).toContain("complete");
-          expect(eventTypes).not.toContain("polling");
-          expect(eventTypes).not.toContain("cleaning-up");
-          expect(eventTypes).not.toContain("error");
-        })
-    );
-  });
-
-  describe("prunePendingBlobs", () => {
-    it.effect("deletes stale blobs but not recent ones", () =>
-      Effect.gen(function* () {
-        const staleUrl = "https://blob.vercel-storage.com/buffer-posts/old.mp4";
-        const freshUrl =
-          "https://blob.vercel-storage.com/buffer-posts/recent.mp4";
-        const blobService = makeFakeBlobService({
-          listResult: [
-            {
-              url: staleUrl,
-              pathname: "buffer-posts/old.mp4",
-              // 48h old — past the 24h cutoff
-              uploadedAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
-            },
-            {
-              url: freshUrl,
-              pathname: "buffer-posts/recent.mp4",
-              // 1h old — well within the cutoff
-              uploadedAt: new Date(Date.now() - 60 * 60 * 1000),
-            },
-          ],
-        });
-
-        yield* prunePendingBlobs(blobService as unknown as VercelBlobService);
-
-        expect(blobService.list).toHaveBeenCalledWith("buffer-posts/");
-        expect(blobService.del).toHaveBeenCalledWith(staleUrl);
-        expect(blobService.del).toHaveBeenCalledOnce();
-      })
-    );
-
-    it.effect("a list failure is swallowed and does not throw", () =>
-      Effect.gen(function* () {
-        const blobService = makeFakeBlobService({ listShouldFail: true });
-
-        // Should complete without failing.
-        yield* prunePendingBlobs(blobService as unknown as VercelBlobService);
-
-        expect(blobService.del).not.toHaveBeenCalled();
-      })
-    );
-
-    it.effect("a prune (list) failure does not fail the post", () =>
+    it.effect("uploads object, creates post, marks posted immediately", () =>
       Effect.gen(function* () {
         const video = yield* Effect.promise(() => createTestVideo());
-        const blobService = makeFakeBlobService({ listShouldFail: true });
+        const objectStore = makeFakeObjectStore();
         const bufferApi = makeFakeBufferApi();
         const { sendEvent, events } = makeSendEvent();
 
-        const layer = makeTestLayer({ blobService, bufferApi });
+        const layer = makeTestLayer({ objectStore, bufferApi });
 
         yield* bufferPostProgram({
           videoId: video.id,
-          caption: "Prune failure test",
+          caption: "Check this out! #coding",
           sendEvent,
         }).pipe(Effect.provide(layer));
 
-        expect(bufferApi.createPost).toHaveBeenCalledOnce();
+        expect(objectStore.upload).toHaveBeenCalledOnce();
+        expect(objectStore.upload.mock.calls[0]![0]).toMatchObject({
+          pathname: `cvm/buffer-posts/${video.id}.mp4`,
+        });
+
+        expect(bufferApi.createPost).toHaveBeenCalledWith({
+          channelId: "channel-abc",
+          text: "Check this out! #coding",
+          videoUrl: UPLOADED_URL,
+        });
 
         const posts = yield* Effect.promise(() =>
           testDb.query.videoPosts.findMany({
@@ -266,10 +159,16 @@ describe("bufferPostProgram", () => {
           })
         );
         expect(posts).toHaveLength(1);
+        expect(posts[0]!.platform).toBe("buffer");
+        expect(posts[0]!.remoteId).toBe("buffer-post-123");
         expect(posts[0]!.postedAt).toBeInstanceOf(Date);
 
         const eventTypes = events.map((e) => e.event);
+        expect(eventTypes).toContain("uploading-blob");
+        expect(eventTypes).toContain("creating-post");
         expect(eventTypes).toContain("complete");
+        expect(eventTypes).not.toContain("polling");
+        expect(eventTypes).not.toContain("cleaning-up");
         expect(eventTypes).not.toContain("error");
       })
     );
@@ -279,7 +178,7 @@ describe("bufferPostProgram", () => {
     it.effect("does not mark posted", () =>
       Effect.gen(function* () {
         const video = yield* Effect.promise(() => createTestVideo());
-        const blobService = makeFakeBlobService();
+        const objectStore = makeFakeObjectStore();
         const bufferApi = makeFakeBufferApi();
         bufferApi.createPost.mockImplementation(
           () =>
@@ -290,7 +189,7 @@ describe("bufferPostProgram", () => {
         );
         const { sendEvent } = makeSendEvent();
 
-        const layer = makeTestLayer({ blobService, bufferApi });
+        const layer = makeTestLayer({ objectStore, bufferApi });
 
         const exit = yield* bufferPostProgram({
           videoId: video.id,
@@ -315,12 +214,12 @@ describe("bufferPostProgram", () => {
     it.effect("sends error and does not upload", () =>
       Effect.gen(function* () {
         const video = yield* Effect.promise(() => createTestVideo());
-        const blobService = makeFakeBlobService();
+        const objectStore = makeFakeObjectStore();
         const bufferApi = makeFakeBufferApi();
         const { sendEvent, events } = makeSendEvent();
 
         const layer = makeTestLayer({
-          blobService,
+          objectStore,
           bufferApi,
           fileExists: false,
         });
@@ -331,7 +230,7 @@ describe("bufferPostProgram", () => {
           sendEvent,
         }).pipe(Effect.provide(layer));
 
-        expect(blobService.upload).not.toHaveBeenCalled();
+        expect(objectStore.upload).not.toHaveBeenCalled();
         expect(bufferApi.createPost).not.toHaveBeenCalled();
 
         const errorEvents = events.filter((e) => e.event === "error");
@@ -347,11 +246,11 @@ describe("bufferPostProgram", () => {
       () =>
         Effect.gen(function* () {
           const video = yield* Effect.promise(() => createTestVideo());
-          const blobService = makeFakeBlobService();
+          const objectStore = makeFakeObjectStore();
           const bufferApi = makeFakeBufferApi({ createPostId: "bp-custom-id" });
           const { sendEvent } = makeSendEvent();
 
-          const layer = makeTestLayer({ blobService, bufferApi });
+          const layer = makeTestLayer({ objectStore, bufferApi });
 
           yield* bufferPostProgram({
             videoId: video.id,

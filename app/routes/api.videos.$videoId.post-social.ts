@@ -23,7 +23,7 @@ export const action = async (args: Route.ActionArgs) => {
         },
       },
       {
-        tag: "VercelBlobError",
+        tag: "ObjectStoreError",
         handler: (e, sendEvent) => {
           sendEvent("error", { message: e.message });
         },
