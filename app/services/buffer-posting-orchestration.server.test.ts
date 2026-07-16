@@ -5,7 +5,10 @@ import { FileSystem } from "@effect/platform";
 import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
 import { BufferApiService } from "@/services/buffer-api-service.server";
 import { VercelBlobService } from "@/services/vercel-blob-service.server";
-import { bufferPostProgram } from "@/services/buffer-posting-orchestration.server";
+import {
+  bufferPostProgram,
+  prunePendingBlobs,
+} from "@/services/buffer-posting-orchestration.server";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import * as schema from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -14,7 +17,6 @@ import {
   truncateAllTables,
   type TestDb,
 } from "@/test-utils/pglite";
-import type { BufferPostStatus } from "@/services/buffer-api-service.server";
 
 let testDb: TestDb;
 
@@ -39,7 +41,11 @@ async function createTestVideo(title = "Test Short") {
   return video!;
 }
 
-function makeFakeBlobService(opts?: { delShouldFail?: boolean }) {
+function makeFakeBlobService(opts?: {
+  delShouldFail?: boolean;
+  listShouldFail?: boolean;
+  listResult?: Array<{ url: string; pathname: string; uploadedAt: Date }>;
+}) {
   return {
     upload: vi.fn(
       (_opts: {
@@ -55,6 +61,14 @@ function makeFakeBlobService(opts?: { delShouldFail?: boolean }) {
           };
         })
     ),
+    list: vi.fn((_prefix: string) =>
+      opts?.listShouldFail
+        ? Effect.fail({
+            _tag: "VercelBlobError" as const,
+            message: "list failed",
+          })
+        : Effect.succeed(opts?.listResult ?? [])
+    ),
     del: vi.fn((_url: string) =>
       opts?.delShouldFail
         ? Effect.fail({
@@ -66,24 +80,12 @@ function makeFakeBlobService(opts?: { delShouldFail?: boolean }) {
   };
 }
 
-function makeFakeBufferApi(opts?: {
-  statusSequence?: BufferPostStatus[];
-  createPostId?: string;
-}) {
-  const statusSequence = opts?.statusSequence ?? ["sent"];
-  let pollIndex = 0;
-
+function makeFakeBufferApi(opts?: { createPostId?: string }) {
   return {
     createPost: vi.fn(
       (_opts: { channelId: string; text: string; videoUrl: string }) =>
         Effect.succeed({ id: opts?.createPostId ?? "buffer-post-123" })
     ),
-    getPostStatus: vi.fn((_postId: string) => {
-      const status =
-        statusSequence[Math.min(pollIndex, statusSequence.length - 1)]!;
-      pollIndex++;
-      return Effect.succeed({ status });
-    }),
   };
 }
 
@@ -144,14 +146,14 @@ function makeSendEvent() {
 }
 
 describe("bufferPostProgram", () => {
-  describe("happy path — post reaches sent", () => {
+  describe("happy path — submitted to Buffer", () => {
     it.effect(
-      "uploads blob, creates post, polls, deletes blob, writes videoPosts row",
+      "uploads blob, creates post, marks posted immediately, keeps blob",
       () =>
         Effect.gen(function* () {
           const video = yield* Effect.promise(() => createTestVideo());
           const blobService = makeFakeBlobService();
-          const bufferApi = makeFakeBufferApi({ statusSequence: ["sent"] });
+          const bufferApi = makeFakeBufferApi();
           const { sendEvent, events } = makeSendEvent();
 
           const layer = makeTestLayer({ blobService, bufferApi });
@@ -160,7 +162,6 @@ describe("bufferPostProgram", () => {
             videoId: video.id,
             caption: "Check this out! #coding",
             sendEvent,
-            pollIntervalMs: 0,
           }).pipe(Effect.provide(layer));
 
           expect(blobService.upload).toHaveBeenCalledOnce();
@@ -174,13 +175,10 @@ describe("bufferPostProgram", () => {
             videoUrl: "https://blob.vercel-storage.com/buffer-posts/test.mp4",
           });
 
-          expect(bufferApi.getPostStatus).toHaveBeenCalledWith(
-            "buffer-post-123"
-          );
-
-          expect(blobService.del).toHaveBeenCalledWith(
-            "https://blob.vercel-storage.com/buffer-posts/test.mp4"
-          );
+          // The freshly-uploaded blob is NOT deleted (no stale blobs listed).
+          // The prune itself runs on a detached daemon fiber and is covered
+          // directly by the `prunePendingBlobs` tests below.
+          expect(blobService.del).not.toHaveBeenCalled();
 
           const posts = yield* Effect.promise(() =>
             testDb.query.videoPosts.findMany({
@@ -195,71 +193,112 @@ describe("bufferPostProgram", () => {
           const eventTypes = events.map((e) => e.event);
           expect(eventTypes).toContain("uploading-blob");
           expect(eventTypes).toContain("creating-post");
-          expect(eventTypes).toContain("polling");
-          expect(eventTypes).toContain("cleaning-up");
           expect(eventTypes).toContain("complete");
+          expect(eventTypes).not.toContain("polling");
+          expect(eventTypes).not.toContain("cleaning-up");
           expect(eventTypes).not.toContain("error");
         })
     );
   });
 
-  describe("poll retries before reaching sent", () => {
-    it.effect("polls multiple times until sent", () =>
+  describe("prunePendingBlobs", () => {
+    it.effect("deletes stale blobs but not recent ones", () =>
+      Effect.gen(function* () {
+        const staleUrl = "https://blob.vercel-storage.com/buffer-posts/old.mp4";
+        const freshUrl =
+          "https://blob.vercel-storage.com/buffer-posts/recent.mp4";
+        const blobService = makeFakeBlobService({
+          listResult: [
+            {
+              url: staleUrl,
+              pathname: "buffer-posts/old.mp4",
+              // 48h old — past the 24h cutoff
+              uploadedAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+            },
+            {
+              url: freshUrl,
+              pathname: "buffer-posts/recent.mp4",
+              // 1h old — well within the cutoff
+              uploadedAt: new Date(Date.now() - 60 * 60 * 1000),
+            },
+          ],
+        });
+
+        yield* prunePendingBlobs(blobService as unknown as VercelBlobService);
+
+        expect(blobService.list).toHaveBeenCalledWith("buffer-posts/");
+        expect(blobService.del).toHaveBeenCalledWith(staleUrl);
+        expect(blobService.del).toHaveBeenCalledOnce();
+      })
+    );
+
+    it.effect("a list failure is swallowed and does not throw", () =>
+      Effect.gen(function* () {
+        const blobService = makeFakeBlobService({ listShouldFail: true });
+
+        // Should complete without failing.
+        yield* prunePendingBlobs(blobService as unknown as VercelBlobService);
+
+        expect(blobService.del).not.toHaveBeenCalled();
+      })
+    );
+
+    it.effect("a prune (list) failure does not fail the post", () =>
       Effect.gen(function* () {
         const video = yield* Effect.promise(() => createTestVideo());
-        const bufferApi = makeFakeBufferApi({
-          statusSequence: ["buffer", "buffer", "sent"],
-        });
-        const blobService = makeFakeBlobService();
+        const blobService = makeFakeBlobService({ listShouldFail: true });
+        const bufferApi = makeFakeBufferApi();
         const { sendEvent, events } = makeSendEvent();
 
         const layer = makeTestLayer({ blobService, bufferApi });
 
         yield* bufferPostProgram({
           videoId: video.id,
-          caption: "Poll test",
+          caption: "Prune failure test",
           sendEvent,
-          pollIntervalMs: 0,
         }).pipe(Effect.provide(layer));
 
-        expect(bufferApi.getPostStatus).toHaveBeenCalledTimes(3);
+        expect(bufferApi.createPost).toHaveBeenCalledOnce();
 
-        expect(blobService.del).toHaveBeenCalledOnce();
+        const posts = yield* Effect.promise(() =>
+          testDb.query.videoPosts.findMany({
+            where: eq(schema.videoPosts.videoId, video.id),
+          })
+        );
+        expect(posts).toHaveLength(1);
+        expect(posts[0]!.postedAt).toBeInstanceOf(Date);
 
-        const pollingEvents = events.filter((e) => e.event === "polling");
-        expect(pollingEvents).toHaveLength(4); // initial + 3 polls
+        const eventTypes = events.map((e) => e.event);
+        expect(eventTypes).toContain("complete");
+        expect(eventTypes).not.toContain("error");
       })
     );
   });
 
-  describe("post reaches error status", () => {
-    it.effect("keeps blob and sends error event", () =>
+  describe("createPost fails", () => {
+    it.effect("does not mark posted", () =>
       Effect.gen(function* () {
         const video = yield* Effect.promise(() => createTestVideo());
-        const bufferApi = makeFakeBufferApi({
-          statusSequence: ["buffer", "error"],
-        });
         const blobService = makeFakeBlobService();
-        const { sendEvent, events } = makeSendEvent();
+        const bufferApi = makeFakeBufferApi();
+        bufferApi.createPost.mockImplementation(
+          () =>
+            Effect.fail({
+              _tag: "BufferApiError" as const,
+              message: "createPost failed",
+            }) as any
+        );
+        const { sendEvent } = makeSendEvent();
 
         const layer = makeTestLayer({ blobService, bufferApi });
 
-        yield* bufferPostProgram({
+        const exit = yield* bufferPostProgram({
           videoId: video.id,
-          caption: "Error test",
+          caption: "Fail test",
           sendEvent,
-          pollIntervalMs: 0,
-        }).pipe(Effect.provide(layer));
+        }).pipe(Effect.provide(layer), Effect.exit);
 
-        expect(blobService.del).not.toHaveBeenCalled();
-
-        const errorEvents = events.filter((e) => e.event === "error");
-        expect(errorEvents).toHaveLength(1);
-        expect((errorEvents[0]!.data as any).message).toContain(
-          "error posting"
-        );
-
-        expect(events.map((e) => e.event)).not.toContain("complete");
+        expect(exit._tag).toBe("Failure");
 
         const posts = yield* Effect.promise(() =>
           testDb.query.videoPosts.findMany({
@@ -290,7 +329,6 @@ describe("bufferPostProgram", () => {
           videoId: video.id,
           caption: "No file",
           sendEvent,
-          pollIntervalMs: 0,
         }).pipe(Effect.provide(layer));
 
         expect(blobService.upload).not.toHaveBeenCalled();
@@ -310,10 +348,7 @@ describe("bufferPostProgram", () => {
         Effect.gen(function* () {
           const video = yield* Effect.promise(() => createTestVideo());
           const blobService = makeFakeBlobService();
-          const bufferApi = makeFakeBufferApi({
-            createPostId: "bp-custom-id",
-            statusSequence: ["sent"],
-          });
+          const bufferApi = makeFakeBufferApi({ createPostId: "bp-custom-id" });
           const { sendEvent } = makeSendEvent();
 
           const layer = makeTestLayer({ blobService, bufferApi });
@@ -322,7 +357,6 @@ describe("bufferPostProgram", () => {
             videoId: video.id,
             caption: "Lifecycle test",
             sendEvent,
-            pollIntervalMs: 0,
           }).pipe(Effect.provide(layer));
 
           const posts = yield* Effect.promise(() =>

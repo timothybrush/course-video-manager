@@ -2,12 +2,15 @@ import { Circle, Download, Send, type LucideIcon } from "lucide-react";
 
 export type ShortStatus = "recorded" | "exported" | "posted";
 
+export type PostedPlatforms = { youtube: boolean; tiktok: boolean };
+
 export function getShortStatus(
   videoId: string,
   exportedMap: Record<string, boolean>,
-  postedMap: Record<string, boolean>
+  postedMap: Record<string, PostedPlatforms>
 ): ShortStatus {
-  if (postedMap[videoId]) return "posted";
+  const posted = postedMap[videoId];
+  if (posted && (posted.youtube || posted.tiktok)) return "posted";
   if (exportedMap[videoId]) return "exported";
   return "recorded";
 }

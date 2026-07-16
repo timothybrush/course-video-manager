@@ -4,8 +4,6 @@ export class BufferApiError extends Data.TaggedError("BufferApiError")<{
   message: string;
 }> {}
 
-export type BufferPostStatus = "draft" | "buffer" | "sent" | "error";
-
 const BUFFER_API_URL = "https://api.buffer.com";
 
 const graphql = (opts: {
@@ -75,9 +73,9 @@ const createBufferApiOperations = (token: string) => ({
           assets: [{ video: { url: opts.videoUrl } }],
           schedulingType: "automatic",
           // `shareNow` publishes the post immediately instead of dropping it
-          // into the channel's queue (`addToQueue`). Buffer still downloads the
-          // video asset asynchronously, so the caller polls `getPostStatus`
-          // until the post reaches `sent`.
+          // into the channel's queue (`addToQueue`). Buffer downloads the video
+          // asset asynchronously; there is no delivery confirmation, so once the
+          // mutation succeeds the post is considered submitted.
           mode: "shareNow",
         },
       },
@@ -96,23 +94,6 @@ const createBufferApiOperations = (token: string) => ({
           })
         );
       })
-    ),
-
-  getPostStatus: (postId: string) =>
-    graphql({
-      token,
-      query: `
-        query GetPostStatus($input: PostInput!) {
-          post(input: $input) {
-            status
-          }
-        }
-      `,
-      variables: { input: { id: postId } },
-    }).pipe(
-      Effect.map((data) => ({
-        status: data.post.status as BufferPostStatus,
-      }))
     ),
 });
 

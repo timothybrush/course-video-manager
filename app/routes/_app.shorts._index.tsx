@@ -1,5 +1,10 @@
 import { useFocusRevalidate } from "@/hooks/use-focus-revalidate";
-import { getShortStatus, STATUS_META } from "@/lib/short-status";
+import {
+  getShortStatus,
+  STATUS_META,
+  type PostedPlatforms,
+} from "@/lib/short-status";
+import { SiYoutube, SiTiktok } from "@icons-pack/react-simple-icons";
 import { formatSecondsToTimeCode } from "@/services/utils";
 import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
@@ -27,14 +32,21 @@ export const loader = makeLoader({
       });
 
       const exportedMap: Record<string, boolean> = {};
-      const postedMap: Record<string, boolean> = {};
+      const postedMap: Record<string, PostedPlatforms> = {};
       yield* Effect.forEach(shorts, (video) =>
         Effect.gen(function* () {
           const mp4Path = `${finishedDir}/${video.id}.mp4`;
           exportedMap[video.id] = yield* fs.exists(mp4Path);
 
           const posts = yield* videoPostOps.listByVideoId(video.id);
-          postedMap[video.id] = posts.some((p) => p.postedAt !== null);
+          postedMap[video.id] = {
+            youtube: posts.some(
+              (p) => p.platform === "youtube-shorts" && p.postedAt !== null
+            ),
+            tiktok: posts.some(
+              (p) => p.platform === "buffer" && p.postedAt !== null
+            ),
+          };
         })
       );
 
@@ -96,6 +108,7 @@ export default function ShortsIndex(props: Route.ComponentProps) {
             {shorts.map((video) => {
               const status = getShortStatus(video.id, exportedMap, postedMap);
               const StatusIcon = STATUS_META[status].icon;
+              const posted = postedMap[video.id];
               const totalDuration = video.clips.reduce(
                 (acc, clip) =>
                   acc + (clip.sourceEndTime - clip.sourceStartTime),
@@ -122,6 +135,26 @@ export default function ShortsIndex(props: Route.ComponentProps) {
                     {totalDuration > 0 && (
                       <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
                         {formatSecondsToTimeCode(totalDuration)}
+                      </div>
+                    )}
+                    {(posted?.youtube || posted?.tiktok) && (
+                      <div className="absolute top-2 left-2 flex gap-1">
+                        {posted?.youtube && (
+                          <span
+                            title="Posted to YouTube"
+                            className="flex items-center justify-center bg-black/70 text-white rounded p-1"
+                          >
+                            <SiYoutube className="w-3 h-3" />
+                          </span>
+                        )}
+                        {posted?.tiktok && (
+                          <span
+                            title="Posted to TikTok"
+                            className="flex items-center justify-center bg-black/70 text-white rounded p-1"
+                          >
+                            <SiTiktok className="w-3 h-3" />
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

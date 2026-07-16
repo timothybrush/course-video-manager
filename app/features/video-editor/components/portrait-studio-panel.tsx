@@ -23,7 +23,10 @@ import {
   type ChangeEvent,
 } from "react";
 import { UploadContext } from "@/features/upload-manager/upload-context";
-import { ShortsPostingModal } from "@/features/video-posting/shorts-posting-modal";
+import {
+  ShortsPostingModal,
+  type ShortsPostingMode,
+} from "@/features/video-posting/shorts-posting-modal";
 
 export const PortraitStudioPanel = () => {
   const videoTitle = useContextSelector(
@@ -137,6 +140,11 @@ export const PortraitStudioPanel = () => {
   const revealVideoFetcher = useFetcher();
 
   const [isPostingModalOpen, setIsPostingModalOpen] = useState(false);
+  const [postingMode, setPostingMode] = useState<ShortsPostingMode>("both");
+  const openPostingModal = useCallback((mode: ShortsPostingMode) => {
+    setPostingMode(mode);
+    setIsPostingModalOpen(true);
+  }, []);
 
   const [exportFileExists, setExportFileExists] = useState(false);
   useEffect(() => {
@@ -182,7 +190,9 @@ export const PortraitStudioPanel = () => {
             onRenderVertical={() =>
               startRenderVerticalUpload(videoId, videoTitle)
             }
-            onPostShorts={() => setIsPostingModalOpen(true)}
+            onPostShorts={() => openPostingModal("both")}
+            onPostYoutube={() => openPostingModal("youtube")}
+            onPostTiktok={() => openPostingModal("tiktok")}
             videoId={videoId}
             isCopied={isCopied}
             copyTranscriptToClipboard={copyTranscriptToClipboard}
@@ -206,7 +216,7 @@ export const PortraitStudioPanel = () => {
             isLogPathCopied={isLogPathCopied}
             copyLogPathToClipboard={copyLogPathToClipboard}
           />
-          <Button onClick={() => setIsPostingModalOpen(true)}>
+          <Button onClick={() => openPostingModal("both")}>
             <SendIcon className="w-4 h-4 mr-2" />
             Post
           </Button>
@@ -299,6 +309,7 @@ export const PortraitStudioPanel = () => {
         onOpenChange={setIsPostingModalOpen}
         videoId={videoId}
         videoTitle={videoTitle}
+        mode={postingMode}
       />
     </div>
   );

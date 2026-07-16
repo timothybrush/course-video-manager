@@ -3,20 +3,32 @@ import { FileSystem } from "@effect/platform";
 import { VideoPostOperationsService } from "@/services/db-video-post-operations.server";
 import { BufferApiService } from "@/services/buffer-api-service.server";
 import { VercelBlobService } from "@/services/vercel-blob-service.server";
+import { selectStaleBlobs } from "@/lib/select-stale-blobs";
 import type { SendEvent } from "@/lib/create-sse-response.server";
 
-const DEFAULT_POLL_INTERVAL_MS = 10_000;
-// The post is published immediately (`shareNow`), so delivery only takes as long
-// as Buffer needs to download and process the video asset — minutes, not the
-// open-ended wait a queued post would require.
-const DEFAULT_POLL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Prune blobs older than 24h from the `buffer-posts/` prefix. Blob lifetime is
+// now managed by this sweep rather than a per-post cleanup, so any failure here
+// must never fail the post — errors are swallowed. Exported so it can be tested
+// directly; the orchestration forks it off the critical path.
+export const prunePendingBlobs = (blobService: VercelBlobService) =>
+  blobService.list("buffer-posts/").pipe(
+    Effect.flatMap((blobs) =>
+      Effect.forEach(
+        selectStaleBlobs(blobs, new Date(), BLOB_MAX_AGE_MS),
+        (url) => blobService.del(url),
+        { discard: true }
+      )
+    ),
+    Effect.catchAll(() => Effect.void),
+    Effect.ignore
+  );
 
 export const bufferPostProgram = (opts: {
   videoId: string;
   caption: string;
   sendEvent: SendEvent;
-  pollIntervalMs?: number;
-  pollTimeoutMs?: number;
 }) =>
   Effect.gen(function* () {
     const finishedDir = yield* Config.string("FINISHED_VIDEOS_DIRECTORY");
@@ -34,6 +46,10 @@ export const bufferPostProgram = (opts: {
       });
       return;
     }
+
+    // Kick off the stale-blob prune as a detached daemon so a slow `list`/`del`
+    // never sits on the critical path of the post itself.
+    yield* Effect.forkDaemon(prunePendingBlobs(blobService));
 
     const post = yield* videoPostOps.createVideoPost({
       videoId: opts.videoId,
@@ -65,43 +81,10 @@ export const bufferPostProgram = (opts: {
       remoteUrl: null,
     });
 
-    opts.sendEvent("polling", { status: "buffer" });
+    // "Posted" now means "submitted to Buffer" — Buffer downloads the freshly
+    // uploaded blob asynchronously (kept alive by the 24h prune), so we mark the
+    // post as posted immediately and do not delete the blob here.
+    yield* videoPostOps.markPosted(post.id);
 
-    const pollInterval = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    const pollTimeout = opts.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS;
-    const startTime = Date.now();
-
-    while (true) {
-      if (Date.now() - startTime > pollTimeout) {
-        opts.sendEvent("error", {
-          message:
-            "Buffer post timed out waiting for delivery. The blob has been kept for retry.",
-        });
-        return;
-      }
-
-      yield* Effect.sleep(pollInterval);
-
-      const result = yield* bufferApi.getPostStatus(bufferPost.id);
-
-      opts.sendEvent("polling", { status: result.status });
-
-      if (result.status === "sent") {
-        opts.sendEvent("cleaning-up", {});
-
-        yield* blobService.del(blob.url);
-        yield* videoPostOps.markPosted(post.id);
-
-        opts.sendEvent("complete", {});
-        return;
-      }
-
-      if (result.status === "error") {
-        opts.sendEvent("error", {
-          message:
-            "Buffer reported an error posting. The blob has been kept for retry.",
-        });
-        return;
-      }
-    }
+    opts.sendEvent("complete", {});
   });

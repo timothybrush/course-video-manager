@@ -70,6 +70,50 @@ const createVercelBlobOperations = (token: string) => ({
       return { url: result.url };
     }),
 
+  list: (prefix: string) =>
+    Effect.tryPromise({
+      try: async () => {
+        const res = await fetch(
+          `https://blob.vercel-storage.com?prefix=${encodeURIComponent(
+            prefix
+          )}&limit=1000`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-api-version": "7",
+            },
+          }
+        );
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Vercel Blob list failed (${res.status}): ${text}`);
+        }
+
+        const json = (await res.json()) as {
+          blobs: Array<{
+            url: string;
+            pathname: string;
+            size: number;
+            uploadedAt: string;
+          }>;
+          cursor?: string;
+          hasMore: boolean;
+        };
+
+        return json.blobs.map((blob) => ({
+          url: blob.url,
+          pathname: blob.pathname,
+          uploadedAt: new Date(blob.uploadedAt),
+        }));
+      },
+      catch: (e) =>
+        new VercelBlobError({
+          message: e instanceof Error ? e.message : String(e),
+        }),
+    }),
+
   del: (url: string) =>
     Effect.tryPromise({
       try: async () => {
