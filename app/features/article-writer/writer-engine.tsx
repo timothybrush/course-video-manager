@@ -551,6 +551,7 @@ export function WriterEngine({
 
   if (layout === "modal") {
     const lintCount = violations.reduce((sum, v) => sum + v.count, 0);
+    const unresolvedScreenshots = hasUnresolvedScreenshots(document ?? "");
     return (
       <div className="relative flex flex-1 flex-col overflow-hidden h-full">
         {/* 2-pane body */}
@@ -667,13 +668,9 @@ export function WriterEngine({
             <Button
               size="sm"
               onClick={handleApply}
-              disabled={
-                isGenerating ||
-                isApplying ||
-                hasUnresolvedScreenshots(document ?? "")
-              }
+              disabled={isGenerating || isApplying || unresolvedScreenshots}
               title={
-                hasUnresolvedScreenshots(document ?? "")
+                unresolvedScreenshots
                   ? "Resolve all screenshot placeholders before applying"
                   : undefined
               }
