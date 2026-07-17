@@ -126,9 +126,7 @@ export type ClipEffectOptimisticallyAdded = {
 };
 
 export type Clip =
-  | ClipOnDatabase
-  | ClipOptimisticallyAdded
-  | ClipEffectOptimisticallyAdded;
+  ClipOnDatabase | ClipOptimisticallyAdded | ClipEffectOptimisticallyAdded;
 
 export type ChapterOnDatabase = {
   type: "chapter-on-database";
@@ -197,6 +195,16 @@ export type ClipReducerState = {
   browserFocus?: boolean;
   browserUrl?: string | null;
   browserTitle?: string | null;
+  /**
+   * The web link currently being evaluated for minimum dwell time before it
+   * qualifies as a captured web link. Promoted to the recording clip's
+   * `pendingWebLinks` once it has been visible for at least `WEB_LINK_DWELL_MS`.
+   */
+  browserLinkCandidate?: {
+    url: string;
+    title: string | null;
+    since: number;
+  } | null;
   /**
    * The optimistic clip currently being recorded (set when speech is detected,
    * cleared when its audio window closes). While set, the effective visible URL

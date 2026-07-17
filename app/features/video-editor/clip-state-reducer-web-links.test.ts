@@ -68,43 +68,58 @@ describe("clipStateReducer — browser link capture", () => {
 
   it("accumulates the set of pages switched to while the clip records", () => {
     const tester = startRecordingViewing("https://a.com", "A");
-    tester.send(newClip("sound-1")).send({
-      type: "browser-event",
-      event: {
-        type: "browser-url",
-        url: "https://b.com",
-        title: "B",
-        ts: 2000,
-      },
-    });
-
-    const clip = optimisticClip(tester);
-    expect(urls(clip)).toEqual(["https://a.com", "https://b.com"]);
-    expect(
-      clip.pendingWebLinks!.find((l) => l.url === "https://b.com")
-    ).toEqual({ url: "https://b.com", title: "B", capturedAt: 2000 });
-  });
-
-  it("dedupes a page shown twice (A, B, A) into one entry, keeping the first sighting", () => {
-    const tester = startRecordingViewing("https://a.com", "A");
     tester
       .send(newClip("sound-1"))
+      // B appears after A has been visible ≥ 1500ms → A promoted (deduped with seed)
       .send({
         type: "browser-event",
         event: {
           type: "browser-url",
           url: "https://b.com",
           title: "B",
-          ts: 2000,
+          ts: 3000,
         },
       })
+      // C appears after B has been visible ≥ 1500ms → B promoted
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://c.com",
+          title: "C",
+          ts: 5000,
+        },
+      });
+
+    const clip = optimisticClip(tester);
+    expect(urls(clip)).toEqual(["https://a.com", "https://b.com"]);
+    expect(
+      clip.pendingWebLinks!.find((l) => l.url === "https://b.com")
+    ).toEqual({ url: "https://b.com", title: "B", capturedAt: 3000 });
+  });
+
+  it("dedupes a page shown twice (A, B, A) into one entry, keeping the first sighting", () => {
+    const tester = startRecordingViewing("https://a.com", "A");
+    tester
+      .send(newClip("sound-1"))
+      // B after 1600ms on A → A promoted (deduped with seed)
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://b.com",
+          title: "B",
+          ts: 2600,
+        },
+      })
+      // A again after 1600ms on B → B promoted
       .send({
         type: "browser-event",
         event: {
           type: "browser-url",
           url: "https://a.com",
           title: "A",
-          ts: 3000,
+          ts: 4200,
         },
       });
 
@@ -130,7 +145,7 @@ describe("clipStateReducer — browser link capture", () => {
         event: { type: "browser-url", url: "chrome://newtab/", ts: 1000 },
       })
       .send(newClip("sound-1"))
-      // Chrome loses focus while on a web page → not captured.
+      // Navigate to a real page while focused.
       .send({
         type: "browser-event",
         event: {
@@ -140,14 +155,15 @@ describe("clipStateReducer — browser link capture", () => {
           ts: 1500,
         },
       })
+      // Chrome loses focus after dwell threshold → captured.
       .send({
         type: "browser-event",
-        event: { type: "browser-focus", focused: false, ts: 1600 },
+        event: { type: "browser-focus", focused: false, ts: 3500 },
       })
-      // Focus returns on a real page → captured.
+      // Focus returns → starts a new candidate for the same page.
       .send({
         type: "browser-event",
-        event: { type: "browser-focus", focused: true, ts: 2000 },
+        event: { type: "browser-focus", focused: true, ts: 4000 },
       });
 
     const clip = optimisticClip(tester);
@@ -207,6 +223,151 @@ describe("clipStateReducer — browser link capture", () => {
       },
     });
     expect(urls(optimisticClip(tester, 0))).toEqual(["https://a.com"]);
+  });
+
+  it("does not capture a page shown for less than the dwell threshold", () => {
+    const tester = startRecordingViewing("https://a.com", "A");
+    tester
+      .send(newClip("sound-1"))
+      // B appears 500ms after A — below the 1500ms dwell threshold
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://b.com",
+          title: "B",
+          ts: 1500,
+        },
+      })
+      // C appears 300ms after B — also below threshold
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://c.com",
+          title: "C",
+          ts: 1800,
+        },
+      });
+
+    const clip = optimisticClip(tester);
+    // Only the seed (A) should be captured; B and C were too brief.
+    expect(urls(clip)).toEqual(["https://a.com"]);
+  });
+
+  it("captures a page at exactly the dwell threshold boundary", () => {
+    const tester = startRecordingViewing("https://a.com", "A");
+    tester
+      .send(newClip("sound-1"))
+      // B appears exactly 1500ms after A → A promoted (deduped with seed)
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://b.com",
+          title: "B",
+          ts: 2500,
+        },
+      })
+      // C appears exactly 1500ms after B → B promoted
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://c.com",
+          title: "C",
+          ts: 4000,
+        },
+      });
+
+    const clip = optimisticClip(tester);
+    expect(urls(clip)).toEqual(["https://a.com", "https://b.com"]);
+  });
+
+  it("flushes the dwell-time candidate when the clip's audio window closes", () => {
+    const tester = startRecordingViewing("https://a.com", "A");
+    tester.send(newClip("sound-1"));
+    const sessionId = tester.getState().sessions[0]!.id;
+
+    // Switch to B well after dwell threshold on A
+    tester.send({
+      type: "browser-event",
+      event: {
+        type: "browser-url",
+        url: "https://b.com",
+        title: "B",
+        ts: 3000,
+      },
+    });
+
+    // Close the clip — B should be flushed (Date.now() is far from ts 3000)
+    tester.send({
+      type: "clip-audio-window-closed",
+      sessionId,
+      activeDiagramId: null,
+      diagramFocused: false,
+    });
+
+    const clip = optimisticClip(tester, 0);
+    expect(urls(clip)).toEqual(["https://a.com", "https://b.com"]);
+  });
+
+  it("filters rapid tab-switching mid-clip, keeping only pages held long enough", () => {
+    const tester = startRecordingViewing("https://docs.com", "Docs");
+    tester
+      .send(newClip("sound-1"))
+      // Rapid tab switching — each page < 1500ms
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://mail.com",
+          title: "Mail",
+          ts: 1200,
+        },
+      })
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://chat.com",
+          title: "Chat",
+          ts: 1400,
+        },
+      })
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://calendar.com",
+          title: "Cal",
+          ts: 1600,
+        },
+      })
+      // Land on target page and stay
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://target.com",
+          title: "Target",
+          ts: 1800,
+        },
+      })
+      // Switch away after dwell threshold met on target
+      .send({
+        type: "browser-event",
+        event: {
+          type: "browser-url",
+          url: "https://other.com",
+          title: "Other",
+          ts: 4000,
+        },
+      });
+
+    const clip = optimisticClip(tester);
+    // Only docs (seed) and target (held ≥ 1500ms) captured; the brief tabs are filtered
+    expect(urls(clip)).toEqual(["https://docs.com", "https://target.com"]);
   });
 
   it("persists the accumulated set when the optimistic clip is paired with a database clip", () => {

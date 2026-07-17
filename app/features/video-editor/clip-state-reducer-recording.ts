@@ -1,7 +1,11 @@
 import type { PauseType } from "@/services/video-processing-service";
 import { DEFAULT_SILENCE_LENGTH } from "@/silence-detection-constants";
 import { shouldSnapshot } from "@/lib/snapshot-rule";
-import { isCapturableUrl, type CapturedWebLink } from "@/lib/clip-web-link";
+import {
+  isCapturableUrl,
+  WEB_LINK_DWELL_MS,
+  type CapturedWebLink,
+} from "@/lib/clip-web-link";
 import type {
   ClipOnDatabase,
   ClipOptimisticallyAdded,
@@ -83,6 +87,40 @@ const effectiveWebLink = (
 ): { url: string; title: string | null } | null => {
   if (!focused || url == null || !isCapturableUrl(url)) return null;
   return { url, title: title ?? null };
+};
+
+/**
+ * If the current candidate has been visible for at least WEB_LINK_DWELL_MS,
+ * promote it into the recording clip's pendingWebLinks (deduped by URL).
+ */
+const promoteCandidate = (
+  state: ClipReducerState,
+  now: number
+): ClipReducerState => {
+  const candidate = state.browserLinkCandidate;
+  const recordingId = state.recordingClipFrontendId;
+  if (!candidate || !recordingId) return state;
+  if (now - candidate.since < WEB_LINK_DWELL_MS) return state;
+
+  return {
+    ...state,
+    items: state.items.map((item) => {
+      if (
+        item.frontendId !== recordingId ||
+        item.type !== "optimistically-added"
+      ) {
+        return item;
+      }
+      const existing = item.pendingWebLinks ?? [];
+      if (existing.some((l) => l.url === candidate.url)) return item;
+      const captured: CapturedWebLink = {
+        url: candidate.url,
+        title: candidate.title,
+        capturedAt: candidate.since,
+      };
+      return { ...item, pendingWebLinks: [...existing, captured] };
+    }),
+  };
 };
 
 const handleRecordingStarted = (
@@ -515,16 +553,18 @@ const handleClipAudioWindowClosed = (
     diagramFocused: boolean;
   }
 ): ClipReducerState => {
-  // The clip's window has closed; stop accumulating web links to it. Its links
-  // were captured live via `browser-event` and already sit on `pendingWebLinks`.
+  // Flush any dwell-time candidate still in flight to the recording clip before
+  // closing it.
+  const flushed = promoteCandidate(state, Date.now());
+
   const cleared: ClipReducerState = {
-    ...state,
+    ...flushed,
     recordingClipFrontendId: null,
   };
 
   let targetIndex = -1;
-  for (let i = state.items.length - 1; i >= 0; i--) {
-    const item = state.items[i]!;
+  for (let i = flushed.items.length - 1; i >= 0; i--) {
+    const item = flushed.items[i]!;
     if (
       item.type === "optimistically-added" &&
       item.sessionId === action.sessionId &&
@@ -538,7 +578,7 @@ const handleClipAudioWindowClosed = (
 
   return {
     ...cleared,
-    items: state.items.map((item, i) =>
+    items: flushed.items.map((item, i) =>
       i === targetIndex && item.type === "optimistically-added"
         ? {
             ...item,
@@ -553,9 +593,10 @@ const handleClipAudioWindowClosed = (
 };
 
 /**
- * Fold a live browser link-capture event into the ambient focus/URL state and,
- * if a clip is currently recording, accumulate the effective visible URL into
- * that clip's captured-links set (deduped by URL, keeping the first sighting).
+ * Fold a live browser link-capture event into the ambient focus/URL state and
+ * track a dwell-time candidate. A page must remain visible for at least
+ * WEB_LINK_DWELL_MS before it is promoted into the recording clip's
+ * captured-links set.
  */
 const handleBrowserEvent = (
   state: ClipReducerState,
@@ -580,29 +621,17 @@ const handleBrowserEvent = (
     browserTitle,
   };
 
-  const recordingId = state.recordingClipFrontendId;
-  if (!recordingId) return withAmbient;
-
   const link = effectiveWebLink(browserFocus, browserUrl, browserTitle);
-  if (!link) return withAmbient;
+  const candidate = withAmbient.browserLinkCandidate;
+
+  if (link?.url === candidate?.url) return withAmbient;
+
+  const promoted = promoteCandidate(withAmbient, event.ts);
 
   return {
-    ...withAmbient,
-    items: withAmbient.items.map((item) => {
-      if (
-        item.frontendId !== recordingId ||
-        item.type !== "optimistically-added"
-      ) {
-        return item;
-      }
-      const existing = item.pendingWebLinks ?? [];
-      if (existing.some((l) => l.url === link.url)) return item;
-      const captured: CapturedWebLink = {
-        url: link.url,
-        title: link.title,
-        capturedAt: event.ts,
-      };
-      return { ...item, pendingWebLinks: [...existing, captured] };
-    }),
+    ...promoted,
+    browserLinkCandidate: link
+      ? { url: link.url, title: link.title, since: event.ts }
+      : null,
   };
 };
