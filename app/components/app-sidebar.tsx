@@ -1,5 +1,6 @@
 import { AddCourseModal } from "@/components/add-course-modal";
 import { AddStandaloneVideoModal } from "@/components/add-standalone-video-modal";
+import { SpacedeskModal } from "@/components/spacedesk-modal";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -28,7 +29,6 @@ import {
   Plus,
   VideoIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import {
   Link,
@@ -63,12 +63,10 @@ export function AppSidebar({ variant }: AppSidebarProps) {
 
   const archiveCourseFetcher = useFetcher();
   const createPitchFetcher = useFetcher<{ id: string }>();
-  const spacedeskFetcher = useFetcher<
-    { success: true } | { success: false; message: string }
-  >();
 
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
+  const [isSpacedeskOpen, setIsSpacedeskOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -80,21 +78,6 @@ export function AppSidebar({ variant }: AppSidebarProps) {
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
-
-  useEffect(() => {
-    if (spacedeskFetcher.state !== "idle" || !spacedeskFetcher.data) return;
-    if (spacedeskFetcher.data.success) {
-      toast("Space Desk display is waking up…");
-    } else {
-      toast.error(spacedeskFetcher.data.message);
-    }
-  }, [spacedeskFetcher.state, spacedeskFetcher.data]);
-
-  const openSpaceDesk = () =>
-    spacedeskFetcher.submit(
-      {},
-      { method: "post", action: "/api/spacedesk/open" }
-    );
 
   const onPitchesPath = location.pathname.startsWith("/pitches");
   const onShortsPath = location.pathname.startsWith("/shorts");
@@ -211,7 +194,7 @@ export function AppSidebar({ variant }: AppSidebarProps) {
       <EntityCard
         icon={<MonitorSmartphone className="w-4 h-4 text-muted-foreground" />}
         label="Space Desk"
-        onClick={openSpaceDesk}
+        onClick={() => setIsSpacedeskOpen(true)}
       />
     </div>
   );
@@ -251,6 +234,10 @@ export function AppSidebar({ variant }: AppSidebarProps) {
       <AddStandaloneVideoModal
         open={isAddVideoOpen}
         onOpenChange={setIsAddVideoOpen}
+      />
+      <SpacedeskModal
+        open={isSpacedeskOpen}
+        onOpenChange={setIsSpacedeskOpen}
       />
     </>
   );
