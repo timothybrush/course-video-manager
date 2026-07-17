@@ -15,7 +15,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { openPlayground } from "@/lib/diagram-window";
+import {
+  openPlayground,
+  openPlaygroundWithDiagram,
+} from "@/lib/diagram-window";
 import {
   Archive,
   CalendarDays,
@@ -63,6 +66,8 @@ export function AppSidebar({ variant }: AppSidebarProps) {
 
   const archiveCourseFetcher = useFetcher();
   const createPitchFetcher = useFetcher<{ id: string }>();
+  const createShortFetcher = useFetcher<{ id: string }>();
+  const createDiagramFetcher = useFetcher<{ id: string; name: string }>();
 
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
@@ -78,6 +83,21 @@ export function AppSidebar({ variant }: AppSidebarProps) {
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
+
+  useEffect(() => {
+    if (createShortFetcher.state === "idle" && createShortFetcher.data?.id) {
+      navigate(`/videos/${createShortFetcher.data.id}/edit`);
+    }
+  }, [createShortFetcher.state, createShortFetcher.data, navigate]);
+
+  useEffect(() => {
+    if (
+      createDiagramFetcher.state === "idle" &&
+      createDiagramFetcher.data?.id
+    ) {
+      openPlaygroundWithDiagram(createDiagramFetcher.data.id);
+    }
+  }, [createDiagramFetcher.state, createDiagramFetcher.data]);
 
   const onPitchesPath = location.pathname.startsWith("/pitches");
   const onShortsPath = location.pathname.startsWith("/shorts");
@@ -174,6 +194,13 @@ export function AppSidebar({ variant }: AppSidebarProps) {
         icon={<PenTool className="w-4 h-4 text-muted-foreground" />}
         label="Diagrams"
         onClick={() => openPlayground()}
+        onAdd={() => {
+          createDiagramFetcher.submit(
+            {},
+            { method: "post", action: "/api/diagrams/create" }
+          );
+        }}
+        addDisabled={createDiagramFetcher.state !== "idle"}
       />
 
       <EntityCard
@@ -181,6 +208,16 @@ export function AppSidebar({ variant }: AppSidebarProps) {
         label="Shorts"
         href="/shorts"
         active={onShortsPath}
+        onAdd={() => {
+          const formData = new FormData();
+          formData.set("title", `Short ${new Date().toLocaleDateString()}`);
+          formData.set("format", "short");
+          createShortFetcher.submit(formData, {
+            method: "post",
+            action: "/api/videos/create",
+          });
+        }}
+        addDisabled={createShortFetcher.state !== "idle"}
       />
 
       <EntityCard
