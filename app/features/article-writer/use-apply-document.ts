@@ -2,6 +2,7 @@
 
 import { useCallback, useState, type RefObject } from "react";
 import { toast } from "sonner";
+import { hasUnresolvedScreenshots } from "./choose-screenshot-mutations";
 
 export function useApplyDocument(
   videoId: string,
@@ -13,6 +14,10 @@ export function useApplyDocument(
 
   const handleApply = useCallback(async () => {
     const doc = documentRef.current ?? "";
+    if (hasUnresolvedScreenshots(doc)) {
+      toast.error("Resolve all screenshot placeholders before applying");
+      return;
+    }
     let finalDoc = doc;
     if (doc.trim()) {
       setIsApplying(true);

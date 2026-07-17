@@ -667,7 +667,16 @@ export function WriterEngine({
             <Button
               size="sm"
               onClick={handleApply}
-              disabled={isGenerating || isApplying}
+              disabled={
+                isGenerating ||
+                isApplying ||
+                hasUnresolvedScreenshots(document ?? "")
+              }
+              title={
+                hasUnresolvedScreenshots(document ?? "")
+                  ? "Resolve all screenshot placeholders before applying"
+                  : undefined
+              }
             >
               {isApplying ? (
                 <>

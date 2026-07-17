@@ -190,4 +190,40 @@ More text`;
 
     expect(hasUnresolvedScreenshots(message)).toBe(false);
   });
+
+  it("detects unresolved tags in a full document with resolved images", () => {
+    const document = `# Article Title
+
+Here is the first screenshot:
+
+![resolved](./screenshot-1.png)
+
+And here is one still pending:
+
+<ChooseScreenshot clipIndex={5} alt="pending screenshot" />
+
+## Conclusion
+
+Done.`;
+
+    expect(hasUnresolvedScreenshots(document)).toBe(true);
+  });
+
+  it("returns false for a full document where all screenshots are resolved", () => {
+    const document = `# Article Title
+
+Here is the first screenshot:
+
+![resolved](./screenshot-1.png)
+
+And the second:
+
+![also resolved](./screenshot-2.png)
+
+## Conclusion
+
+Done.`;
+
+    expect(hasUnresolvedScreenshots(document)).toBe(false);
+  });
 });
