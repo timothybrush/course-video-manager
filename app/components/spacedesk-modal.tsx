@@ -7,12 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  buildFullIp,
-  isValidSuffix,
-  loadIpSuffix,
-  saveIpSuffix,
-} from "@/lib/spacedesk-ip";
+import { useLocalStorage } from "@/hooks/use-local-storage";
+import { buildFullIp, isValidSuffix, STORAGE_KEY } from "@/lib/spacedesk-ip";
 import { useState, useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
@@ -23,6 +19,7 @@ interface SpacedeskModalProps {
 }
 
 export function SpacedeskModal({ open, onOpenChange }: SpacedeskModalProps) {
+  const [savedSuffix, setSavedSuffix] = useLocalStorage(STORAGE_KEY);
   const [suffix, setSuffix] = useState("");
   const fetcher = useFetcher<
     { success: true } | { success: false; message: string }
@@ -30,9 +27,9 @@ export function SpacedeskModal({ open, onOpenChange }: SpacedeskModalProps) {
 
   useEffect(() => {
     if (open) {
-      setSuffix(loadIpSuffix());
+      setSuffix(savedSuffix);
     }
-  }, [open]);
+  }, [open, savedSuffix]);
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
@@ -49,7 +46,7 @@ export function SpacedeskModal({ open, onOpenChange }: SpacedeskModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
-    saveIpSuffix(suffix);
+    setSavedSuffix(suffix);
     fetcher.submit(JSON.stringify({ ip: buildFullIp(suffix) }), {
       method: "post",
       action: "/api/spacedesk/open",

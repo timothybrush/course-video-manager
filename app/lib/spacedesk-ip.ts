@@ -1,22 +1,8 @@
-const STORAGE_KEY = "spacedesk-ip-suffix";
+export const STORAGE_KEY = "spacedesk-ip-suffix";
 const PREFIX = "192.168.";
-
-export function loadIpSuffix(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem(STORAGE_KEY) ?? "";
-}
-
-export function saveIpSuffix(suffix: string): void {
-  localStorage.setItem(STORAGE_KEY, suffix);
-}
 
 export function buildFullIp(suffix: string): string {
   return `${PREFIX}${suffix}`;
-}
-
-export function parseIpSuffix(fullIp: string): string | null {
-  if (!fullIp.startsWith(PREFIX)) return null;
-  return fullIp.slice(PREFIX.length);
 }
 
 export function isValidSuffix(suffix: string): boolean {

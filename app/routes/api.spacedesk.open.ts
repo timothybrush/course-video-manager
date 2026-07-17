@@ -4,8 +4,14 @@ import { SpacedeskService } from "@/services/spacedesk-service";
 
 const SpacedeskOpenPayload = Schema.Struct({
   ip: Schema.String.pipe(
-    Schema.pattern(/^\d{1,3}(\.\d{1,3}){3}$/, {
-      message: () => "Invalid IPv4 address",
+    Schema.filter((s) => {
+      const m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+      if (!m) return "Invalid IPv4 address";
+      if (m[1] !== "192" || m[2] !== "168")
+        return "IP must start with 192.168.";
+      if ([m[3], m[4]].some((o) => Number(o) > 255))
+        return "Each octet must be 0-255";
+      return true;
     })
   ),
 });

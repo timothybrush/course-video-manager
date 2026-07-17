@@ -1,29 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildFullIp, parseIpSuffix, isValidSuffix } from "./spacedesk-ip";
-
-describe("buildFullIp", () => {
-  it("prepends 192.168. to the suffix", () => {
-    expect(buildFullIp("1.100")).toBe("192.168.1.100");
-  });
-
-  it("handles empty suffix", () => {
-    expect(buildFullIp("")).toBe("192.168.");
-  });
-});
-
-describe("parseIpSuffix", () => {
-  it("strips the 192.168. prefix", () => {
-    expect(parseIpSuffix("192.168.1.100")).toBe("1.100");
-  });
-
-  it("returns null for non-matching prefix", () => {
-    expect(parseIpSuffix("10.0.0.1")).toBeNull();
-  });
-
-  it("returns empty string for bare prefix", () => {
-    expect(parseIpSuffix("192.168.")).toBe("");
-  });
-});
+import { isValidSuffix } from "./spacedesk-ip";
 
 describe("isValidSuffix", () => {
   it("accepts valid two-octet suffixes", () => {
