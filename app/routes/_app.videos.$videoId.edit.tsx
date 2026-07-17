@@ -35,7 +35,7 @@ import {
 import { useBrowserLinkCapture } from "@/features/video-editor/hooks/use-browser-link-capture";
 import type { Route } from "./+types/_app.videos.$videoId.edit";
 
-export const handle = { fullscreen: true };
+export const handle = { fullscreen: true, hideParentHeader: true };
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import { getBackButtonUrl } from "@/features/video-editor/video-editor-selectors";
 import type { loader as parentLoader } from "./_app.videos.$videoId";
@@ -214,8 +214,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
   const navigate = useNavigate();
 
   const parentData = useRouteLoaderData("routes/_app.videos.$videoId") as
-    | ParentLoaderData
-    | undefined;
+    ParentLoaderData | undefined;
 
   const navigation = useMemo(() => {
     if (!parentData) return undefined;
