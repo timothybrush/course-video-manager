@@ -17,7 +17,6 @@ describe("shouldIgnoreKeyboardShortcut", () => {
   const origTextarea = globalThis.HTMLTextAreaElement;
   const origButton = globalThis.HTMLButtonElement;
 
-  // Provide minimal globals so instanceof checks work
   beforeAll(() => {
     (globalThis as any).HTMLInputElement = FakeHTMLInputElement;
     (globalThis as any).HTMLTextAreaElement = FakeHTMLTextAreaElement;
@@ -30,33 +29,33 @@ describe("shouldIgnoreKeyboardShortcut", () => {
     (globalThis as any).HTMLButtonElement = origButton;
   });
 
-  it("returns false for a target with no closest and not an input/textarea/button", () => {
+  it("allows shortcuts for a generic element outside a dialog", () => {
     const target = { closest: () => null };
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(false);
   });
 
-  it("returns true for an HTMLInputElement", () => {
+  it("suppresses shortcuts when focused on an input", () => {
     const target = new FakeHTMLInputElement();
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(true);
   });
 
-  it("returns true for an HTMLTextAreaElement", () => {
+  it("suppresses shortcuts when focused on a textarea", () => {
     const target = new FakeHTMLTextAreaElement();
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(true);
   });
 
-  it("returns true for a button without allow-keydown", () => {
+  it("suppresses shortcuts when focused on a button without allow-keydown", () => {
     const target = new FakeHTMLButtonElement();
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(true);
   });
 
-  it("returns false for a button with allow-keydown", () => {
+  it("allows shortcuts for a button with allow-keydown", () => {
     const target = new FakeHTMLButtonElement();
     target.classList.contains = (cls: string) => cls === "allow-keydown";
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(false);
   });
 
-  it("returns true when target.closest matches [role=dialog]", () => {
+  it("suppresses shortcuts when focused inside a dialog", () => {
     const dialogEl = {};
     const target = {
       closest: (sel: string) => (sel === '[role="dialog"]' ? dialogEl : null),
@@ -64,12 +63,12 @@ describe("shouldIgnoreKeyboardShortcut", () => {
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(true);
   });
 
-  it("returns false when target.closest returns null for dialog", () => {
+  it("allows shortcuts when not inside a dialog", () => {
     const target = { closest: () => null };
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(false);
   });
 
-  it("returns true when target has no closest method but is inside a dialog (graceful)", () => {
+  it("allows shortcuts when target has no closest method", () => {
     const target = {};
     expect(shouldIgnoreKeyboardShortcut(makeEvent(target))).toBe(false);
   });
