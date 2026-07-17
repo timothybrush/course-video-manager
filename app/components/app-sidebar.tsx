@@ -66,8 +66,8 @@ export function AppSidebar({ variant }: AppSidebarProps) {
 
   const archiveCourseFetcher = useFetcher();
   const createPitchFetcher = useFetcher<{ id: string }>();
-  const createShortFetcher = useFetcher<{ id: string }>();
-  const createDiagramFetcher = useFetcher<{ id: string; name: string }>();
+  const createShortFetcher = useFetcher();
+  const createDiagramFetcher = useFetcher<{ id: string }>();
 
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [isAddVideoOpen, setIsAddVideoOpen] = useState(false);
@@ -83,12 +83,6 @@ export function AppSidebar({ variant }: AppSidebarProps) {
       navigate(`/pitches/${createPitchFetcher.data.id}`);
     }
   }, [createPitchFetcher.state, createPitchFetcher.data, navigate]);
-
-  useEffect(() => {
-    if (createShortFetcher.state === "idle" && createShortFetcher.data?.id) {
-      navigate(`/videos/${createShortFetcher.data.id}/edit`);
-    }
-  }, [createShortFetcher.state, createShortFetcher.data, navigate]);
 
   useEffect(() => {
     if (
@@ -212,6 +206,7 @@ export function AppSidebar({ variant }: AppSidebarProps) {
           const formData = new FormData();
           formData.set("title", `Short ${new Date().toLocaleDateString()}`);
           formData.set("format", "short");
+          formData.set("redirectTo", "/videos/{id}/edit");
           createShortFetcher.submit(formData, {
             method: "post",
             action: "/api/videos/create",
