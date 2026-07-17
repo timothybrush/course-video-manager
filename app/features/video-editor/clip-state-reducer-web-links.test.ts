@@ -181,6 +181,7 @@ describe("clipStateReducer — browser link capture", () => {
       sessionId,
       activeDiagramId: null,
       diagramFocused: false,
+      ts: 4000,
     });
 
     // A page shown during the silent gap must not attach to the closed clip.
@@ -210,6 +211,7 @@ describe("clipStateReducer — browser link capture", () => {
       sessionId,
       activeDiagramId: null,
       diagramFocused: false,
+      ts: 4000,
     });
     expect(tester.getState().recordingClipFrontendId).toBeNull();
 
@@ -300,16 +302,47 @@ describe("clipStateReducer — browser link capture", () => {
       },
     });
 
-    // Close the clip — B should be flushed (Date.now() is far from ts 3000)
+    // Close the clip — B has been visible since ts 3000; flushing at ts 4600
+    // (≥ 1500ms dwell) promotes it.
     tester.send({
       type: "clip-audio-window-closed",
       sessionId,
       activeDiagramId: null,
       diagramFocused: false,
+      ts: 4600,
     });
 
     const clip = optimisticClip(tester, 0);
     expect(urls(clip)).toEqual(["https://a.com", "https://b.com"]);
+  });
+
+  it("does not flush a candidate below the dwell threshold when the clip closes", () => {
+    const tester = startRecordingViewing("https://a.com", "A");
+    tester.send(newClip("sound-1"));
+    const sessionId = tester.getState().sessions[0]!.id;
+
+    // Switch to B at ts 3000
+    tester.send({
+      type: "browser-event",
+      event: {
+        type: "browser-url",
+        url: "https://b.com",
+        title: "B",
+        ts: 3000,
+      },
+    });
+
+    // Close the clip at ts 4000 — only 1000ms since B appeared, below 1500ms threshold
+    tester.send({
+      type: "clip-audio-window-closed",
+      sessionId,
+      activeDiagramId: null,
+      diagramFocused: false,
+      ts: 4000,
+    });
+
+    const clip = optimisticClip(tester, 0);
+    expect(urls(clip)).toEqual(["https://a.com"]);
   });
 
   it("filters rapid tab-switching mid-clip, keeping only pages held long enough", () => {

@@ -345,6 +345,7 @@ export type ClipReducerAction =
       sessionId: SessionId;
       activeDiagramId: string | null;
       diagramFocused: boolean;
+      ts: number;
     }
   | {
       type: "set-clip-web-links";

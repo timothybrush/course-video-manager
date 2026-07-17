@@ -16,7 +16,6 @@ import type {
   FrontendId,
   FrontendInsertionPoint,
   RecordingSession,
-  SessionId,
   TimelineItem,
 } from "./clip-state-reducer.types";
 import { createFrontendId, createSessionId } from "./clip-state-reducer.types";
@@ -547,15 +546,9 @@ const handleNewDatabaseClips = (
 
 const handleClipAudioWindowClosed = (
   state: ClipReducerState,
-  action: {
-    sessionId: SessionId;
-    activeDiagramId: string | null;
-    diagramFocused: boolean;
-  }
+  action: Extract<ClipReducerAction, { type: "clip-audio-window-closed" }>
 ): ClipReducerState => {
-  // Flush any dwell-time candidate still in flight to the recording clip before
-  // closing it.
-  const flushed = promoteCandidate(state, Date.now());
+  const flushed = promoteCandidate(state, action.ts);
 
   const cleared: ClipReducerState = {
     ...flushed,
