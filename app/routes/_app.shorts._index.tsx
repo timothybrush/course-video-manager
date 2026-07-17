@@ -40,6 +40,15 @@ import { useContext, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import type { Route } from "./+types/_app.shorts._index";
 
+const POST_OPTIONS: Array<{
+  label: string;
+  mode: ShortsPostingMode;
+}> = [
+  { label: "Post Short", mode: "both" },
+  { label: "Post to YouTube", mode: "youtube" },
+  { label: "Post to TikTok", mode: "tiktok" },
+];
+
 export const meta: Route.MetaFunction = () => {
   return [{ title: "CVM - Shorts" }];
 };
@@ -246,42 +255,21 @@ export default function ShortsIndex(props: Route.ComponentProps) {
                     </Link>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem
-                      onSelect={() =>
-                        setVideoToPost({
-                          id: video.id,
-                          title: video.title,
-                          mode: "both",
-                        })
-                      }
-                    >
-                      <SendIcon className="w-4 h-4" />
-                      Post Short
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() =>
-                        setVideoToPost({
-                          id: video.id,
-                          title: video.title,
-                          mode: "youtube",
-                        })
-                      }
-                    >
-                      <SendIcon className="w-4 h-4" />
-                      Post to YouTube
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() =>
-                        setVideoToPost({
-                          id: video.id,
-                          title: video.title,
-                          mode: "tiktok",
-                        })
-                      }
-                    >
-                      <SendIcon className="w-4 h-4" />
-                      Post to TikTok
-                    </ContextMenuItem>
+                    {POST_OPTIONS.map((option) => (
+                      <ContextMenuItem
+                        key={option.mode}
+                        onSelect={() =>
+                          setVideoToPost({
+                            id: video.id,
+                            title: video.title,
+                            mode: option.mode,
+                          })
+                        }
+                      >
+                        <SendIcon className="w-4 h-4" />
+                        {option.label}
+                      </ContextMenuItem>
+                    ))}
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       onSelect={() =>
