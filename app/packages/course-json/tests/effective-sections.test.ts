@@ -58,6 +58,12 @@ describe("computeEffectiveSections", () => {
     ]);
   });
 
+  it("removes archived videos from lessons that still ship", () => {
+    const sections = [section([lesson("done", [video(true), video(false)])])];
+    const result = computeEffectiveSections(sections, true);
+    expect(result[0]!.lessons[0]!.videos).toEqual([video(false)]);
+  });
+
   it("excludes lessons with no active videos regardless of toggle", () => {
     const noActive = lesson("done", [video(true)]);
     for (const include of [true, false]) {

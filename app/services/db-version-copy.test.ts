@@ -433,4 +433,40 @@ describe("copyVersionStructure", () => {
       { kind: "definition", title: "Active" },
     ]);
   });
+
+  it("serializes concurrent clones from the same latest Course Version", async () => {
+    const [course] = await testDb
+      .insert(schema.courses)
+      .values({ name: "Concurrent Course" })
+      .returning();
+    const [version] = await testDb
+      .insert(schema.courseVersions)
+      .values({ repoId: course!.id, name: "v1" })
+      .returning();
+
+    const clone = () =>
+      run(
+        Effect.gen(function* () {
+          const versionOps = yield* VersionOperationsService;
+          return yield* versionOps.copyVersionStructure({
+            sourceVersionId: version!.id,
+            repoId: course!.id,
+            newVersionName: "v2",
+          });
+        })
+      );
+    const results = await Promise.allSettled([clone(), clone()]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled")
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected")
+    ).toHaveLength(1);
+    expect(
+      await testDb.query.courseVersions.findMany({
+        where: (row, { eq }) => eq(row.repoId, course!.id),
+      })
+    ).toHaveLength(2);
+  });
 });

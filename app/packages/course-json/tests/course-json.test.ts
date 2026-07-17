@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
-import { buildCourseJson, type BuildCourseJsonInput } from "../index";
+import {
+  buildCourseJson,
+  InvalidVideoAssetReceiptError,
+  MissingVideoAssetReceiptError,
+  type BuildCourseJsonInput,
+} from "../index";
 import { computeExportHash } from "@/services/export-hash";
 
 // A complete, shippable Video by default: every field course.json requires is
@@ -13,6 +18,7 @@ const makeVideo = (
     title: string;
   }
 ) => ({
+  id: `video-${overrides.title}`,
   lineageId: `vid-lineage-${overrides.title}`,
   body: "Video body",
   description: "Video description",
@@ -50,12 +56,25 @@ const makeSection = (
 const makeInput = (
   sections: BuildCourseJsonInput["sections"],
   includeTodoLessons = true
-): BuildCourseJsonInput => ({
-  courseId: "course-1",
-  courseName: "Test Course",
-  sections,
-  includeTodoLessons,
-});
+): BuildCourseJsonInput => {
+  const videoAssets = new Map<string, { sha256: string; bytes: number }>();
+  for (const section of sections) {
+    for (const lesson of section.lessons) {
+      for (const video of lesson.videos) {
+        videoAssets.set(video.id, { sha256: "a".repeat(64), bytes: 123 });
+      }
+    }
+  }
+  return {
+    courseId: "course-1",
+    courseVersionId: "course-version-1",
+    courseName: "Test Course",
+    assetBasePath: "versions/course-version-1-assets",
+    sections,
+    videoAssets,
+    includeTodoLessons,
+  };
+};
 
 const run = (input: BuildCourseJsonInput) =>
   Effect.runPromise(buildCourseJson(input));
@@ -76,9 +95,61 @@ const CLIPS = [
 ];
 
 describe("buildCourseJson", () => {
-  it("emits schemaVersion 2", async () => {
+  it("emits schemaVersion 3 with the immutable Course Version id", async () => {
     const result = await run(makeInput([]));
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
+    expect(result.courseVersionId).toBe("course-version-1");
+    expect(result.archiveTTL).toBe("90d");
+    expect(result.$schema).toBe(
+      "versions/course-version-1-assets/course.schema.json"
+    );
+  });
+
+  it("rejects a shipping video without an immutable byte receipt", async () => {
+    const input = makeInput([
+      makeSection({
+        path: "01-intro",
+        lessons: [
+          makeLesson({
+            path: "01.01-welcome",
+            videos: [makeVideo({ title: "Explainer" })],
+          }),
+        ],
+      }),
+    ]);
+
+    const error = await Effect.runPromise(
+      buildCourseJson({ ...input, videoAssets: new Map() }).pipe(Effect.flip)
+    );
+
+    expect(error).toBeInstanceOf(MissingVideoAssetReceiptError);
+    expect(error).toMatchObject({ videoId: "video-Explainer" });
+  });
+
+  it("rejects malformed byte receipts", async () => {
+    const sections = [
+      makeSection({
+        path: "01-intro",
+        lessons: [
+          makeLesson({
+            path: "01.01-welcome",
+            videos: [makeVideo({ title: "Explainer" })],
+          }),
+        ],
+      }),
+    ];
+    const input = makeInput(sections);
+    const error = await Effect.runPromise(
+      buildCourseJson({
+        ...input,
+        videoAssets: new Map([
+          ["video-Explainer", { sha256: "not-a-digest", bytes: -1 }],
+        ]),
+      }).pipe(Effect.flip)
+    );
+
+    expect(error).toBeInstanceOf(InvalidVideoAssetReceiptError);
+    expect(error).toMatchObject({ videoId: "video-Explainer" });
   });
 
   it("uses course id and name at the top level", async () => {
@@ -178,6 +249,8 @@ describe("buildCourseJson", () => {
       explainer: {
         body: "# Hello",
         description: "SEO text",
+        sha256: "a".repeat(64),
+        bytes: 123,
         chapters: [],
       },
     });
@@ -314,7 +387,7 @@ describe("buildCourseJson", () => {
     const lesson = result.sections[0]!.lessons[0]!;
     if (lesson.type === "explainer") {
       expect(lesson.explainer.relativePath).toBe(
-        "03-concepts/03.01-models-harnesses-agents-environments/Explainer.mp4"
+        "versions/course-version-1-assets/03-concepts/03.01-models-harnesses-agents-environments/Explainer.mp4"
       );
     }
   });
@@ -340,10 +413,10 @@ describe("buildCourseJson", () => {
     const lesson = result.sections[0]!.lessons[0]!;
     if (lesson.type === "problem") {
       expect(lesson.problem.relativePath).toBe(
-        "02-exercises/02.01-exercise/Problem.mp4"
+        "versions/course-version-1-assets/02-exercises/02.01-exercise/Problem.mp4"
       );
       expect(lesson.solution!.relativePath).toBe(
-        "02-exercises/02.01-exercise/Solution.mp4"
+        "versions/course-version-1-assets/02-exercises/02.01-exercise/Solution.mp4"
       );
     }
   });

@@ -16,6 +16,7 @@ const makeVideo = (
     title: string;
   }
 ) => ({
+  id: `video-${overrides.title}`,
   lineageId: `vid-lineage-${overrides.title}`,
   body: "Video body",
   description: "Video description",
@@ -53,12 +54,25 @@ const makeSection = (
 const makeInput = (
   sections: BuildCourseJsonInput["sections"],
   includeTodoLessons = true
-): BuildCourseJsonInput => ({
-  courseId: "course-1",
-  courseName: "Test Course",
-  sections,
-  includeTodoLessons,
-});
+): BuildCourseJsonInput => {
+  const videoAssets = new Map<string, { sha256: string; bytes: number }>();
+  for (const section of sections) {
+    for (const lesson of section.lessons) {
+      for (const video of lesson.videos) {
+        videoAssets.set(video.id, { sha256: "a".repeat(64), bytes: 123 });
+      }
+    }
+  }
+  return {
+    courseId: "course-1",
+    courseVersionId: "course-version-1",
+    courseName: "Test Course",
+    assetBasePath: "versions/course-version-1-assets",
+    sections,
+    videoAssets,
+    includeTodoLessons,
+  };
+};
 
 const run = (input: BuildCourseJsonInput) =>
   Effect.runPromise(buildCourseJson(input));

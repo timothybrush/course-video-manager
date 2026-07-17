@@ -2,11 +2,7 @@ import { uploadTypeRegistry } from "./upload-type-registry";
 
 export namespace uploadReducer {
   export type UploadStatus =
-    | "waiting"
-    | "uploading"
-    | "retrying"
-    | "success"
-    | "error";
+    "waiting" | "uploading" | "retrying" | "success" | "error";
   export type UploadType =
     | "youtube"
     | "youtube-shorts"
@@ -18,25 +14,16 @@ export namespace uploadReducer {
     | "publish"
     | "render-vertical";
   export type BufferStage =
-    | "uploading-blob"
-    | "creating-post"
-    | "polling"
-    | "cleaning-up";
+    "uploading-blob" | "creating-post" | "polling" | "cleaning-up";
   export type ExportStage =
-    | "queued"
-    | "concatenating-clips"
-    | "normalizing-audio";
+    "queued" | "concatenating-clips" | "normalizing-audio";
   export type RenderVerticalStage =
     | "concatenating-clips"
     | "transcribing"
     | "rendering-overlay"
     | "compositing";
   export type PublishStage =
-    | "validating"
-    | "exporting"
-    | "uploading"
-    | "freezing"
-    | "cloning";
+    "validating" | "exporting" | "uploading" | "freezing" | "cloning";
 
   export interface BaseUploadEntry {
     uploadId: string;
@@ -46,6 +33,9 @@ export namespace uploadReducer {
     status: UploadStatus;
     errorMessage: string | null;
     retryCount: number;
+    // When set, this entry has failed terminally and must never be
+    // auto-retried, independent of how many attempts `retryCount` has counted.
+    terminal: boolean;
     dependsOn: string | null;
   }
 
@@ -142,6 +132,7 @@ export namespace uploadReducer {
         skillsChangelogSlug?: string;
       }
     | { type: "UPLOAD_ERROR"; uploadId: string; errorMessage: string }
+    | { type: "UPLOAD_FATAL_ERROR"; uploadId: string; errorMessage: string }
     | { type: "RETRY"; uploadId: string }
     | { type: "DISMISS"; uploadId: string }
     | {
@@ -187,6 +178,7 @@ export const uploadReducer = (
         status,
         errorMessage: null,
         retryCount: 0,
+        terminal: false,
         dependsOn,
       };
 
@@ -371,13 +363,41 @@ export const uploadReducer = (
       };
     }
 
+    case "UPLOAD_FATAL_ERROR": {
+      const upload = state.uploads[action.uploadId];
+      if (!upload) return state;
+
+      const updatedUploads = {
+        ...state.uploads,
+        [action.uploadId]: {
+          ...upload,
+          status: "error" as const,
+          terminal: true,
+          errorMessage: action.errorMessage,
+        },
+      };
+      for (const [id, candidate] of Object.entries(updatedUploads)) {
+        if (
+          candidate.dependsOn === action.uploadId &&
+          candidate.status === "waiting"
+        ) {
+          updatedUploads[id] = {
+            ...candidate,
+            status: "error" as const,
+            errorMessage: `Dependency "${upload.title}" failed`,
+          };
+        }
+      }
+      return { ...state, uploads: updatedUploads };
+    }
+
     case "UPLOAD_ERROR": {
       const upload = state.uploads[action.uploadId];
       if (!upload) return state;
 
       const nextRetryCount = upload.retryCount + 1;
 
-      if (nextRetryCount < 3) {
+      if (nextRetryCount < 3 && !upload.terminal) {
         return {
           ...state,
           uploads: {
@@ -430,6 +450,7 @@ export const uploadReducer = (
         status: "uploading" as const,
         errorMessage: upload.errorMessage,
         retryCount: upload.retryCount,
+        terminal: upload.terminal,
         dependsOn: upload.dependsOn,
       };
 

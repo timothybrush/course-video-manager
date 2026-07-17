@@ -44,8 +44,11 @@ export const computeEffectiveSections = <
   sections
     .map((section) => ({
       ...section,
-      lessons: section.lessons.filter((lesson) =>
-        isLessonEffective(lesson, includeTodoLessons)
-      ),
+      lessons: section.lessons
+        .filter((lesson) => isLessonEffective(lesson, includeTodoLessons))
+        .map((lesson) => ({
+          ...lesson,
+          videos: lesson.videos.filter((video) => !video.archived),
+        })),
     }))
     .filter((section) => section.lessons.length > 0) as S[];

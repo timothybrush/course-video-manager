@@ -23,6 +23,7 @@ const createYouTubeEntry = (
   youtubeVideoId: null,
   errorMessage: null,
   retryCount: 0,
+  terminal: false,
   dependsOn: null,
   ...overrides,
 });
@@ -231,6 +232,29 @@ describe("UPLOAD_SUCCESS", () => {
     );
 
     expect(state.uploads["upload-1"]!.errorMessage).toBeNull();
+  });
+});
+
+describe("UPLOAD_FATAL_ERROR", () => {
+  it("moves directly to terminal error without entering auto-retry", () => {
+    const state = reduce(
+      createState({
+        uploads: {
+          "upload-1": createYouTubeEntry({ retryCount: 0 }),
+        },
+      }),
+      {
+        type: "UPLOAD_FATAL_ERROR",
+        uploadId: "upload-1",
+        errorMessage: "Exact recovery required",
+      }
+    );
+
+    expect(state.uploads["upload-1"]).toMatchObject({
+      status: "error",
+      terminal: true,
+      errorMessage: "Exact recovery required",
+    });
   });
 });
 

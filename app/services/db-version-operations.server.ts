@@ -26,6 +26,12 @@ import {
   projectVersionPaths,
   attachDerivedPaths,
 } from "@/services/path-projection";
+import { withDbTransaction } from "@/services/with-db-transaction.server";
+import {
+  freezeAndCloneVersion as freezeAndCloneVersionTransaction,
+  lockCourseForVersionMutation,
+  type CopyVersionStructureInput,
+} from "@/services/db-version-mutation.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -256,7 +262,6 @@ export const createVersionOperations = (db: Database) => {
     function* (opts: { versionId: string; name: string; description: string }) {
       const { versionId, name, description } = opts;
 
-      // Find the version to get its courseId
       const version = yield* makeDbCall(() =>
         db.query.courseVersions.findFirst({
           where: eq(courseVersions.id, versionId),
@@ -270,7 +275,6 @@ export const createVersionOperations = (db: Database) => {
         });
       }
 
-      // Check if this is the latest (draft) version
       const latestVersion = yield* makeDbCall(() =>
         db.query.courseVersions.findFirst({
           where: eq(courseVersions.repoId, version.repoId),
@@ -301,14 +305,14 @@ export const createVersionOperations = (db: Database) => {
     }
   );
 
-  const copyVersionStructure = Effect.fn("copyVersionStructure")(
-    function* (input: {
-      sourceVersionId: string;
-      repoId: string;
-      newVersionName?: string;
-    }) {
+  const copyVersionStructureInDb = (
+    transaction: Database,
+    input: CopyVersionStructureInput
+  ) =>
+    Effect.gen(function* () {
+      yield* lockCourseForVersionMutation(transaction, input.repoId);
       const latestVersion = yield* makeDbCall(() =>
-        db.query.courseVersions.findFirst({
+        transaction.query.courseVersions.findFirst({
           where: eq(courseVersions.repoId, input.repoId),
           orderBy: desc(courseVersions.createdAt),
         })
@@ -322,7 +326,7 @@ export const createVersionOperations = (db: Database) => {
       }
 
       const newVersion = yield* makeDbCall(() =>
-        db
+        transaction
           .insert(courseVersions)
           .values({
             repoId: input.repoId,
@@ -342,7 +346,7 @@ export const createVersionOperations = (db: Database) => {
       );
 
       const sourceSections = yield* makeDbCall(() =>
-        db.query.sections.findMany({
+        transaction.query.sections.findMany({
           where: and(
             eq(sections.repoVersionId, input.sourceVersionId),
             isNull(sections.archivedAt)
@@ -385,7 +389,7 @@ export const createVersionOperations = (db: Database) => {
 
       for (const sourceSection of sourceSections) {
         const [newSection] = yield* makeDbCall(() =>
-          db
+          transaction
             .insert(sections)
             .values({
               repoVersionId: newVersion.id,
@@ -402,7 +406,7 @@ export const createVersionOperations = (db: Database) => {
 
         for (const sourceLesson of sourceSection.lessons) {
           const [newLesson] = yield* makeDbCall(() =>
-            db
+            transaction
               .insert(lessons)
               .values({
                 sectionId: newSection.id,
@@ -423,7 +427,7 @@ export const createVersionOperations = (db: Database) => {
 
           for (const sourceVideo of sourceLesson.videos) {
             const [newVideo] = yield* makeDbCall(() =>
-              db
+              transaction
                 .insert(videos)
                 .values({
                   lessonId: newLesson.id,
@@ -445,7 +449,7 @@ export const createVersionOperations = (db: Database) => {
 
             if (sourceVideo.clips.length > 0) {
               yield* makeDbCall(() =>
-                db.insert(clips).values(
+                transaction.insert(clips).values(
                   sourceVideo.clips.map((clip) => ({
                     videoId: newVideo.id,
                     videoFilename: clip.videoFilename,
@@ -465,7 +469,7 @@ export const createVersionOperations = (db: Database) => {
 
             if (sourceVideo.chapters.length > 0) {
               yield* makeDbCall(() =>
-                db.insert(chapters).values(
+                transaction.insert(chapters).values(
                   sourceVideo.chapters.map((section) => ({
                     videoId: newVideo.id,
                     name: section.name,
@@ -478,7 +482,7 @@ export const createVersionOperations = (db: Database) => {
 
             if (sourceVideo.beats.length > 0) {
               yield* makeDbCall(() =>
-                db.insert(beats).values(
+                transaction.insert(beats).values(
                   sourceVideo.beats.map((beat) => ({
                     videoId: newVideo.id,
                     kind: beat.kind,
@@ -492,7 +496,7 @@ export const createVersionOperations = (db: Database) => {
 
             if (sourceVideo.thumbnails.length > 0) {
               yield* makeDbCall(() =>
-                db.insert(thumbnails).values(
+                transaction.insert(thumbnails).values(
                   sourceVideo.thumbnails.map((thumbnail) => ({
                     videoId: newVideo.id,
                     layers: thumbnail.layers,
@@ -507,8 +511,28 @@ export const createVersionOperations = (db: Database) => {
       }
 
       return { version: newVersion, videoIdMappings };
+    });
+
+  const copyVersionStructure = Effect.fn("copyVersionStructure")(function* (
+    input: CopyVersionStructureInput
+  ) {
+    return yield* withDbTransaction(db, (transaction) =>
+      copyVersionStructureInDb(transaction, input)
+    );
+  });
+
+  const freezeAndCloneVersion = Effect.fn("freezeAndCloneVersion")(function* (
+    input: CopyVersionStructureInput & {
+      sourceName: string;
+      sourceDescription: string;
     }
-  );
+  ) {
+    return yield* freezeAndCloneVersionTransaction(
+      db,
+      input,
+      copyVersionStructureInDb
+    );
+  });
 
   const getVideoIdsForVersion = Effect.fn("getVideoIdsForVersion")(function* (
     versionId: string
@@ -610,11 +634,7 @@ export const createVersionOperations = (db: Database) => {
     }
   );
 
-  /**
-   * Loads a version's sibling tree (id/order/title only) so the pure
-   * per-version projection can derive folder names. Single query; used by
-   * the single-item resolvers below for partial-slice callers.
-   */
+  // Minimal sibling tree used to project version-scoped paths.
   const loadVersionTreeForProjection = (repoVersionId: string) =>
     makeDbCall(() =>
       db.query.sections.findMany({
@@ -634,12 +654,7 @@ export const createVersionOperations = (db: Database) => {
       })
     );
 
-  /**
-   * Resolves a single lesson's on-disk directory relative to the repo root
-   * ("NN-section/NN.MM-lesson"), computed on read from (title, rank). For
-   * partial-slice fs-join callers that hold one lesson without its siblings.
-   * The caller keeps owning the course identity.
-   */
+  // Resolve one lesson's derived directory from its version siblings.
   const resolveLessonDir = Effect.fn("resolveLessonDir")(function* (
     lessonId: string
   ) {
@@ -675,10 +690,7 @@ export const createVersionOperations = (db: Database) => {
     return `${sectionPath}/${lessonPath}`;
   });
 
-  /**
-   * Resolves a single section's on-disk directory relative to the repo root
-   * ("NN-section"), computed on read from (title, rank).
-   */
+  // Resolve one section's derived directory from its version siblings.
   const resolveSectionDir = Effect.fn("resolveSectionDir")(function* (
     sectionId: string
   ) {
@@ -722,6 +734,7 @@ export const createVersionOperations = (db: Database) => {
     createCourseVersion,
     updateCourseVersion,
     copyVersionStructure,
+    freezeAndCloneVersion,
     getVideoIdsForVersion,
     getAllVersionsWithStructure,
     resolveLessonDir,

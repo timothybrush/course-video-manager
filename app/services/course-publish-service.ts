@@ -1,5 +1,5 @@
-import { Config, Data, Effect, Schedule } from "effect";
-import { Command, FileSystem } from "@effect/platform";
+import { Config, Effect, Exit, Schedule } from "effect";
+import { FileSystem } from "@effect/platform";
 import path from "node:path";
 import { VideoOperationsService } from "./db-video-operations.server";
 import { VersionOperationsService } from "./db-version-operations.server";
@@ -14,24 +14,18 @@ import {
 } from "./export-hash";
 import { garbageCollect } from "./export-hash.server";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
-import {
-  DoesNotExistOnDbError,
-  resolveSectionsWithVideos,
-} from "./publish-to-dropbox";
+import { DoesNotExistOnDbError } from "./publish-to-dropbox";
 import { collectCourseViewLints } from "./lesson-warnings";
 import {
-  buildCourseJson,
-  buildCourseJsonSchema,
   collectPublishBlockers,
   computeEffectiveSections,
 } from "@/packages/course-json";
-
-export class PublishValidationError extends Data.TaggedError(
-  "PublishValidationError"
-)<{
-  courseViewLintCount?: number;
-  failedExportVideoIds?: string[];
-}> {}
+import {
+  DropboxCommitPendingError,
+  ExportError,
+  PublishValidationError,
+} from "./course-publish-errors";
+import { syncFrozenCourseVersionToDropbox } from "./course-publish-dropbox";
 
 export type VideoForExport = {
   id: string;
@@ -63,12 +57,7 @@ const toExportClips = (
   }));
 
 type ExportOwner =
-  | { kind: "course"; courseId: string }
-  | { kind: "standalone" };
-
-export class ExportError extends Data.TaggedError("ExportError")<{
-  message: string;
-}> {}
+  { kind: "course"; courseId: string } | { kind: "standalone" };
 
 export class CoursePublishService extends Effect.Service<CoursePublishService>()(
   "CoursePublishService",
@@ -78,6 +67,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
       const versionOps = yield* VersionOperationsService;
       const videoProcessing = yield* VideoProcessingService;
       const effectFs = yield* FileSystem.FileSystem;
+      // CVM is a single local operator process. Serialize every Course Version
+      // lifecycle mutation so publish, manual sync, and create-version cannot
+      // interleave around the database freeze and Dropbox commit marker.
+      const courseVersionMutationSemaphore = yield* Effect.makeSemaphore(1);
       const FINISHED_VIDEOS_DIRECTORY = yield* Config.string(
         "FINISHED_VIDEOS_DIRECTORY"
       );
@@ -331,187 +324,56 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         }
       );
 
-      const syncToDropbox = Effect.fn("syncToDropbox")(function* (
+      const syncFrozenVersionToDropboxUnlocked = Effect.fn(
+        "syncFrozenVersionToDropboxUnlocked"
+      )(function* (
         courseId: string,
+        courseVersionId: string,
         includeTodoLessons: boolean,
         onProgress?: (event: string, data: unknown) => void
       ) {
-        const latestVersion =
-          yield* versionOps.getLatestCourseVersion(courseId);
-        if (!latestVersion) {
-          return yield* new DoesNotExistOnDbError({
-            type: "section",
-            path: "",
-            message: `No version found for repo ${courseId}`,
-          });
-        }
-
-        const DROPBOX_PATH = yield* Config.string("DROPBOX_PATH");
-
-        const repoWithSections =
-          yield* versionOps.getCourseWithSectionsByVersion({
-            repoId: courseId,
-            versionId: latestVersion.id,
-          });
-
-        // The effective Sections are the single source of "what this publish
-        // ships". The Dropbox mirror and course.json both read from it, so they
-        // can never disagree. Withheld to-do Lessons are absent here; the
-        // stale-file cleanup below removes any of their previously-published
-        // folders. Sections left with no shippable Lessons disappear entirely.
-        const effectiveSections = computeEffectiveSections(
-          repoWithSections.sections,
-          includeTodoLessons
-        );
-
-        const videoPathOverrides = new Map<string, string>();
-        for (const section of effectiveSections) {
-          for (const lesson of section.lessons) {
-            for (const video of lesson.videos) {
-              if (video.clips.length > 0) {
-                const hash = computeExportHash(toExportClips(video.clips));
-                if (hash) {
-                  videoPathOverrides.set(
-                    video.id,
-                    resolveExportPathPure(
-                      FINISHED_VIDEOS_DIRECTORY,
-                      courseId,
-                      hash
-                    )
-                  );
-                }
-              }
-            }
-          }
-        }
-
-        const { sections, missingVideos } = yield* resolveSectionsWithVideos({
-          sectionsInDb: effectiveSections,
-          finishedVideosDirectory: FINISHED_VIDEOS_DIRECTORY,
-          videoPathOverrides,
-        });
-
-        const totalLessons = sections.reduce(
-          (sum, s) => sum + s.lessons.length,
-          0
-        );
-        let completedLessons = 0;
-
-        const copyFileSemaphore = yield* Effect.makeSemaphore(20);
-        const dropboxCourseDir = path.join(DROPBOX_PATH, repoWithSections.name);
-        const filesSupposedToBeInDropbox = new Set<string>();
-
-        const copyFileToDropbox = Effect.fn("copyFileToDropbox")(
-          function* (opts: { fromPath: string; toPath: string }) {
-            yield* copyFileSemaphore.withPermits(1)(
-              Effect.gen(function* () {
-                yield* effectFs.makeDirectory(path.dirname(opts.toPath), {
-                  recursive: true,
-                });
-
-                if (yield* effectFs.exists(opts.toPath)) {
-                  const toPathStats = yield* effectFs.stat(opts.toPath);
-                  const fromPathStats = yield* effectFs.stat(opts.fromPath);
-                  if (toPathStats.size === fromPathStats.size) {
-                    return;
-                  }
-                }
-
-                yield* effectFs.copyFile(opts.fromPath, opts.toPath);
-              })
-            );
-
-            filesSupposedToBeInDropbox.add(opts.toPath);
-          }
-        );
-
-        for (const section of sections) {
-          const dropboxSectionDir = path.join(dropboxCourseDir, section.path);
-
-          for (const lesson of section.lessons) {
-            const dropboxLessonDir = path.join(dropboxSectionDir, lesson.path);
-            yield* effectFs.makeDirectory(dropboxLessonDir, {
-              recursive: true,
-            });
-
-            for (const video of lesson.videos) {
-              const extName = path.extname(video.absolutePath);
-              yield* copyFileToDropbox({
-                fromPath: video.absolutePath,
-                toPath: path.join(dropboxLessonDir, `${video.name}${extName}`),
-              });
-            }
-
-            completedLessons++;
-            if (totalLessons > 0) {
-              onProgress?.("progress", {
-                percentage: Math.round((completedLessons / totalLessons) * 100),
-              });
-            }
-          }
-        }
-
-        const courseJsonDoc = yield* buildCourseJson({
+        return yield* syncFrozenCourseVersionToDropbox({
           courseId,
-          courseName: repoWithSections.name,
-          sections: repoWithSections.sections,
+          courseVersionId,
           includeTodoLessons,
+          onProgress,
         });
-        const courseJsonPath = path.join(dropboxCourseDir, "course.json");
-        yield* effectFs.makeDirectory(dropboxCourseDir, { recursive: true });
-        yield* effectFs.writeFileString(
-          courseJsonPath,
-          JSON.stringify(courseJsonDoc, null, 2)
-        );
-        filesSupposedToBeInDropbox.add(courseJsonPath);
-
-        // Emit the JSON Schema sidecar beside course.json (referenced by its
-        // `$schema` field), so editors and validators can resolve it locally.
-        const courseSchemaPath = path.join(
-          dropboxCourseDir,
-          "course.schema.json"
-        );
-        yield* effectFs.writeFileString(
-          courseSchemaPath,
-          JSON.stringify(buildCourseJsonSchema(), null, 2)
-        );
-        filesSupposedToBeInDropbox.add(courseSchemaPath);
-
-        const dropboxExists = yield* effectFs.exists(dropboxCourseDir);
-        if (dropboxExists) {
-          const allFiles = yield* effectFs
-            .readDirectory(dropboxCourseDir, { recursive: true })
-            .pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
-          const filesToDelete = allFiles
-            .map((file) => path.join(dropboxCourseDir, file))
-            .filter((file) => !filesSupposedToBeInDropbox.has(file));
-
-          for (const file of filesToDelete) {
-            const isDir = yield* effectFs
-              .stat(file)
-              .pipe(Effect.map((s) => s.type === "Directory"));
-            if (!isDir) {
-              yield* effectFs.remove(file);
-            }
-          }
-        }
-
-        yield* Command.make(
-          "find",
-          dropboxCourseDir,
-          "-type",
-          "d",
-          "-empty",
-          "-delete"
-        ).pipe(
-          Command.exitCode,
-          Effect.catchAll(() => Effect.succeed(0))
-        );
-
-        return { missingVideos };
       });
 
-      const publish = Effect.fn("publish")(function* (
+      const syncToDropboxUnlocked = Effect.fn("syncToDropboxUnlocked")(
+        function* (
+          courseId: string,
+          includeTodoLessons: boolean,
+          onProgress?: (event: string, data: unknown) => void
+        ) {
+          const latestVersion =
+            yield* versionOps.getLatestCourseVersion(courseId);
+          if (!latestVersion) {
+            return yield* new DoesNotExistOnDbError({
+              type: "section",
+              path: "",
+              message: `No version found for repo ${courseId}`,
+            });
+          }
+          const versions = yield* versionOps.getCourseVersions(courseId);
+          const latestFrozenVersion = versions.find(
+            (version) => version.id !== latestVersion.id
+          );
+          if (!latestFrozenVersion) {
+            return yield* new PublishValidationError({
+              unfrozenCourseVersionId: latestVersion.id,
+            });
+          }
+          return yield* syncFrozenVersionToDropboxUnlocked(
+            courseId,
+            latestFrozenVersion.id,
+            includeTodoLessons,
+            onProgress
+          );
+        }
+      );
+
+      const publishUnlocked = Effect.fn("publishUnlocked")(function* (
         courseId: string,
         versionName: string,
         versionDescription: string,
@@ -568,22 +430,43 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           yield* garbageCollect(courseId);
         }
 
-        onProgress?.("uploading");
-        yield* syncToDropbox(courseId, includeTodoLessons);
-
         onProgress?.("freezing");
-        yield* versionOps.updateCourseVersion({
-          versionId: latestVersion.id,
-          name: versionName,
-          description: versionDescription,
-        });
-
         onProgress?.("cloning");
-        const { version: newDraft } = yield* versionOps.copyVersionStructure({
+        const { version: newDraft } = yield* versionOps.freezeAndCloneVersion({
           sourceVersionId: latestVersion.id,
           repoId: courseId,
           newVersionName: "",
+          sourceName: versionName,
+          sourceDescription: versionDescription,
         });
+
+        onProgress?.("uploading");
+        const commitExit = yield* Effect.exit(
+          syncFrozenVersionToDropboxUnlocked(
+            courseId,
+            latestVersion.id,
+            includeTodoLessons
+          )
+        );
+        if (Exit.isFailure(commitExit)) {
+          return yield* new DropboxCommitPendingError({
+            pendingVersionId: latestVersion.id,
+            newDraftVersionId: newDraft.id,
+            reason: "sync_failed",
+            includeTodoLessons,
+          });
+        }
+        if (commitExit.value.missingVideos.length > 0) {
+          return yield* new DropboxCommitPendingError({
+            pendingVersionId: latestVersion.id,
+            newDraftVersionId: newDraft.id,
+            reason: "missing_assets",
+            includeTodoLessons,
+            missingVideoIds: commitExit.value.missingVideos.map(
+              (video) => video.videoId
+            ),
+          });
+        }
 
         onProgress?.("complete");
 
@@ -593,14 +476,82 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         };
       });
 
+      const syncFrozenVersionToDropbox = Effect.fn(
+        "syncFrozenVersionToDropbox"
+      )(function* (
+        courseId: string,
+        courseVersionId: string,
+        includeTodoLessons: boolean,
+        onProgress?: (event: string, data: unknown) => void
+      ) {
+        return yield* courseVersionMutationSemaphore.withPermits(1)(
+          syncFrozenVersionToDropboxUnlocked(
+            courseId,
+            courseVersionId,
+            includeTodoLessons,
+            onProgress
+          )
+        );
+      });
+
+      const syncToDropbox = Effect.fn("syncToDropbox")(function* (
+        courseId: string,
+        includeTodoLessons: boolean,
+        onProgress?: (event: string, data: unknown) => void
+      ) {
+        return yield* courseVersionMutationSemaphore.withPermits(1)(
+          syncToDropboxUnlocked(courseId, includeTodoLessons, onProgress)
+        );
+      });
+
+      const publish = Effect.fn("publish")(function* (
+        courseId: string,
+        versionName: string,
+        versionDescription: string,
+        includeTodoLessons: boolean,
+        onProgress?: (
+          stage:
+            | "validating"
+            | "exporting"
+            | "uploading"
+            | "freezing"
+            | "cloning"
+            | "complete"
+        ) => void
+      ) {
+        return yield* courseVersionMutationSemaphore.withPermits(1)(
+          publishUnlocked(
+            courseId,
+            versionName,
+            versionDescription,
+            includeTodoLessons,
+            onProgress
+          )
+        );
+      });
+
+      const createDraftVersion = Effect.fn("createDraftVersion")(
+        function* (input: {
+          sourceVersionId: string;
+          repoId: string;
+          newVersionName: string;
+        }) {
+          return yield* courseVersionMutationSemaphore.withPermits(1)(
+            versionOps.copyVersionStructure(input)
+          );
+        }
+      );
+
       return {
         exportVideo,
         batchExport,
         isExported,
         resolveExportPath,
         validatePublishability,
+        syncFrozenVersionToDropbox,
         syncToDropbox,
         publish,
+        createDraftVersion,
       };
     }),
   }

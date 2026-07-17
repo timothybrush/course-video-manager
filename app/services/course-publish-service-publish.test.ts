@@ -173,7 +173,7 @@ const setup = async (opts?: {
       effect.pipe(Effect.provide(testLayer) as any)
     ) as Promise<A>;
 
-  return { course, version, video, exportHash, run };
+  return { course, version, video, exportHash, dropboxDir, run };
 };
 
 describe("CoursePublishService — publish", () => {
@@ -235,6 +235,73 @@ describe("CoursePublishService — publish", () => {
 
     expect(stages).not.toContain("exporting");
     expect(stages).toContain("uploading");
+  });
+
+  it("retries the exact frozen version with the original to-do policy", async () => {
+    const { course, dropboxDir, run } = await setup();
+
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        const outcome = yield* svc
+          .publish(course.id, "v1.0", "First release", false, (stage) => {
+            if (stage === "uploading") {
+              fs.mkdirSync(
+                path.join(dropboxDir, "test-course", "course.json"),
+                {
+                  recursive: true,
+                }
+              );
+            }
+          })
+          .pipe(
+            Effect.catchTag("DropboxCommitPendingError", (error) =>
+              Effect.succeed({ error: true as const, errorDetails: error })
+            )
+          );
+        const pending = (outcome as any).errorDetails;
+        fs.rmSync(path.join(dropboxDir, "test-course", "course.json"), {
+          recursive: true,
+        });
+        yield* svc.createDraftVersion({
+          sourceVersionId: pending.newDraftVersionId,
+          repoId: course.id,
+          newVersionName: "",
+        });
+        const retry = yield* svc.syncFrozenVersionToDropbox(
+          course.id,
+          pending.pendingVersionId,
+          pending.includeTodoLessons
+        );
+        const versionOps = yield* VersionOperationsService;
+        const versions = yield* versionOps.getCourseVersions(course.id);
+        const manifest = JSON.parse(
+          fs.readFileSync(
+            path.join(dropboxDir, "test-course", "course.json"),
+            "utf-8"
+          )
+        );
+        return { outcome, versions, retry, manifest };
+      })
+    );
+
+    expect(result.outcome).toMatchObject({
+      error: true,
+      errorDetails: {
+        reason: "sync_failed",
+        includeTodoLessons: false,
+      },
+    });
+    expect(result.versions).toHaveLength(3);
+    expect(result.versions.some((version) => version.name === "v1.0")).toBe(
+      true
+    );
+    expect(result.versions.some((version) => version.name === "")).toBe(true);
+    expect(result.retry.missingVideos).toEqual([]);
+    expect(result.manifest.courseVersionId).toBe(
+      (result.outcome as any).errorDetails.pendingVersionId
+    );
+    expect(result.manifest.sections).toEqual([]);
   });
 
   it("fails with PublishValidationError when export fails after retries", async () => {

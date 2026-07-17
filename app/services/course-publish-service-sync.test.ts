@@ -171,6 +171,17 @@ const setupSync = async () => {
     "video-content"
   );
 
+  // Freeze the populated version by creating the next editable Draft. The
+  // Dropbox sync surface only accepts a non-latest Course Version.
+  await Effect.gen(function* () {
+    const versionOps = yield* VersionOperationsService;
+    yield* versionOps.copyVersionStructure({
+      sourceVersionId: version.id,
+      repoId: course.id,
+      newVersionName: "",
+    });
+  }).pipe(Effect.provide(dbLayer), Effect.runPromise);
+
   const configLayer = Layer.setConfigProvider(
     ConfigProvider.fromMap(
       new Map([
@@ -198,7 +209,7 @@ const setupSync = async () => {
       effect.pipe(Effect.provide(testLayer) as any)
     ) as Promise<A>;
 
-  return { course, video1, video2, dropboxDir, run };
+  return { course, version, video1, video2, dropboxDir, run };
 };
 
 describe("CoursePublishService.syncToDropbox", () => {
@@ -212,17 +223,57 @@ describe("CoursePublishService.syncToDropbox", () => {
       })
     );
 
-    expect(
-      fs.existsSync(
-        path.join(
-          dropboxDir,
-          "test-course",
-          "01-intro",
-          "01.01-welcome",
-          "Problem.mp4"
-        )
+    const courseDir = path.join(dropboxDir, "test-course");
+    const doc = readCourseManifest(courseDir);
+    for (const video of getManifestVideos(doc)) {
+      expect(
+        fs.existsSync(path.join(courseDir, ...video.relativePath.split("/")))
+      ).toBe(true);
+    }
+  });
+
+  it("rejects same-sized bundle corruption without moving the commit marker", async () => {
+    const { course, dropboxDir, run } = await setupSync();
+    const courseDir = path.join(dropboxDir, "test-course");
+
+    await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        yield* svc.syncToDropbox(course.id, true);
+      })
+    );
+    const manifestBefore = fs.readFileSync(
+      path.join(courseDir, "course.json"),
+      "utf-8"
+    );
+    const destination = path.join(
+      courseDir,
+      ...getManifestVideos(JSON.parse(manifestBefore))[0]!.relativePath.split(
+        "/"
       )
-    ).toBe(true);
+    );
+    fs.writeFileSync(
+      destination,
+      "x".repeat(Buffer.byteLength("video-content"))
+    );
+
+    await expect(
+      run(
+        Effect.gen(function* () {
+          const svc = yield* CoursePublishService;
+          yield* svc.syncToDropbox(course.id, true);
+        })
+      )
+    ).rejects.toBeDefined();
+
+    expect(fs.readFileSync(path.join(courseDir, "course.json"), "utf-8")).toBe(
+      manifestBefore
+    );
+    expect(
+      fs
+        .readdirSync(courseDir)
+        .some((entry) => entry.startsWith(".cvm-staging-"))
+    ).toBe(false);
   });
 
   it("copies videos for all lessons", async () => {
@@ -235,15 +286,12 @@ describe("CoursePublishService.syncToDropbox", () => {
       })
     );
 
+    const courseDir = path.join(dropboxDir, "test-course");
+    const videos = getManifestVideos(readCourseManifest(courseDir));
+    expect(videos).toHaveLength(2);
     expect(
-      fs.existsSync(
-        path.join(
-          dropboxDir,
-          "test-course",
-          "01-intro",
-          "01.02-setup",
-          "Explainer.mp4"
-        )
+      videos.every((video) =>
+        fs.existsSync(path.join(courseDir, ...video.relativePath.split("/")))
       )
     ).toBe(true);
   });
@@ -261,13 +309,15 @@ describe("CoursePublishService.syncToDropbox", () => {
     const courseDir = path.join(dropboxDir, "test-course");
     const allFiles = getAllFilesRecursive(courseDir);
     const relFiles = allFiles.map((f) => path.relative(courseDir, f)).sort();
-
-    expect(relFiles).toEqual([
-      "01-intro/01.01-welcome/Problem.mp4",
-      "01-intro/01.02-setup/Explainer.mp4",
+    const doc = readCourseManifest(courseDir);
+    const expectedFiles = [
       "course.json",
-      "course.schema.json",
-    ]);
+      doc.$schema,
+      `${path.posix.dirname(doc.$schema)}/manifest.json`,
+      ...getManifestVideos(doc).map((video) => video.relativePath),
+    ].sort();
+
+    expect(relFiles).toEqual(expectedFiles);
   });
 
   it("does not write .transcript.md, .body.md, .meta.json, TODO.md, or changelog.md", async () => {
@@ -296,7 +346,7 @@ describe("CoursePublishService.syncToDropbox", () => {
     expect(extensions).not.toContain("changelog.md");
   });
 
-  it("deletes stale files from dropbox including old sidecars", async () => {
+  it("does not sweep legacy root artifacts during the atomic v3 commit", async () => {
     const { course, dropboxDir, run } = await setupSync();
 
     const staleDir = path.join(
@@ -329,16 +379,16 @@ describe("CoursePublishService.syncToDropbox", () => {
       })
     );
 
-    expect(fs.existsSync(path.join(staleDir, "old-file.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(staleDir, "old-file.ts"))).toBe(true);
     expect(fs.existsSync(path.join(staleDir, "Problem.transcript.md"))).toBe(
-      false
+      true
     );
-    expect(fs.existsSync(path.join(staleDir, "Problem.body.md"))).toBe(false);
-    expect(fs.existsSync(path.join(staleDir, "Problem.meta.json"))).toBe(false);
-    expect(fs.existsSync(path.join(staleDir, "TODO.md"))).toBe(false);
+    expect(fs.existsSync(path.join(staleDir, "Problem.body.md"))).toBe(true);
+    expect(fs.existsSync(path.join(staleDir, "Problem.meta.json"))).toBe(true);
+    expect(fs.existsSync(path.join(staleDir, "TODO.md"))).toBe(true);
     expect(
       fs.existsSync(path.join(dropboxDir, "test-course", "changelog.md"))
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("emits per-lesson progress events", async () => {
@@ -360,8 +410,8 @@ describe("CoursePublishService.syncToDropbox", () => {
     expect((lastProgress?.data as any)?.percentage).toBe(100);
   });
 
-  it("returns missingVideos for videos without exported files", async () => {
-    const { course, run } = await setupSync();
+  it("returns missingVideos without writing an incomplete manifest", async () => {
+    const { course, dropboxDir, run } = await setupSync();
 
     const files = fs.readdirSync(finishedVideosDir);
     for (const file of files) {
@@ -376,10 +426,13 @@ describe("CoursePublishService.syncToDropbox", () => {
     );
 
     expect(result.missingVideos.length).toBeGreaterThan(0);
+    expect(
+      fs.existsSync(path.join(dropboxDir, "test-course", "course.json"))
+    ).toBe(false);
   });
 
   it("emits course.json at the course root", async () => {
-    const { course, dropboxDir, run } = await setupSync();
+    const { course, version, dropboxDir, run } = await setupSync();
 
     await run(
       Effect.gen(function* () {
@@ -392,8 +445,10 @@ describe("CoursePublishService.syncToDropbox", () => {
     expect(fs.existsSync(courseJsonPath)).toBe(true);
 
     const doc = JSON.parse(fs.readFileSync(courseJsonPath, "utf-8"));
-    expect(doc.schemaVersion).toBe(2);
+    expect(doc.schemaVersion).toBe(3);
     expect(doc.courseId).toBe(course.id);
+    expect(doc.courseVersionId).toBe(version.id);
+    expect(doc.archiveTTL).toBe("90d");
     expect(doc.courseName).toBe("test-course");
     expect(doc.sections).toHaveLength(1);
     expect(doc.sections[0].lessons).toHaveLength(2);
@@ -444,7 +499,7 @@ describe("CoursePublishService.syncToDropbox", () => {
     expect(lesson.explainer?.id ?? lesson.problem?.id).toBeDefined();
   });
 
-  it("course.json includes per-video hash", async () => {
+  it("course.json includes the render-input hash and exported byte receipt", async () => {
     const { course, dropboxDir, run } = await setupSync();
 
     await run(
@@ -464,6 +519,34 @@ describe("CoursePublishService.syncToDropbox", () => {
     const video = lesson.problem ?? lesson.explainer;
     expect(video.hash).not.toBeNull();
     expect(typeof video.hash).toBe("string");
+    expect(video.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(video.bytes).toBe(Buffer.byteLength("video-content"));
+  });
+
+  it("does not resolve or publish archived videos", async () => {
+    const { course, video2, dropboxDir, run } = await setupSync();
+    await testDb
+      .update(clipsTable)
+      .set({ sourceEndTime: 99 })
+      .where(eq(clipsTable.videoId, video2.id));
+    await testDb
+      .update(videosTable)
+      .set({ archived: true })
+      .where(eq(videosTable.id, video2.id));
+
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        return yield* svc.syncToDropbox(course.id, true);
+      })
+    );
+
+    expect(result.missingVideos).toEqual([]);
+    const videos = getManifestVideos(
+      readCourseManifest(path.join(dropboxDir, "test-course"))
+    );
+    expect(videos).toHaveLength(1);
+    expect(videos[0]!.relativePath).not.toContain("01.02-setup");
   });
 
   // ── Withholding to-do lessons (includeTodoLessons = false) ──────────
@@ -479,25 +562,20 @@ describe("CoursePublishService.syncToDropbox", () => {
     );
 
     const courseDir = path.join(dropboxDir, "test-course");
-    // The "done" lesson ships…
+    const doc = readCourseManifest(courseDir);
+    const videos = getManifestVideos(doc);
+    expect(videos).toHaveLength(1);
+    expect(videos[0]!.relativePath).toContain("01.01-welcome/Problem.mp4");
     expect(
-      fs.existsSync(
-        path.join(courseDir, "01-intro", "01.01-welcome", "Problem.mp4")
-      )
+      fs.existsSync(path.join(courseDir, ...videos[0]!.relativePath.split("/")))
     ).toBe(true);
-    // …the "todo" lesson does not.
-    expect(fs.existsSync(path.join(courseDir, "01-intro", "01.02-setup"))).toBe(
-      false
-    );
+    expect(videos[0]!.relativePath).not.toContain("01.02-setup");
 
-    const doc = JSON.parse(
-      fs.readFileSync(path.join(courseDir, "course.json"), "utf-8")
-    );
     expect(doc.sections).toHaveLength(1);
     expect(doc.sections[0].lessons).toHaveLength(1);
   });
 
-  it("removes a previously-published to-do lesson when it is later withheld", async () => {
+  it("keeps the prior immutable bundle when a later manifest withholds a to-do lesson", async () => {
     const { course, dropboxDir, run } = await setupSync();
 
     // First publish includes the to-do lesson…
@@ -507,33 +585,32 @@ describe("CoursePublishService.syncToDropbox", () => {
         yield* svc.syncToDropbox(course.id, true);
       })
     );
-    const todoDir = path.join(
-      dropboxDir,
-      "test-course",
-      "01-intro",
-      "01.02-setup"
+    const courseDir = path.join(dropboxDir, "test-course");
+    const firstDoc = readCourseManifest(courseDir);
+    const previousTodoVideo = getManifestVideos(firstDoc).find((video) =>
+      video.relativePath.includes("01.02-setup")
+    )!;
+    const previousTodoPath = path.join(
+      courseDir,
+      ...previousTodoVideo.relativePath.split("/")
     );
-    expect(fs.existsSync(path.join(todoDir, "Explainer.mp4"))).toBe(true);
+    expect(fs.existsSync(previousTodoPath)).toBe(true);
 
-    // …a later publish withholds it, and the stale-file cleanup deletes it.
+    // …a later publish withholds it from the new commit marker while retaining
+    // the prior immutable bundle for rollback.
     await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         yield* svc.syncToDropbox(course.id, false);
       })
     );
-    expect(fs.existsSync(todoDir)).toBe(false);
+    const secondDoc = readCourseManifest(courseDir);
     expect(
-      fs.existsSync(
-        path.join(
-          dropboxDir,
-          "test-course",
-          "01-intro",
-          "01.01-welcome",
-          "Problem.mp4"
-        )
+      getManifestVideos(secondDoc).some((video) =>
+        video.relativePath.includes("01.02-setup")
       )
-    ).toBe(true);
+    ).toBe(false);
+    expect(fs.existsSync(previousTodoPath)).toBe(true);
   });
 });
 
@@ -549,4 +626,20 @@ function getAllFilesRecursive(dir: string): string[] {
     }
   }
   return results;
+}
+
+function readCourseManifest(courseDir: string): any {
+  return JSON.parse(
+    fs.readFileSync(path.join(courseDir, "course.json"), "utf-8")
+  );
+}
+
+function getManifestVideos(doc: any): Array<{ relativePath: string }> {
+  return doc.sections.flatMap((section: any) =>
+    section.lessons.flatMap((lesson: any) =>
+      lesson.type === "problem"
+        ? [lesson.problem, lesson.solution].filter(Boolean)
+        : [lesson.explainer]
+    )
+  );
 }

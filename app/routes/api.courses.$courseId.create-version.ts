@@ -1,4 +1,4 @@
-import { VersionOperationsService } from "@/services/db-version-operations.server";
+import { CoursePublishService } from "@/services/course-publish-service";
 import { makeAction } from "@/services/route-action.server";
 import { Effect, Schema } from "effect";
 
@@ -13,9 +13,9 @@ export const action = makeAction({
   effect: ({ params, payload }) =>
     Effect.gen(function* () {
       const result = yield* Schema.decodeUnknown(createVersionSchema)(payload);
-      const versionOps = yield* VersionOperationsService;
+      const publishService = yield* CoursePublishService;
 
-      const { version: newVersion } = yield* versionOps.copyVersionStructure({
+      const { version: newVersion } = yield* publishService.createDraftVersion({
         sourceVersionId: result.sourceVersionId,
         repoId: params.courseId!,
         newVersionName: result.name,

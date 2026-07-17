@@ -2,6 +2,8 @@ import { consumeSSEStream } from "./consume-sse-stream";
 
 export interface SSEDropboxPublishParams {
   repoId: string;
+  courseVersionId?: string;
+  includeTodoLessons?: boolean;
 }
 
 export interface SSEDropboxPublishCallbacks {
@@ -16,7 +18,11 @@ export const startSSEDropboxPublish = (
 ): AbortController =>
   consumeSSEStream({
     url: "/api/courses/publish-to-dropbox-sse",
-    body: { repoId: params.repoId },
+    body: {
+      repoId: params.repoId,
+      courseVersionId: params.courseVersionId,
+      includeTodoLessons: params.includeTodoLessons,
+    },
     events: {
       progress: (data: { percentage: number }) =>
         callbacks.onProgress(data.percentage),

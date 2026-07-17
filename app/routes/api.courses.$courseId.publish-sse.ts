@@ -63,6 +63,21 @@ export const action = async (args: Route.ActionArgs) => {
         },
       },
       {
+        tag: "DropboxCommitPendingError",
+        handler: (e, sendEvent) => {
+          sendEvent("error", {
+            message:
+              "The Course Version is frozen and the new Draft is safe, but Dropbox still needs to be re-synced.",
+            type: "dropbox_commit_pending",
+            pendingVersionId: e.pendingVersionId,
+            newDraftVersionId: e.newDraftVersionId,
+            reason: e.reason,
+            includeTodoLessons: e.includeTodoLessons,
+            missingVideoIds: e.missingVideoIds ?? [],
+          });
+        },
+      },
+      {
         tag: "NotFoundError",
         handler: (_, sendEvent) => {
           sendEvent("error", { message: "Course not found" });
