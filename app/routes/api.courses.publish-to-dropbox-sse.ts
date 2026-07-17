@@ -6,6 +6,8 @@ import { runtimeLive } from "@/services/layer.server";
 
 const publishRepoSchema = Schema.Struct({
   repoId: Schema.String,
+  courseVersionId: Schema.optional(Schema.String),
+  includeTodoLessons: Schema.optional(Schema.Boolean),
 });
 
 export const action = async ({ request }: Route.ActionArgs) => {
@@ -18,13 +20,20 @@ export const action = async ({ request }: Route.ActionArgs) => {
         const result = yield* Schema.decodeUnknown(publishRepoSchema)(body);
 
         const publishService = yield* CoursePublishService;
-        // Standalone Dropbox mirror (no publish-page toggle) — include every
-        // Lesson, matching the default publish behaviour.
-        const { missingVideos } = yield* publishService.syncToDropbox(
-          result.repoId,
-          true,
-          sendEvent
-        );
+        // Pending commits must retry the exact frozen Course Version with the
+        // original to-do policy. Without an id, re-sync the latest frozen version.
+        const { missingVideos } = result.courseVersionId
+          ? yield* publishService.syncFrozenVersionToDropbox(
+              result.repoId,
+              result.courseVersionId,
+              result.includeTodoLessons ?? true,
+              sendEvent
+            )
+          : yield* publishService.syncToDropbox(
+              result.repoId,
+              result.includeTodoLessons ?? true,
+              sendEvent
+            );
 
         sendEvent("complete", {
           missingVideoCount: missingVideos.length,

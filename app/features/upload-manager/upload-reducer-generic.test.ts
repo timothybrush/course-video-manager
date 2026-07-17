@@ -234,6 +234,29 @@ describe("UPLOAD_SUCCESS", () => {
   });
 });
 
+describe("UPLOAD_FATAL_ERROR", () => {
+  it("moves directly to terminal error without entering auto-retry", () => {
+    const state = reduce(
+      createState({
+        uploads: {
+          "upload-1": createYouTubeEntry({ retryCount: 0 }),
+        },
+      }),
+      {
+        type: "UPLOAD_FATAL_ERROR",
+        uploadId: "upload-1",
+        errorMessage: "Exact recovery required",
+      }
+    );
+
+    expect(state.uploads["upload-1"]).toMatchObject({
+      status: "error",
+      retryCount: 3,
+      errorMessage: "Exact recovery required",
+    });
+  });
+});
+
 describe("UPLOAD_ERROR", () => {
   it("should transition to retrying when retryCount < 3", () => {
     const state = reduce(

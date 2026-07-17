@@ -92,10 +92,10 @@ named Published Version.
 
 Publish is the atomic release operation (see CONTEXT.md). It (1) validates the
 shippable output, (2) copies every shipping Video's .mp4 plus a course.json and
-course.schema.json into Dropbox under the course name, (3) freezes the Draft
-Version — stamping it with --name and --description — and (4) clones a fresh
-empty Draft to carry on editing. The published snapshot is immutable and can
-never be deleted.
+a content-addressed asset bundle plus root course.json into Dropbox, (3) freezes
+the Draft Version by stamping it with --name and --description, and (4) clones a
+fresh empty Draft to carry on editing. The published snapshot is immutable and
+can never be deleted.
 
 ADDRESSING
   The positional argument is the COURSE id (find it via 'cvm course list'). The
@@ -113,7 +113,10 @@ VALIDATION
   view must be lint-clean for the effective output. If not, the publish is
   refused with a PublishValidationError listing the offending video ids — nothing
   is uploaded and no version is frozen. Export the missing videos first, then
-  re-run.
+  re-run. If Dropbox fails after the database freeze, the command returns
+  DropboxCommitPendingError with both version ids and the original to-do policy.
+  The Published Version and new Draft remain safe, and the frozen-version Dropbox
+  sync can retry that exact version without deleting either one.
 
 FLAGS
   --name <vX.Y.Z>     (required) the Published Version name.

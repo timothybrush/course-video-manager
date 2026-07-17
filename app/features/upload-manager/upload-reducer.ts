@@ -2,11 +2,7 @@ import { uploadTypeRegistry } from "./upload-type-registry";
 
 export namespace uploadReducer {
   export type UploadStatus =
-    | "waiting"
-    | "uploading"
-    | "retrying"
-    | "success"
-    | "error";
+    "waiting" | "uploading" | "retrying" | "success" | "error";
   export type UploadType =
     | "youtube"
     | "youtube-shorts"
@@ -18,25 +14,16 @@ export namespace uploadReducer {
     | "publish"
     | "render-vertical";
   export type BufferStage =
-    | "uploading-blob"
-    | "creating-post"
-    | "polling"
-    | "cleaning-up";
+    "uploading-blob" | "creating-post" | "polling" | "cleaning-up";
   export type ExportStage =
-    | "queued"
-    | "concatenating-clips"
-    | "normalizing-audio";
+    "queued" | "concatenating-clips" | "normalizing-audio";
   export type RenderVerticalStage =
     | "concatenating-clips"
     | "transcribing"
     | "rendering-overlay"
     | "compositing";
   export type PublishStage =
-    | "validating"
-    | "exporting"
-    | "uploading"
-    | "freezing"
-    | "cloning";
+    "validating" | "exporting" | "uploading" | "freezing" | "cloning";
 
   export interface BaseUploadEntry {
     uploadId: string;
@@ -142,6 +129,7 @@ export namespace uploadReducer {
         skillsChangelogSlug?: string;
       }
     | { type: "UPLOAD_ERROR"; uploadId: string; errorMessage: string }
+    | { type: "UPLOAD_FATAL_ERROR"; uploadId: string; errorMessage: string }
     | { type: "RETRY"; uploadId: string }
     | { type: "DISMISS"; uploadId: string }
     | {
@@ -369,6 +357,34 @@ export const uploadReducer = (
         ...state,
         uploads: updatedUploads,
       };
+    }
+
+    case "UPLOAD_FATAL_ERROR": {
+      const upload = state.uploads[action.uploadId];
+      if (!upload) return state;
+
+      const updatedUploads = {
+        ...state.uploads,
+        [action.uploadId]: {
+          ...upload,
+          status: "error" as const,
+          retryCount: 3,
+          errorMessage: action.errorMessage,
+        },
+      };
+      for (const [id, candidate] of Object.entries(updatedUploads)) {
+        if (
+          candidate.dependsOn === action.uploadId &&
+          candidate.status === "waiting"
+        ) {
+          updatedUploads[id] = {
+            ...candidate,
+            status: "error" as const,
+            errorMessage: `Dependency "${upload.title}" failed`,
+          };
+        }
+      }
+      return { ...state, uploads: updatedUploads };
     }
 
     case "UPLOAD_ERROR": {

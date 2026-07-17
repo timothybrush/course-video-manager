@@ -232,7 +232,7 @@ export default function Component(props: Route.ComponentProps) {
               <p className="text-sm text-muted-foreground">
                 {includeTodoLessons
                   ? "Every lesson will publish — including lessons still marked to-do, which may be unreviewed. They are exported, mirrored to the team's Dropbox, and listed in course.json exactly like finished lessons."
-                  : "Lessons still marked to-do are withheld from this publish: omitted from course.json, not exported, and not mirrored to Dropbox. Any to-do lesson already in the team's Dropbox is removed, and sections left with no remaining lessons disappear. Nothing is lost — every lesson stays saved in full in the Published Version, and turning this back on and republishing restores it."}
+                  : "Lessons still marked to-do are withheld from this publish: omitted from the current course.json and its immutable Dropbox bundle. Earlier bundles stay intact for rollback. Sections left with no remaining lessons disappear from the current manifest. Nothing is lost because every lesson stays saved in full in the Published Version, and turning this back on and republishing restores it."}
               </p>
             </div>
           </div>

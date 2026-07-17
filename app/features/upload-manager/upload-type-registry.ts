@@ -577,11 +577,60 @@ const publishConfig: UploadTypeConfig<
             dispatch({ type: "UPLOAD_SUCCESS", uploadId });
             abortControllers.delete(uploadId);
           },
+          onDropboxCommitPending: (pending) => {
+            dispatch({
+              type: "UPDATE_PUBLISH_STAGE",
+              uploadId,
+              stage: "uploading",
+            });
+            const retryController = startSSEDropboxPublish(
+              {
+                repoId: params.courseId,
+                courseVersionId: pending.publishedVersionId,
+                includeTodoLessons: pending.includeTodoLessons,
+              },
+              {
+                onProgress: (percentage) => {
+                  dispatch({
+                    type: "UPDATE_PROGRESS",
+                    uploadId,
+                    progress: percentage,
+                  });
+                },
+                onComplete: (missingVideoCount) => {
+                  if (missingVideoCount > 0) {
+                    dispatch({
+                      type: "UPLOAD_FATAL_ERROR",
+                      uploadId,
+                      errorMessage: `Dropbox commit still needs ${missingVideoCount} video(s). Retry the exact frozen version from the pending publish details.`,
+                    });
+                  } else {
+                    dispatch({
+                      type: "PUBLISH_COMPLETE",
+                      uploadId,
+                      newDraftVersionId: pending.newDraftVersionId,
+                    });
+                    dispatch({ type: "UPLOAD_SUCCESS", uploadId });
+                  }
+                  abortControllers.delete(uploadId);
+                },
+                onError: (message) => {
+                  dispatch({
+                    type: "UPLOAD_FATAL_ERROR",
+                    uploadId,
+                    errorMessage: `${message}. Retry the exact frozen version from the pending publish details.`,
+                  });
+                  abortControllers.delete(uploadId);
+                },
+              }
+            );
+            abortControllers.set(uploadId, retryController);
+          },
           onError: (message) => {
             dispatch({
-              type: "UPLOAD_ERROR",
+              type: "UPLOAD_FATAL_ERROR",
               uploadId,
-              errorMessage: message,
+              errorMessage: `${message}. Publish status may be unknown, so refresh before starting another publish.`,
             });
             abortControllers.delete(uploadId);
           },

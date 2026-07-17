@@ -45,8 +45,22 @@ const CourseJsonVideo = Schema.Struct({
   }),
   hash: Schema.String.annotations({
     description:
-      "Export Hash identifying the exported .mp4 (SHA256 of the video's clip filenames and timestamps in sequence, plus the Export Version Key).",
+      "Export Hash identifying the exported .mp4 inputs (SHA256 of the video's clip filenames and timestamps in sequence, plus the Export Version Key).",
   }),
+  sha256: Schema.String.pipe(
+    Schema.pattern(/^[a-f0-9]{64}$/),
+    Schema.annotations({
+      description:
+        "Full lowercase hexadecimal SHA256 of the exported .mp4 bytes.",
+    })
+  ),
+  bytes: Schema.Number.pipe(
+    Schema.int(),
+    Schema.nonNegative(),
+    Schema.annotations({
+      description: "Non-negative integer size of the exported .mp4 in bytes.",
+    })
+  ),
   chapters: Schema.Array(CourseJsonChapter).annotations({
     description: "The video's chapters, in timeline order.",
   }),
@@ -127,11 +141,15 @@ export const CourseJsonDocumentSchema = Schema.Struct({
     description:
       "Relative path to the JSON Schema describing this document (course.schema.json).",
   }),
-  schemaVersion: Schema.Literal(2).annotations({
+  schemaVersion: Schema.Literal(3).annotations({
     description: "Version of the course.json manifest format.",
   }),
   courseId: Schema.String.annotations({
     description: "Stable identifier of the course this manifest snapshots.",
+  }),
+  courseVersionId: Schema.String.annotations({
+    description:
+      "Immutable Course Version identifier whose structure this manifest snapshots.",
   }),
   courseName: Schema.String.annotations({
     description: "Human-readable name of the course.",
@@ -200,6 +218,18 @@ export class IncompleteVideosError extends Data.TaggedError(
   videos: IncompleteVideo[];
 }> {}
 
+export class MissingVideoAssetReceiptError extends Data.TaggedError(
+  "MissingVideoAssetReceiptError"
+)<{
+  videoId: string;
+}> {}
+
+export class InvalidVideoAssetReceiptError extends Data.TaggedError(
+  "InvalidVideoAssetReceiptError"
+)<{
+  videoId: string;
+}> {}
+
 // ── Input types ─────────────────────────────────────────────────────────
 
 type InputClip = {
@@ -215,6 +245,7 @@ type InputChapter = {
 };
 
 type InputVideo = {
+  id: string;
   lineageId: string;
   title: string;
   body: string | null;
@@ -241,10 +272,18 @@ type InputSection = {
   lessons: InputLesson[];
 };
 
+export type VideoAssetReceipt = {
+  sha256: string;
+  bytes: number;
+};
+
 export type BuildCourseJsonInput = {
   courseId: string;
+  courseVersionId: string;
   courseName: string;
+  assetBasePath: string;
   sections: InputSection[];
+  videoAssets: ReadonlyMap<string, VideoAssetReceipt>;
   // Whether Lessons still marked to-do ship in this manifest. When false, every
   // to-do Lesson is withheld — omitted from course.json entirely, and Sections
   // left with no shippable Lessons disappear.
@@ -352,15 +391,17 @@ export const collectPublishBlockers = (
 
 // ── Builder ─────────────────────────────────────────────────────────────
 
-// The published .mp4 lands beside course.json under section-dir/lesson-dir at
-// the video's title (see syncToDropbox's copyFileToDropbox). Only complete
-// Videos reach here — `videoGaps` has already been checked and found empty — so
+// The published .mp4 lives under the manifest's immutable assetBasePath, then
+// section-dir/lesson-dir/video-title.mp4. Only complete Videos reach here,
+// because `videoGaps` has already been checked and found empty, so
 // the clips (hence hash), body, and description are all guaranteed present, and
 // every emitted field is non-null.
 function toVideoEntry(
   video: InputVideo,
   sectionPath: string,
-  lessonPath: string
+  lessonPath: string,
+  assetBasePath: string,
+  asset: VideoAssetReceipt
 ): typeof CourseJsonVideo.Type {
   const exportClips: ExportClip[] = video.clips.map((c) => ({
     videoFilename: c.videoFilename,
@@ -369,10 +410,12 @@ function toVideoEntry(
   }));
   return {
     id: video.lineageId,
-    relativePath: `${sectionPath}/${lessonPath}/${video.title}.mp4`,
+    relativePath: `${assetBasePath}/${sectionPath}/${lessonPath}/${video.title}.mp4`,
     body: video.body!,
     description: video.description!,
     hash: computeExportHash(exportClips)!,
+    sha256: asset.sha256,
+    bytes: asset.bytes,
     chapters: buildChapters(video.clips, video.chapters) ?? [],
   };
 }
@@ -381,7 +424,10 @@ export const buildCourseJson = (
   input: BuildCourseJsonInput
 ): Effect.Effect<
   CourseJsonDocument,
-  InvalidLessonRoleComboError | IncompleteVideosError
+  | InvalidLessonRoleComboError
+  | IncompleteVideosError
+  | MissingVideoAssetReceiptError
+  | InvalidVideoAssetReceiptError
 > =>
   Effect.gen(function* () {
     // The pre-publish gate and this backstop read the exact same blockers, so a
@@ -405,6 +451,30 @@ export const buildCourseJson = (
     }
 
     const sections: Array<typeof CourseJsonSectionSchema.Type> = [];
+    const makeVideoEntry = Effect.fn("makeCourseJsonVideoEntry")(function* (
+      video: InputVideo,
+      sectionPath: string,
+      lessonPath: string
+    ) {
+      const asset = input.videoAssets.get(video.id);
+      if (!asset) {
+        return yield* new MissingVideoAssetReceiptError({ videoId: video.id });
+      }
+      if (
+        !/^[a-f0-9]{64}$/.test(asset.sha256) ||
+        !Number.isSafeInteger(asset.bytes) ||
+        asset.bytes < 0
+      ) {
+        return yield* new InvalidVideoAssetReceiptError({ videoId: video.id });
+      }
+      return toVideoEntry(
+        video,
+        sectionPath,
+        lessonPath,
+        input.assetBasePath,
+        asset
+      );
+    });
 
     // The effective-output filter is the single home of "what this publish
     // ships": it drops to-do Lessons when they are withheld, Lessons with no
@@ -430,12 +500,12 @@ export const buildCourseJson = (
               type: "problem",
               id: lesson.lineageId,
               title: lesson.title,
-              problem: toVideoEntry(
+              problem: yield* makeVideoEntry(
                 selected.problem,
                 section.path,
                 lesson.path
               ),
-              solution: toVideoEntry(
+              solution: yield* makeVideoEntry(
                 selected.solution,
                 section.path,
                 lesson.path
@@ -446,7 +516,7 @@ export const buildCourseJson = (
               type: "problem",
               id: lesson.lineageId,
               title: lesson.title,
-              problem: toVideoEntry(
+              problem: yield* makeVideoEntry(
                 selected.problem,
                 section.path,
                 lesson.path
@@ -458,7 +528,11 @@ export const buildCourseJson = (
             type: "explainer",
             id: lesson.lineageId,
             title: lesson.title,
-            explainer: toVideoEntry(selected.video, section.path, lesson.path),
+            explainer: yield* makeVideoEntry(
+              selected.video,
+              section.path,
+              lesson.path
+            ),
           });
         }
       }
@@ -477,9 +551,10 @@ export const buildCourseJson = (
     }
 
     return {
-      $schema: "./course.schema.json",
-      schemaVersion: 2 as const,
+      $schema: `${input.assetBasePath}/course.schema.json`,
+      schemaVersion: 3 as const,
       courseId: input.courseId,
+      courseVersionId: input.courseVersionId,
       courseName: input.courseName,
       sections,
     };

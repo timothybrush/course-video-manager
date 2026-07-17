@@ -8,12 +8,21 @@ export interface SSEPublishParams {
   includeTodoLessons: boolean;
 }
 
+export interface DropboxCommitPendingResult {
+  publishedVersionId: string;
+  newDraftVersionId: string;
+  includeTodoLessons: boolean;
+  reason: "sync_failed" | "missing_assets";
+  missingVideoIds: string[];
+}
+
 export interface SSEPublishCallbacks {
   onStageChange: (stage: uploadReducer.PublishStage) => void;
   onComplete: (result: {
     publishedVersionId: string;
     newDraftVersionId: string;
   }) => void;
+  onDropboxCommitPending: (result: DropboxCommitPendingResult) => void;
   onError: (message: string) => void;
 }
 
@@ -39,7 +48,26 @@ export const startSSEPublish = (
           publishedVersionId: data.publishedVersionId,
           newDraftVersionId: data.newDraftVersionId,
         }),
-      error: (data: { message: string }) => callbacks.onError(data.message),
+      error: (
+        data:
+          | ({ message: string; type?: undefined } & Record<string, unknown>)
+          | ({
+              message: string;
+              type: "dropbox_commit_pending";
+            } & DropboxCommitPendingResult)
+      ) => {
+        if (data.type === "dropbox_commit_pending") {
+          callbacks.onDropboxCommitPending({
+            publishedVersionId: data.publishedVersionId,
+            newDraftVersionId: data.newDraftVersionId,
+            includeTodoLessons: data.includeTodoLessons,
+            reason: data.reason,
+            missingVideoIds: data.missingVideoIds,
+          });
+        } else {
+          callbacks.onError(data.message);
+        }
+      },
     },
     onError: callbacks.onError,
     errorLabel: "Publish failed",

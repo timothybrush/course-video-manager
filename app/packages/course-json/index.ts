@@ -21,10 +21,13 @@ export {
   CourseJsonDocumentSchema,
   InvalidLessonRoleComboError,
   IncompleteVideosError,
+  MissingVideoAssetReceiptError,
+  InvalidVideoAssetReceiptError,
   type BuildCourseJsonInput,
   type CourseJsonDocument,
   type IncompleteVideo,
   type InvalidLessonCombo,
+  type VideoAssetReceipt,
   type PublishBlockers,
 } from "./lib/build-course-json";
 
