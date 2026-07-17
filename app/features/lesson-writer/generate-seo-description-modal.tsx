@@ -46,12 +46,26 @@ export function GenerateSeoDescriptionModal({
   }, [open, videoId, dataFetcher]);
 
   // Seed the textarea from the persisted description once, when data lands.
+  // Auto-trigger generation when the description is empty and the body has content.
   useEffect(() => {
     if (dataFetcher.data && !seeded) {
-      setValue(dataFetcher.data.description ?? "");
+      const desc = dataFetcher.data.description ?? "";
+      setValue(desc);
       setSeeded(true);
+
+      const body = (dataFetcher.data.body ?? "").trim();
+      if (!desc.trim() && body) {
+        genFetcher.submit(
+          {},
+          {
+            method: "post",
+            action: `/api/videos/${videoId}/generate-seo-from-body`,
+            encType: "application/json",
+          }
+        );
+      }
     }
-  }, [dataFetcher.data, seeded]);
+  }, [dataFetcher.data, seeded, genFetcher, videoId]);
 
   // A completed generation always replaces the textarea contents.
   useEffect(() => {
