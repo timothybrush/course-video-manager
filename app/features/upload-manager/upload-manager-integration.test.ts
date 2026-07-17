@@ -415,7 +415,6 @@ describe("registry completeness", () => {
       "ai-hero",
       "skills-changelog",
       "export",
-      "dropbox-publish",
       "publish",
     ];
 
@@ -530,75 +529,6 @@ describe("full integration: reducer + registry through lifecycle", () => {
     expect(ytSuccess.uploadType === "youtube" && ytSuccess.youtubeVideoId).toBe(
       "yt-xyz"
     );
-  });
-
-  it("should preserve dropbox-publish missingVideoCount through the full lifecycle", () => {
-    let state = createState();
-
-    state = reduce(state, {
-      type: "START_UPLOAD",
-      uploadId: "dp-1",
-      videoId: "",
-      title: "My Course",
-      uploadType: "dropbox-publish",
-    });
-
-    state = reduce(state, {
-      type: "UPDATE_PROGRESS",
-      uploadId: "dp-1",
-      progress: 60,
-    });
-
-    state = reduce(state, {
-      type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-      uploadId: "dp-1",
-      missingVideoCount: 3,
-    });
-
-    state = reduce(state, {
-      type: "UPLOAD_SUCCESS",
-      uploadId: "dp-1",
-    });
-
-    const success = state.uploads["dp-1"]!;
-    expect(success.status).toBe("success");
-    expect(success.progress).toBe(100);
-    expect(
-      success.uploadType === "dropbox-publish" && success.missingVideoCount
-    ).toBe(3);
-  });
-
-  it("should reset dropbox-publish missingVideoCount on retry", () => {
-    let state = createState();
-
-    state = reduce(state, {
-      type: "START_UPLOAD",
-      uploadId: "dp-1",
-      videoId: "",
-      title: "My Course",
-      uploadType: "dropbox-publish",
-    });
-
-    state = reduce(state, {
-      type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-      uploadId: "dp-1",
-      missingVideoCount: 5,
-    });
-
-    state = reduce(state, {
-      type: "UPLOAD_ERROR",
-      uploadId: "dp-1",
-      errorMessage: "Network error",
-    });
-
-    state = reduce(state, { type: "RETRY", uploadId: "dp-1" });
-
-    const retried = state.uploads["dp-1"]!;
-    expect(retried.status).toBe("uploading");
-    expect(retried.uploadType).toBe("dropbox-publish");
-    if (retried.uploadType === "dropbox-publish") {
-      expect(retried.missingVideoCount).toBeNull();
-    }
   });
 
   it("should handle publish lifecycle: stages → complete → success preserves newDraftVersionId", () => {

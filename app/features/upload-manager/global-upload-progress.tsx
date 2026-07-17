@@ -11,7 +11,6 @@ import {
   Film,
   Clock,
   Loader2,
-  FolderSync,
 } from "lucide-react";
 import { Link } from "react-router";
 import { UploadContext } from "./upload-context";
@@ -229,9 +228,6 @@ function StatusIcon({ upload }: { upload: uploadReducer.UploadEntry }) {
       if (upload.uploadType === "export") {
         return <Film className="size-4 text-blue-500 shrink-0" />;
       }
-      if (upload.uploadType === "dropbox-publish") {
-        return <FolderSync className="size-4 text-blue-500 shrink-0" />;
-      }
       if (upload.uploadType === "publish") {
         return <Send className="size-4 text-blue-500 shrink-0" />;
       }
@@ -314,21 +310,6 @@ function UploadStatusDetail({ upload }: { upload: uploadReducer.UploadEntry }) {
           <p className="text-xs text-muted-foreground mt-0.5">
             {stageLabel}...
           </p>
-        );
-      }
-      if (upload.uploadType === "dropbox-publish") {
-        return (
-          <div className="flex items-center gap-2 mt-0.5">
-            <div className="flex-1 bg-secondary rounded-full h-1.5 overflow-hidden">
-              <div
-                className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                style={{ width: `${upload.progress}%` }}
-              />
-            </div>
-            <span className="text-xs text-muted-foreground w-8 text-right">
-              {upload.progress}%
-            </span>
-          </div>
         );
       }
       return (
@@ -435,21 +416,6 @@ function UploadStatusDetail({ upload }: { upload: uploadReducer.UploadEntry }) {
           </div>
         );
       }
-      if (upload.uploadType === "dropbox-publish") {
-        const missingCount = upload.missingVideoCount ?? 0;
-        return (
-          <div className="flex items-center gap-2 mt-0.5">
-            <Badge
-              variant="secondary"
-              className={`text-[10px] px-1.5 py-0 ${missingCount > 0 ? "text-yellow-500" : "text-green-500"}`}
-            >
-              {missingCount > 0
-                ? `Published (${missingCount} missing)`
-                : "Published to Dropbox"}
-            </Badge>
-          </div>
-        );
-      }
       return (
         <div className="flex items-center gap-2 mt-0.5">
           <Badge
@@ -466,16 +432,15 @@ function UploadStatusDetail({ upload }: { upload: uploadReducer.UploadEntry }) {
           <span className="text-xs text-destructive truncate">
             {upload.errorMessage}
           </span>
-          {upload.uploadType !== "dropbox-publish" &&
-            upload.uploadType !== "publish" && (
-              <Link
-                to={`/videos/${upload.videoId}/post`}
-                className="text-xs text-muted-foreground hover:text-foreground whitespace-nowrap"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Go to Post
-              </Link>
-            )}
+          {upload.uploadType !== "publish" && (
+            <Link
+              to={`/videos/${upload.videoId}/post`}
+              className="text-xs text-muted-foreground hover:text-foreground whitespace-nowrap"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Go to Post
+            </Link>
+          )}
         </div>
       );
   }

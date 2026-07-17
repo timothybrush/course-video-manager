@@ -63,25 +63,6 @@ const createExportEntry = (
   ...overrides,
 });
 
-const createDropboxPublishEntry = (
-  overrides: Partial<
-    Omit<uploadReducer.DropboxPublishUploadEntry, "uploadType">
-  > = {}
-): uploadReducer.DropboxPublishUploadEntry => ({
-  uploadId: "upload-1",
-  videoId: "",
-  title: "My Course",
-  progress: 0,
-  status: "uploading",
-  uploadType: "dropbox-publish",
-  errorMessage: null,
-  retryCount: 0,
-  terminal: false,
-  dependsOn: null,
-  missingVideoCount: null,
-  ...overrides,
-});
-
 const createPublishEntry = (
   overrides: Partial<Omit<uploadReducer.PublishUploadEntry, "uploadType">> = {}
 ): uploadReducer.PublishUploadEntry => ({
@@ -267,50 +248,6 @@ describe("UPDATE_EXPORT_STAGE", () => {
       type: "UPDATE_EXPORT_STAGE",
       uploadId: "upload-1",
       stage: "normalizing-audio",
-    });
-
-    expect(state).toBe(initial);
-  });
-});
-
-describe("UPDATE_DROPBOX_PUBLISH_MISSING_COUNT", () => {
-  it("should set missingVideoCount on a dropbox-publish entry", () => {
-    const state = reduce(
-      createState({
-        uploads: { "upload-1": createDropboxPublishEntry() },
-      }),
-      {
-        type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-        uploadId: "upload-1",
-        missingVideoCount: 3,
-      }
-    );
-
-    const upload = state.uploads["upload-1"]!;
-    expect(
-      upload.uploadType === "dropbox-publish" && upload.missingVideoCount
-    ).toBe(3);
-  });
-
-  it("should not modify state for non-existent upload", () => {
-    const initial = createState();
-    const state = reduce(initial, {
-      type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-      uploadId: "non-existent",
-      missingVideoCount: 1,
-    });
-
-    expect(state).toBe(initial);
-  });
-
-  it("should not modify state for non-dropbox-publish upload", () => {
-    const initial = createState({
-      uploads: { "upload-1": createYouTubeEntry() },
-    });
-    const state = reduce(initial, {
-      type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-      uploadId: "upload-1",
-      missingVideoCount: 1,
     });
 
     expect(state).toBe(initial);
