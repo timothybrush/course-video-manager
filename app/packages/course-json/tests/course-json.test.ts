@@ -99,6 +99,7 @@ describe("buildCourseJson", () => {
     const result = await run(makeInput([]));
     expect(result.schemaVersion).toBe(3);
     expect(result.courseVersionId).toBe("course-version-1");
+    expect(result.archiveTTL).toBe("90d");
     expect(result.$schema).toBe(
       "versions/course-version-1-assets/course.schema.json"
     );

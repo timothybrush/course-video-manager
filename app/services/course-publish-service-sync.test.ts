@@ -448,6 +448,7 @@ describe("CoursePublishService.syncToDropbox", () => {
     expect(doc.schemaVersion).toBe(3);
     expect(doc.courseId).toBe(course.id);
     expect(doc.courseVersionId).toBe(version.id);
+    expect(doc.archiveTTL).toBe("90d");
     expect(doc.courseName).toBe("test-course");
     expect(doc.sections).toHaveLength(1);
     expect(doc.sections[0].lessons).toHaveLength(2);

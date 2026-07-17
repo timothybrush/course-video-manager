@@ -151,6 +151,10 @@ export const CourseJsonDocumentSchema = Schema.Struct({
     description:
       "Immutable Course Version identifier whose structure this manifest snapshots.",
   }),
+  archiveTTL: Schema.Literal("90d").annotations({
+    description:
+      "Retention window for this immutable Course Version bundle, starting when the manifest is written to Dropbox. After this duration Course Builder may remove the bundle.",
+  }),
   courseName: Schema.String.annotations({
     description: "Human-readable name of the course.",
   }),
@@ -555,6 +559,7 @@ export const buildCourseJson = (
       schemaVersion: 3 as const,
       courseId: input.courseId,
       courseVersionId: input.courseVersionId,
+      archiveTTL: "90d" as const,
       courseName: input.courseName,
       sections,
     };
