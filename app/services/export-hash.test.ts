@@ -22,18 +22,48 @@ const makeClip = (
 describe("export-hash", () => {
   describe("computeExportHash", () => {
     it("returns null for empty clips", () => {
-      expect(computeExportHash([])).toBeNull();
+      expect(computeExportHash([], "landscape")).toBeNull();
     });
 
     it("returns a 32-char hex string for clips", () => {
-      const hash = computeExportHash([
+      const hash = computeExportHash(
+        [
+          makeClip({
+            videoFilename: "rec.mp4",
+            sourceStartTime: 0,
+            sourceEndTime: 10,
+          }),
+        ],
+        "landscape"
+      );
+      expect(hash).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    it("changing the video format changes the hash", () => {
+      const clips = [
         makeClip({
           videoFilename: "rec.mp4",
           sourceStartTime: 0,
           sourceEndTime: 10,
         }),
-      ]);
-      expect(hash).toMatch(/^[0-9a-f]{32}$/);
+      ];
+      expect(computeExportHash(clips, "landscape")).not.toBe(
+        computeExportHash(clips, "short")
+      );
+    });
+
+    it("treats an unknown or missing format as landscape", () => {
+      const clips = [
+        makeClip({
+          videoFilename: "rec.mp4",
+          sourceStartTime: 0,
+          sourceEndTime: 10,
+        }),
+      ];
+      const landscape = computeExportHash(clips, "landscape");
+      expect(computeExportHash(clips, undefined)).toBe(landscape);
+      expect(computeExportHash(clips, null)).toBe(landscape);
+      expect(computeExportHash(clips, "bogus")).toBe(landscape);
     });
 
     it("is deterministic for the same input", () => {
@@ -49,8 +79,8 @@ describe("export-hash", () => {
           sourceEndTime: 15,
         }),
       ];
-      const hash1 = computeExportHash(clips);
-      const hash2 = computeExportHash(clips);
+      const hash1 = computeExportHash(clips, "landscape");
+      const hash2 = computeExportHash(clips, "landscape");
       expect(hash1).toBe(hash2);
     });
 
@@ -67,7 +97,9 @@ describe("export-hash", () => {
       });
       // Clip sequence lives in the array itself — reordering the same clips is a
       // different edit and must produce a different hash (and thus re-export).
-      expect(computeExportHash([a, b])).not.toBe(computeExportHash([b, a]));
+      expect(computeExportHash([a, b], "landscape")).not.toBe(
+        computeExportHash([b, a], "landscape")
+      );
     });
 
     it("transcript text changes do not affect the hash", () => {
@@ -87,24 +119,32 @@ describe("export-hash", () => {
           sourceEndTime: 10,
         }),
       ];
-      expect(computeExportHash(clips1)).toBe(computeExportHash(clips2));
+      expect(computeExportHash(clips1, "landscape")).toBe(
+        computeExportHash(clips2, "landscape")
+      );
     });
 
     it("different clip data produces different hashes", () => {
-      const hash1 = computeExportHash([
-        makeClip({
-          videoFilename: "rec.mp4",
-          sourceStartTime: 0,
-          sourceEndTime: 10,
-        }),
-      ]);
-      const hash2 = computeExportHash([
-        makeClip({
-          videoFilename: "rec.mp4",
-          sourceStartTime: 0,
-          sourceEndTime: 11,
-        }),
-      ]);
+      const hash1 = computeExportHash(
+        [
+          makeClip({
+            videoFilename: "rec.mp4",
+            sourceStartTime: 0,
+            sourceEndTime: 10,
+          }),
+        ],
+        "landscape"
+      );
+      const hash2 = computeExportHash(
+        [
+          makeClip({
+            videoFilename: "rec.mp4",
+            sourceStartTime: 0,
+            sourceEndTime: 11,
+          }),
+        ],
+        "landscape"
+      );
       expect(hash1).not.toBe(hash2);
     });
 
@@ -118,7 +158,7 @@ describe("export-hash", () => {
           sourceEndTime: 10,
         }),
       ];
-      const hash = computeExportHash(clips);
+      const hash = computeExportHash(clips, "landscape");
       expect(hash).toBeTruthy();
       // The EXPORT_VERSION is baked into the hash payload
       expect(EXPORT_VERSION).toBe(1);
@@ -143,13 +183,16 @@ describe("export-hash", () => {
 
   describe("isExported", () => {
     it("returns true when the file exists on disk", async () => {
-      const hash = computeExportHash([
-        makeClip({
-          videoFilename: "rec.mp4",
-          sourceStartTime: 0,
-          sourceEndTime: 10,
-        }),
-      ])!;
+      const hash = computeExportHash(
+        [
+          makeClip({
+            videoFilename: "rec.mp4",
+            sourceStartTime: 0,
+            sourceEndTime: 10,
+          }),
+        ],
+        "landscape"
+      )!;
 
       const fsLayer = FileSystem.layerNoop({
         exists: (filePath) =>
@@ -157,13 +200,18 @@ describe("export-hash", () => {
       });
 
       const result = await Effect.runPromise(
-        isExported("/output", "course-1", [
-          makeClip({
-            videoFilename: "rec.mp4",
-            sourceStartTime: 0,
-            sourceEndTime: 10,
-          }),
-        ]).pipe(Effect.provide(fsLayer))
+        isExported(
+          "/output",
+          "course-1",
+          [
+            makeClip({
+              videoFilename: "rec.mp4",
+              sourceStartTime: 0,
+              sourceEndTime: 10,
+            }),
+          ],
+          "landscape"
+        ).pipe(Effect.provide(fsLayer))
       );
 
       expect(result).toBe(true);
@@ -175,13 +223,18 @@ describe("export-hash", () => {
       });
 
       const result = await Effect.runPromise(
-        isExported("/output", "course-1", [
-          makeClip({
-            videoFilename: "rec.mp4",
-            sourceStartTime: 0,
-            sourceEndTime: 10,
-          }),
-        ]).pipe(Effect.provide(fsLayer))
+        isExported(
+          "/output",
+          "course-1",
+          [
+            makeClip({
+              videoFilename: "rec.mp4",
+              sourceStartTime: 0,
+              sourceEndTime: 10,
+            }),
+          ],
+          "landscape"
+        ).pipe(Effect.provide(fsLayer))
       );
 
       expect(result).toBe(false);
@@ -193,7 +246,9 @@ describe("export-hash", () => {
       });
 
       const result = await Effect.runPromise(
-        isExported("/output", "course-1", []).pipe(Effect.provide(fsLayer))
+        isExported("/output", "course-1", [], "landscape").pipe(
+          Effect.provide(fsLayer)
+        )
       );
 
       expect(result).toBe(false);
@@ -279,7 +334,7 @@ describe("export-hash", () => {
           sourceEndTime: 10,
         }),
       ];
-      const validHash = computeExportHash(validClips)!;
+      const validHash = computeExportHash(validClips, "landscape")!;
 
       const { layer, removedFiles } = makeGCLayer({
         versions: [{ id: "v1", clips: validClips }],
@@ -306,7 +361,7 @@ describe("export-hash", () => {
           sourceEndTime: 10,
         }),
       ];
-      const hash = computeExportHash(clips)!;
+      const hash = computeExportHash(clips, "landscape")!;
 
       const { layer, removedFiles } = makeGCLayer({
         versions: [{ id: "v1", clips }],
@@ -355,8 +410,8 @@ describe("export-hash", () => {
           sourceEndTime: 20,
         }),
       ];
-      const hash1 = computeExportHash(clips1)!;
-      const hash2 = computeExportHash(clips2)!;
+      const hash1 = computeExportHash(clips1, "landscape")!;
+      const hash2 = computeExportHash(clips2, "landscape")!;
 
       const { layer, removedFiles } = makeGCLayer({
         versions: [

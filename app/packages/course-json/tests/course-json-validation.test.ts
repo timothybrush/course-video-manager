@@ -21,6 +21,7 @@ const makeVideo = (
   body: "Video body",
   description: "Video description",
   archived: false,
+  format: "landscape",
   clips: CLIPS,
   chapters: [],
   ...overrides,

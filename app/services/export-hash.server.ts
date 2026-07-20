@@ -27,7 +27,7 @@ export const garbageCollect = (courseId: string) =>
       for (const section of version.sections) {
         for (const lesson of section.lessons) {
           for (const video of lesson.videos) {
-            const hash = computeExportHash(video.clips);
+            const hash = computeExportHash(video.clips, video.format);
             if (hash) allValidHashes.add(hash);
           }
         }

@@ -123,7 +123,7 @@ const setup = async (opts?: {
     { videoFilename: "recording.mp4", sourceStartTime: 0, sourceEndTime: 10 },
     { videoFilename: "recording.mp4", sourceStartTime: 15, sourceEndTime: 25 },
   ];
-  const exportHash = computeExportHash(clips)!;
+  const exportHash = computeExportHash(clips, "landscape")!;
 
   const dropboxDir = fs.mkdtempSync(
     path.join(tmpdir(), "publish-test-dropbox-")

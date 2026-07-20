@@ -77,6 +77,7 @@ export const loader = async (args: Route.LoaderArgs) => {
       courseId: course.id,
       videos: allVideos.map((v) => ({
         id: v.id,
+        format: v.format,
         clips: v.clips as ExportClip[],
       })),
     });

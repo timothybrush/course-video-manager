@@ -30,6 +30,7 @@ import { syncFrozenCourseVersionToDropbox } from "./course-publish-dropbox";
 
 export type VideoForExport = {
   id: string;
+  format: string;
   lesson?: {
     section: { repoVersion: { repo: { id: string } } };
   } | null;
@@ -85,7 +86,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             : videoOrId;
         if (video.clips.length === 0) return null;
 
-        const hash = computeExportHash(toExportClips(video.clips));
+        const hash = computeExportHash(
+          toExportClips(video.clips),
+          video.format
+        );
         if (!hash) return null;
 
         const namespace = video.lesson?.section.repoVersion.repo.id ?? video.id;
@@ -116,7 +120,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         const namespace = courseId ?? videoId;
 
         const exportClips = toExportClips(video.clips);
-        const hash = computeExportHash(exportClips);
+        const hash = computeExportHash(exportClips, video.format);
         if (!hash) {
           return yield* Effect.fail(
             new ExportError({ message: "Video has no clips to export" })
@@ -200,7 +204,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           for (const lesson of section.lessons) {
             for (const video of lesson.videos) {
               if (video.clips.length === 0) continue;
-              const hash = computeExportHash(toExportClips(video.clips));
+              const hash = computeExportHash(
+                toExportClips(video.clips),
+                video.format
+              );
               if (!hash) continue;
               const filePath = resolveExportPathPure(
                 FINISHED_VIDEOS_DIRECTORY,
@@ -274,7 +281,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             for (const lesson of section.lessons) {
               for (const video of lesson.videos) {
                 if (video.clips.length === 0) continue;
-                const hash = computeExportHash(toExportClips(video.clips));
+                const hash = computeExportHash(
+                  toExportClips(video.clips),
+                  video.format
+                );
                 if (!hash) continue;
                 const filePath = resolveExportPathPure(
                   FINISHED_VIDEOS_DIRECTORY,
