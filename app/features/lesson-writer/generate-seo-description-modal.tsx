@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import {
   Dialog,
@@ -45,13 +45,30 @@ export function GenerateSeoDescriptionModal({
     }
   }, [open, videoId, dataFetcher]);
 
-  // Seed the textarea from the persisted description once, when data lands.
+  const handleGenerate = useCallback(() => {
+    genFetcher.submit(
+      {},
+      {
+        method: "post",
+        action: `/api/videos/${videoId}/generate-seo-from-body`,
+        encType: "application/json",
+      }
+    );
+  }, [genFetcher, videoId]);
+
+  // Auto-trigger generation when the description is empty and the body has content.
   useEffect(() => {
     if (dataFetcher.data && !seeded) {
-      setValue(dataFetcher.data.description ?? "");
+      const desc = dataFetcher.data.description ?? "";
+      setValue(desc);
       setSeeded(true);
+
+      const body = (dataFetcher.data.body ?? "").trim();
+      if (!desc.trim() && body) {
+        handleGenerate();
+      }
     }
-  }, [dataFetcher.data, seeded]);
+  }, [dataFetcher.data, seeded, handleGenerate]);
 
   // A completed generation always replaces the textarea contents.
   useEffect(() => {
@@ -65,17 +82,6 @@ export function GenerateSeoDescriptionModal({
   const bodyIsEmpty = dataFetcher.data
     ? !(dataFetcher.data.body ?? "").trim()
     : false;
-
-  const handleGenerate = () => {
-    genFetcher.submit(
-      {},
-      {
-        method: "post",
-        action: `/api/videos/${videoId}/generate-seo-from-body`,
-        encType: "application/json",
-      }
-    );
-  };
 
   const handleSave = () => {
     saveFetcher.submit(
