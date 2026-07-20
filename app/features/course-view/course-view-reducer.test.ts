@@ -457,6 +457,28 @@ describe("courseViewReducer", () => {
     });
   });
 
+  describe("Lesson body writer", () => {
+    it("52. open-lesson-body-writer: sets videoId", () => {
+      const state = createTester()
+        .send({ type: "open-lesson-body-writer", videoId: "vid-42" })
+        .getState();
+      expect(state.lessonBodyWriterVideoId).toBe("vid-42");
+    });
+
+    it("53. close-lesson-body-writer: clears videoId", () => {
+      const state = createTester()
+        .send({ type: "open-lesson-body-writer", videoId: "vid-42" })
+        .send({ type: "close-lesson-body-writer" })
+        .getState();
+      expect(state.lessonBodyWriterVideoId).toBeNull();
+    });
+
+    it("54. lessonBodyWriterVideoId is null initially", () => {
+      const state = createTester().getState();
+      expect(state.lessonBodyWriterVideoId).toBeNull();
+    });
+  });
+
   describe("State independence", () => {
     it("44. modal toggle does not affect filters", () => {
       const state = createTester()

@@ -194,7 +194,10 @@ export default function Component(props: Route.ComponentProps) {
   const { startExportUpload, startBatchExportUpload } =
     useContext(UploadContext);
 
-  useFocusRevalidate({ enabled: true, intervalMs: 5000 });
+  useFocusRevalidate({
+    enabled: !viewState.lessonBodyWriterVideoId,
+    intervalMs: 5000,
+  });
 
   const submitDeleteVideo = useCallback(
     (videoId: string) => {
