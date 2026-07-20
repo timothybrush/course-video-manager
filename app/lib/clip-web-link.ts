@@ -23,6 +23,13 @@ export type CapturedWebLink = {
 };
 
 /**
+ * Minimum milliseconds a page must be continuously visible (Chrome focused,
+ * capturable URL unchanged) before it qualifies as a captured web link.
+ * Pages flashed for less than this during tab-switching are ignored.
+ */
+export const WEB_LINK_DWELL_MS = 1500;
+
+/**
  * A URL is capturable if it is an ordinary web page (http/https). File URLs,
  * browser-internal pages (`chrome://`, `edge://`, `about:`) and extension pages
  * are skipped.

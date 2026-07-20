@@ -44,6 +44,7 @@ describe("clipStateReducer — diagram snapshot pinning", () => {
         sessionId,
         activeDiagramId: "diagram-1",
         diagramFocused: true,
+        ts: 5000,
       });
 
       const clip = tester.getState().items[0] as ClipOptimisticallyAdded;
@@ -75,6 +76,7 @@ describe("clipStateReducer — diagram snapshot pinning", () => {
           sessionId,
           activeDiagramId: "diagram-1",
           diagramFocused: true,
+          ts: 5000,
         })
         .send(
           fromPartial({
@@ -87,6 +89,7 @@ describe("clipStateReducer — diagram snapshot pinning", () => {
           sessionId,
           activeDiagramId: "diagram-2",
           diagramFocused: false,
+          ts: 6000,
         });
 
       const items = tester.getState().items as ClipOptimisticallyAdded[];
@@ -116,6 +119,7 @@ describe("clipStateReducer — diagram snapshot pinning", () => {
         sessionId,
         activeDiagramId: "diagram-1",
         diagramFocused: true,
+        ts: 5000,
       });
 
       expect(tester.getState().items).toEqual(before.items);

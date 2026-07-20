@@ -214,8 +214,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
   const navigate = useNavigate();
 
   const parentData = useRouteLoaderData("routes/_app.videos.$videoId") as
-    | ParentLoaderData
-    | undefined;
+    ParentLoaderData | undefined;
 
   const navigation = useMemo(() => {
     if (!parentData) return undefined;
@@ -333,6 +332,7 @@ export const ComponentInner = (props: Route.ComponentProps) => {
         sessionId: activeSession.id,
         activeDiagramId: getActiveDiagramId(),
         diagramFocused: isDiagramFocused(),
+        ts: Date.now(),
       });
     },
     silenceLength,
