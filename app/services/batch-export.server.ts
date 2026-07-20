@@ -6,6 +6,10 @@ import {
   type PauseType,
 } from "@/services/video-processing-service";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
+import {
+  resolveVideoFormat,
+  type VideoFormat,
+} from "@/features/videos/video-format";
 import path from "node:path";
 
 const MAX_CONCURRENT_EXPORTS = 6;
@@ -28,6 +32,7 @@ export const batchExportProgram = (
     const unexportedVideos: Array<{
       id: string;
       title: string;
+      format: VideoFormat;
       clips: Array<{
         videoFilename: string;
         sourceStartTime: number;
@@ -50,6 +55,7 @@ export const batchExportProgram = (
               unexportedVideos.push({
                 id: video.id,
                 title: `${section.path}/${lesson.path}/${video.title}`,
+                format: resolveVideoFormat(video.format),
                 clips: video.clips,
               });
             }
@@ -78,6 +84,7 @@ export const batchExportProgram = (
         videoProcessing
           .exportVideoClips({
             videoId: video.id,
+            format: video.format,
             shortsDirectoryOutputName: undefined,
             clips: video.clips.map((clip, index, array) => {
               const isFinalClip = index === array.length - 1;

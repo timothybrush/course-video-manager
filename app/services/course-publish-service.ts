@@ -14,6 +14,7 @@ import {
 } from "./export-hash";
 import { garbageCollect } from "./export-hash.server";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
+import { resolveVideoFormat } from "@/features/videos/video-format";
 import { DoesNotExistOnDbError } from "./publish-to-dropbox";
 import { collectCourseViewLints } from "./lesson-warnings";
 import {
@@ -136,6 +137,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         // Export via ffmpeg → writes to {videoId}.mp4
         yield* videoProcessing.exportVideoClips({
           videoId,
+          format: resolveVideoFormat(video.format),
           shortsDirectoryOutputName: undefined,
           clips: video.clips.map((clip, index, array) => {
             const isFinalClip = index === array.length - 1;

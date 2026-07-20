@@ -7,12 +7,10 @@ import crypto from "node:crypto";
 import { VideoOperationsService } from "./db-video-operations.server";
 import { VideoProcessingService } from "./video-processing-service";
 import { FFmpegCommandsService } from "./ffmpeg-commands";
+import { VIDEO_FORMAT_DIMENSIONS } from "@/features/videos/video-format";
 
 export type RenderVerticalStage =
-  | "concatenating-clips"
-  | "transcribing"
-  | "rendering-overlay"
-  | "compositing";
+  "concatenating-clips" | "transcribing" | "rendering-overlay" | "compositing";
 
 export class RenderVerticalError extends Data.TaggedError(
   "RenderVerticalError"
@@ -58,7 +56,10 @@ export class RenderVerticalVideoService extends Effect.Service<RenderVerticalVid
                 startTime: clip.sourceStartTime,
                 duration: clip.sourceEndTime - clip.sourceStartTime,
                 pauseType: clip.pauseType as "none" | "long",
-              }))
+              })),
+              // The vertical renderer always produces a 9:16 short — the Remotion
+              // subtitle/CTA overlay below is rendered at 1080x1920 to match.
+              VIDEO_FORMAT_DIMENSIONS.short
             );
           const concatenatedPath =
             yield* ffmpegCommands.normalizeAudio(rawConcatenatedPath);

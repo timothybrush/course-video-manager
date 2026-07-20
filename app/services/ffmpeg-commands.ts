@@ -100,7 +100,8 @@ export class FFmpegCommandsService extends Effect.Service<FFmpegCommandsService>
           startTime: number;
           duration: number;
           pauseType: "none" | "long";
-        }[]
+        }[],
+        dimensions: { width: number; height: number }
       ) {
         const LONG_PAUSE_DURATION = 0.18;
 
@@ -131,18 +132,18 @@ export class FFmpegCommandsService extends Effect.Service<FFmpegCommandsService>
           );
         }
 
-        // Build filter complex. Normalize every input to the vertical 1080x1920
-        // frame (and stereo audio) so the concat filter — which requires all
-        // inputs to share dimensions/SAR/channel layout — accepts odd effect
-        // clips (e.g. white noise at 854x480 mono). The target MUST stay
-        // portrait: these are 9:16 shorts and the subtitle overlay is 1080x1920,
-        // so scaling to landscape here produced a landscape export with the
-        // portrait overlay pinned top-left.
+        // Build filter complex. Normalize every input to the target frame (and
+        // stereo audio) so the concat filter — which requires all inputs to
+        // share dimensions/SAR/channel layout — accepts odd effect clips (e.g.
+        // white noise at 854x480 mono). The target dimensions come from the
+        // video's format: portrait 1080x1920 for shorts (whose 9:16 subtitle
+        // overlay must line up), landscape 1920x1080 otherwise. Passing the
+        // wrong dimensions here is what previously forced every export portrait.
         const filterParts: string[] = [];
         const concatInputs: string[] = [];
         for (let i = 0; i < clips.length; i++) {
           filterParts.push(
-            `[${i}:v]setpts=PTS-STARTPTS,scale=1080:1920,setsar=1[v${i}]`,
+            `[${i}:v]setpts=PTS-STARTPTS,scale=${dimensions.width}:${dimensions.height},setsar=1[v${i}]`,
             `[${i}:a]asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo[a${i}]`
           );
           concatInputs.push(`[v${i}][a${i}]`);

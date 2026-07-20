@@ -9,6 +9,10 @@ import OpenAI from "openai";
 import { FFmpegCommandsService } from "./ffmpeg-commands";
 import { findSilenceInVideo } from "./silence-detection";
 import type { SilenceLength } from "@/silence-detection-constants";
+import {
+  VIDEO_FORMAT_DIMENSIONS,
+  type VideoFormat,
+} from "@/features/videos/video-format";
 
 export type PauseType = "none" | "long";
 
@@ -127,6 +131,7 @@ export class VideoProcessingService extends Effect.Service<VideoProcessingServic
 
       const exportVideoClips = Effect.fn("exportVideoClips")(function* (opts: {
         videoId: string;
+        format: VideoFormat;
         clips: {
           inputVideo: string;
           startTime: number;
@@ -142,11 +147,14 @@ export class VideoProcessingService extends Effect.Service<VideoProcessingServic
           "FINISHED_VIDEOS_DIRECTORY"
         );
 
-        // Create concatenated video using native FFmpeg
+        // Create concatenated video using native FFmpeg, in the aspect ratio
+        // that matches the video's format (portrait for shorts, landscape
+        // otherwise).
         opts.onStageChange?.("concatenating-clips");
         const concatenatedPath =
           yield* ffmpegCommands.createAndConcatenateVideoClipsSinglePass(
-            opts.clips
+            opts.clips,
+            VIDEO_FORMAT_DIMENSIONS[opts.format]
           );
 
         // Normalize audio
