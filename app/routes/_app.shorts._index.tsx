@@ -26,7 +26,6 @@ import { makeLoader } from "@/services/route-action.server";
 import { Effect, Config } from "effect";
 import { FileSystem } from "@effect/platform";
 import {
-  Archive,
   Clapperboard,
   Download,
   FolderOpen,
@@ -136,7 +135,6 @@ export default function ShortsIndex(props: Route.ComponentProps) {
     title: string;
     mode: ShortsPostingMode;
   } | null>(null);
-  const archiveFetcher = useFetcher();
   const revealFetcher = useFetcher();
   const { startExportUpload } = useContext(UploadContext);
 
@@ -301,20 +299,6 @@ export default function ShortsIndex(props: Route.ComponentProps) {
                     >
                       <FolderOpen className="w-4 h-4" />
                       Reveal in File System
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      onSelect={() =>
-                        archiveFetcher.submit(
-                          { archived: "true" },
-                          {
-                            method: "post",
-                            action: `/api/videos/${video.id}/archive`,
-                          }
-                        )
-                      }
-                    >
-                      <Archive className="w-4 h-4" />
-                      Archive
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
