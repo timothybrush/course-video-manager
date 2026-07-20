@@ -1,35 +1,13 @@
 import { useEffect } from "react";
 import type { videoStateReducer } from "../video-state-reducer";
+import { shouldIgnoreKeyboardShortcut } from "./should-ignore-keyboard-shortcut";
 
-/**
- * Hook that handles keyboard shortcuts for the video editor.
- *
- * Listens for keyboard events and dispatches appropriate actions:
- * - Space: Toggle recording/playback
- * - Delete: Delete selected clips
- * - Enter: Confirm/submit action
- * - Arrow keys: Navigate and move clips
- * - Alt+Arrow Up/Down: Move clips in timeline
- * - l: Mark clip start
- * - k: Mark clip end
- * - Home/End: Navigate to first/last clip
- * - b/B: Toggle pause between clips
- * - F2: Rename selected section (handled in VideoEditor component)
- *
- * Ignores keyboard events when focus is on input fields, textareas,
- * or buttons (unless they have the "allow-keydown" class).
- */
 export function useKeyboardShortcuts(
   dispatch: (action: videoStateReducer.Action) => void
 ) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLButtonElement &&
-          !e.target.classList.contains("allow-keydown"))
-      ) {
+      if (shouldIgnoreKeyboardShortcut(e)) {
         return;
       }
       if (e.key === " ") {

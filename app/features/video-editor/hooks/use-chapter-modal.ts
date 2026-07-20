@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { FrontendId, TimelineItem } from "../clip-state-reducer.types";
 import type { ChapterNamingModal } from "../types";
+import { shouldIgnoreKeyboardShortcut } from "./should-ignore-keyboard-shortcut";
 
 export const useChapterModal = (
   timelineItems: TimelineItem[],
@@ -67,12 +68,7 @@ export const useChapterModal = (
 
   useEffect(() => {
     const handleF2 = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLButtonElement &&
-          !e.target.classList.contains("allow-keydown"))
-      ) {
+      if (shouldIgnoreKeyboardShortcut(e)) {
         return;
       }
       if (e.key === "F2") {
