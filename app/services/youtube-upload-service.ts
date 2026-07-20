@@ -19,7 +19,7 @@ const initiateResumableUpload = (opts: {
   title: string;
   description: string;
   privacyStatus: "public" | "unlisted";
-  notifySubscribers?: boolean;
+  notifySubscribers: boolean;
   fileSize: number;
 }) =>
   Effect.tryPromise({
@@ -29,9 +29,7 @@ const initiateResumableUpload = (opts: {
       );
       url.searchParams.set("uploadType", "resumable");
       url.searchParams.set("part", "snippet,status");
-      if (opts.notifySubscribers === false) {
-        url.searchParams.set("notifySubscribers", "false");
-      }
+      url.searchParams.set("notifySubscribers", String(opts.notifySubscribers));
 
       const res = await fetch(url.toString(), {
         method: "POST",
@@ -85,7 +83,7 @@ export const uploadVideoToYouTube = (opts: {
   title: string;
   description: string;
   privacyStatus: "public" | "unlisted";
-  notifySubscribers?: boolean;
+  notifySubscribers: boolean;
   onProgress: (percentage: number) => void;
 }) =>
   Effect.gen(function* () {

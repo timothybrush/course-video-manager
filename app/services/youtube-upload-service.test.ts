@@ -63,7 +63,7 @@ describe("uploadVideoToYouTube", () => {
     }
   });
 
-  it("does not include notifySubscribers param when not specified", async () => {
+  it("includes notifySubscribers=true in the initiation URL when set", async () => {
     const { uploadVideoToYouTube } = await import("./youtube-upload-service");
 
     const tmpFile = "/tmp/test-video-default.mp4";
@@ -77,12 +77,13 @@ describe("uploadVideoToYouTube", () => {
         title: "Test Video",
         description: "A test video",
         privacyStatus: "public",
+        notifySubscribers: true,
         onProgress: () => {},
       }).pipe(Effect.runPromise);
 
       const initiationCall = capturedFetchCalls[0]!;
       const url = new URL(initiationCall.url);
-      expect(url.searchParams.has("notifySubscribers")).toBe(false);
+      expect(url.searchParams.get("notifySubscribers")).toBe("true");
     } finally {
       fs.unlinkSync(tmpFile);
     }
