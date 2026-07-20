@@ -138,6 +138,31 @@ describe("createSSEResponse", () => {
     ]);
   });
 
+  it("does not throw when the client disconnects mid-stream", async () => {
+    let sendAfterCancel: (() => void) | undefined;
+
+    const response = createSSEResponse({
+      runtime: testRuntime,
+      program: (sendEvent) =>
+        Effect.async<void>((resume) => {
+          sendEvent("stage", { stage: "rendering" });
+          // Simulate the program still trying to emit after the client left.
+          sendAfterCancel = () => {
+            sendEvent("stage", { stage: "later" });
+            resume(Effect.void);
+          };
+        }),
+    });
+
+    const reader = response.body!.getReader();
+    await reader.read();
+    // Client disconnects.
+    await reader.cancel();
+
+    // The program emitting and settling after cancel must not throw.
+    expect(() => sendAfterCancel?.()).not.toThrow();
+  });
+
   it("matches the first applicable tagged error handler", async () => {
     class FirstError {
       readonly _tag = "FirstError";
