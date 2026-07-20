@@ -13,6 +13,7 @@ import {
 } from "@/features/video-posting/shorts-posting-modal";
 import { UploadContext } from "@/features/upload-manager/upload-context";
 import { useFocusRevalidate } from "@/hooks/use-focus-revalidate";
+import { useUploadRevalidate } from "@/hooks/use-upload-revalidate";
 import {
   getShortStatus,
   STATUS_META,
@@ -141,6 +142,12 @@ export default function ShortsIndex(props: Route.ComponentProps) {
   const { startExportUpload } = useContext(UploadContext);
 
   useFocusRevalidate({ enabled: true });
+  useUploadRevalidate([
+    "buffer",
+    "youtube-shorts",
+    "render-vertical",
+    "export",
+  ]);
 
   return (
     <div className="flex-1 flex flex-col bg-background text-foreground">
