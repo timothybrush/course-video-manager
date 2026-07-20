@@ -198,13 +198,14 @@ export default function VideoLayout({ loaderData }: Route.ComponentProps) {
     : `${sectionPath}/${lessonPath}/${videoTitle}`;
 
   const matches = useMatches();
-  const isFullscreenChild = matches.some(
-    (m) => (m.handle as { fullscreen?: boolean } | undefined)?.fullscreen
+  const hideParentHeader = matches.some(
+    (m) =>
+      (m.handle as { hideParentHeader?: boolean } | undefined)?.hideParentHeader
   );
 
   return (
     <div className="h-screen flex flex-col">
-      {!isFullscreenChild && (
+      {!hideParentHeader && (
         <>
           {/* Shared header */}
           <div className="flex items-center gap-2 p-4 border-b justify-between">

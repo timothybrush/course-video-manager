@@ -16,6 +16,10 @@ const VIDEO_SUB_ROUTES = [
   "_app.videos.$videoId.thumbnails.tsx",
 ];
 
+const NON_EDIT_ROUTES = VIDEO_SUB_ROUTES.filter(
+  (r) => r !== "_app.videos.$videoId.edit.tsx"
+);
+
 describe("video sub-routes fullscreen handle", () => {
   for (const route of VIDEO_SUB_ROUTES) {
     it(`${route} exports handle with fullscreen: true`, () => {
@@ -26,4 +30,33 @@ describe("video sub-routes fullscreen handle", () => {
       );
     });
   }
+});
+
+describe("only edit route hides the parent header", () => {
+  it("edit route exports handle with hideParentHeader: true", () => {
+    const filePath = path.join(ROUTES_DIR, "_app.videos.$videoId.edit.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(content).toMatch(
+      /export\s+const\s+handle\s*=\s*\{[^}]*hideParentHeader:\s*true[^}]*\}/
+    );
+  });
+
+  for (const route of NON_EDIT_ROUTES) {
+    it(`${route} does NOT export hideParentHeader`, () => {
+      const filePath = path.join(ROUTES_DIR, route);
+      const content = fs.readFileSync(filePath, "utf-8");
+      expect(content).not.toMatch(/hideParentHeader/);
+    });
+  }
+});
+
+describe("parent video layout uses hideParentHeader, not fullscreen", () => {
+  it("checks handle.hideParentHeader to hide the shared header", () => {
+    const filePath = path.join(ROUTES_DIR, "_app.videos.$videoId.tsx");
+    const content = fs.readFileSync(filePath, "utf-8");
+    expect(content).toMatch(/hideParentHeader/);
+    expect(content).not.toMatch(
+      /isFullscreenChild|handle\.fullscreen|fullscreen.*header/i
+    );
+  });
 });
