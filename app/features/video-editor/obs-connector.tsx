@@ -8,6 +8,7 @@ import {
 } from "./use-speech-detector";
 import type { SilenceLength } from "@/silence-detection-constants";
 import { ensureOBSProfile } from "./ensure-obs-profile";
+import { useEnsureOBSProfile } from "./use-ensure-obs-profile";
 
 export type OBSNotRunningState = {
   type: "obs-not-running";
@@ -32,9 +33,7 @@ export type OBSRecordingState = {
 };
 
 export type OBSConnectionOuterState =
-  | OBSNotRunningState
-  | OBSConnectedState
-  | OBSRecordingState;
+  OBSNotRunningState | OBSConnectedState | OBSRecordingState;
 
 export type OBSConnectionInnerState =
   | OBSNotRunningState
@@ -63,6 +62,7 @@ let pendingStopTimeout: ReturnType<typeof setTimeout> | null = null;
 export const useConnectToOBSVirtualCamera = (props: {
   state: OBSConnectionOuterState;
   websocket: OBSWebSocket;
+  profileReady: boolean;
 }) => {
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
@@ -72,8 +72,9 @@ export const useConnectToOBSVirtualCamera = (props: {
   }, [mediaStream]);
 
   const shouldShowMediaStream =
-    props.state.type === "obs-connected" ||
-    props.state.type === "obs-recording";
+    (props.state.type === "obs-connected" ||
+      props.state.type === "obs-recording") &&
+    props.profileReady;
 
   // Manage virtualCameraState
   useEffect(() => {
@@ -367,6 +368,7 @@ export const useOBSConnector = (props: {
   }) => void;
   onClipAudioWindowClosed: () => void;
   silenceLength: SilenceLength;
+  targetProfile: string;
 }) => {
   const [websocket] = useState(() => new OBSWebSocket());
 
@@ -477,9 +479,22 @@ export const useOBSConnector = (props: {
 
   const outerState = useMemo(() => innerToOuterState(state), [state]);
 
+  const ensureProfileFn = useCallback(
+    (targetProfile: string) => ensureOBSProfile(websocket, targetProfile),
+    [websocket]
+  );
+
+  const { profileReady } = useEnsureOBSProfile({
+    obsState: outerState,
+    targetProfile: props.targetProfile,
+    ensureProfile: ensureProfileFn,
+    onError: (message) => console.error("[OBS profile switch]", message),
+  });
+
   const mediaStream = useConnectToOBSVirtualCamera({
     state: outerState,
     websocket,
+    profileReady,
   });
 
   const speechDetectorState = useSpeechDetector({
@@ -510,24 +525,13 @@ export const useOBSConnector = (props: {
     },
   });
 
-  const ensureProfile = useCallback(
-    (targetProfile: string) => ensureOBSProfile(websocket, targetProfile),
-    [websocket]
-  );
-
   const output = useMemo(() => {
     return {
       state: outerState,
       mediaStream,
       speechDetectorState,
-      ensureProfile,
     };
-  }, [
-    JSON.stringify(outerState),
-    mediaStream,
-    speechDetectorState,
-    ensureProfile,
-  ]);
+  }, [JSON.stringify(outerState), mediaStream, speechDetectorState]);
 
   return output;
 };
