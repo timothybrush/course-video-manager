@@ -3,10 +3,15 @@ import { useRevalidator } from "react-router";
 import { UploadContext } from "@/features/upload-manager/upload-context";
 import type { uploadReducer } from "@/features/upload-manager/upload-reducer";
 
+type UploadSnapshot = Record<
+  string,
+  { status: uploadReducer.UploadStatus; uploadType: uploadReducer.UploadType }
+>;
+
 export function hasNewSuccessForTypes(
-  prev: Record<string, { status: string; uploadType: string }>,
-  current: Record<string, { status: string; uploadType: string }>,
-  types: Set<string>
+  prev: UploadSnapshot,
+  current: UploadSnapshot,
+  types: Set<uploadReducer.UploadType>
 ): boolean {
   for (const [id, upload] of Object.entries(current)) {
     const prevUpload = prev[id];
@@ -23,7 +28,7 @@ export function useUploadRevalidate(uploadTypes: uploadReducer.UploadType[]) {
   const { uploads } = useContext(UploadContext);
   const revalidator = useRevalidator();
   const previousRef = useRef(uploads);
-  const typesRef = useRef(new Set<string>(uploadTypes));
+  const typesRef = useRef(new Set<uploadReducer.UploadType>(uploadTypes));
 
   useEffect(() => {
     if (hasNewSuccessForTypes(previousRef.current, uploads, typesRef.current)) {
