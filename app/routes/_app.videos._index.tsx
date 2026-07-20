@@ -78,7 +78,6 @@ export default function Component(props: Route.ComponentProps) {
     title: string;
   } | null>(null);
   const navigate = useNavigate();
-  const archiveVideoFetcher = useFetcher();
   const revealVideoFetcher = useFetcher();
   const deleteVideoFileFetcher = useFetcher();
   const { startExportUpload } = useContext(UploadContext);
@@ -217,20 +216,6 @@ export default function Component(props: Route.ComponentProps) {
                         <ArrowRightLeft className="w-4 h-4" />
                         Move to Course
                       </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() => {
-                          archiveVideoFetcher.submit(
-                            { archived: "true" },
-                            {
-                              method: "post",
-                              action: `/api/videos/${video.id}/archive`,
-                            }
-                          );
-                        }}
-                      >
-                        <Archive className="w-4 h-4" />
-                        Archive
-                      </ContextMenuItem>
                       {hasExportedVideoMap[video.id] && (
                         <ContextMenuItem
                           variant="destructive"
@@ -340,20 +325,6 @@ export default function Component(props: Route.ComponentProps) {
                         >
                           <FolderOpen className="w-4 h-4" />
                           Reveal in File System
-                        </ContextMenuItem>
-                        <ContextMenuItem
-                          onSelect={() => {
-                            archiveVideoFetcher.submit(
-                              { archived: "false" },
-                              {
-                                method: "post",
-                                action: `/api/videos/${video.id}/archive`,
-                              }
-                            );
-                          }}
-                        >
-                          <Archive className="w-4 h-4" />
-                          Unarchive
                         </ContextMenuItem>
                         {hasExportedVideoMap[video.id] && (
                           <ContextMenuItem
