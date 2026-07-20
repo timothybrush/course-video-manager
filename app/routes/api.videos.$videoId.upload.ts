@@ -75,6 +75,7 @@ export const action = async (args: Route.ActionArgs) => {
           title,
           description,
           privacyStatus,
+          notifySubscribers: true,
           onProgress: (percentage) => {
             sendEvent("progress", { percentage });
           },
