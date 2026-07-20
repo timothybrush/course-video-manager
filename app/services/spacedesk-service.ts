@@ -1,10 +1,6 @@
 import { Data, Effect } from "effect";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import net from "node:net";
 import crypto from "node:crypto";
-
-const execAsync = promisify(exec);
 
 /**
  * SpacedeskService wakes the spacedesk virtual display with a single click —
@@ -43,15 +39,11 @@ const execAsync = promisify(exec);
  *                  purpose — the display's real shape is defined server-side.)
  *
  * The server address matters: the spacedesk server binds to the machine's LAN
- * interface, not loopback, so connecting to 127.0.0.1 does NOT work. When no
- * address is configured we auto-detect the Windows host's LAN IPv4 (the address
- * on the adapter that owns the default gateway, e.g. 192.168.x.x). This is
- * queried against Windows via PowerShell because the CVM server runs inside WSL,
- * which has its own NAT IP and cannot see the Windows LAN address directly.
+ * interface, not loopback, so connecting to 127.0.0.1 does NOT work. The IP is
+ * entered by the user via a modal and stored in the browser's local storage.
  *
- * Config (all optional, via env, with sensible defaults):
- * - SPACEDESK_SERVER_IP: spacedesk server address (auto-detected LAN IP if unset).
- * - SPACEDESK_PORT:      spacedesk server port (default 28252).
+ * Config (optional, via env):
+ * - SPACEDESK_PORT: spacedesk server port (default 28252).
  */
 
 const DEFAULT_PORT = 28252;
@@ -67,40 +59,10 @@ const CONNECT_TIMEOUT_MS = 8000;
 // confirms the display activated) before we give up waiting and close anyway.
 const ACTIVATION_TIMEOUT_MS = 4000;
 
-// The IPv4 address of the Up adapter that owns the default gateway — i.e. the
-// real LAN connection (Wi-Fi/Ethernet), never the WSL vEthernet NAT adapter,
-// which has no default gateway.
-const DETECT_IP_COMMAND =
-  `powershell.exe -NoProfile -Command ` +
-  `"(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' }).IPv4Address.IPAddress"`;
-
-const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;
-
 export class SpacedeskError extends Data.TaggedError("SpacedeskError")<{
   cause: unknown;
   message: string;
 }> {}
-
-/** Detect the Windows host's LAN IPv4 by asking Windows over PowerShell. */
-const detectServerIp = (): Effect.Effect<string, SpacedeskError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const { stdout } = await execAsync(DETECT_IP_COMMAND);
-      const ip = stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find((line) => IPV4_PATTERN.test(line));
-      if (!ip) {
-        throw new Error("no IPv4 address with a default gateway was found");
-      }
-      return ip;
-    },
-    catch: (e) =>
-      new SpacedeskError({
-        cause: e,
-        message: `Couldn't auto-detect the spacedesk server's LAN IP — set SPACEDESK_SERVER_IP in your .env (e.g. 192.168.x.x). ${e}`,
-      }),
-  });
 
 const writeInt32LE = (u: Uint8Array, off: number, v: number): void => {
   u[off] = v & 0xff;
@@ -196,7 +158,7 @@ const wakeDisplayViaSocket = (
       finish(
         new SpacedeskError({
           cause: new Error("timeout"),
-          message: `Timed out connecting to the spacedesk server at ${ip}:${port}. Is spacedesk running, and is SPACEDESK_SERVER_IP correct?`,
+          message: `Timed out connecting to the spacedesk server at ${ip}:${port}. Is spacedesk running and is the IP correct?`,
         })
       );
     }, CONNECT_TIMEOUT_MS);
@@ -277,11 +239,9 @@ export class SpacedeskService extends Effect.Service<SpacedeskService>()(
   "SpacedeskService",
   {
     effect: Effect.gen(function* () {
-      const wakeDisplay = Effect.fn("wakeDisplay")(function* () {
-        const serverIp =
-          process.env.SPACEDESK_SERVER_IP || (yield* detectServerIp());
+      const wakeDisplay = Effect.fn("wakeDisplay")(function* (ip: string) {
         const port = Number(process.env.SPACEDESK_PORT) || DEFAULT_PORT;
-        yield* wakeDisplayViaSocket(serverIp, port);
+        yield* wakeDisplayViaSocket(ip, port);
       });
 
       return { wakeDisplay };
