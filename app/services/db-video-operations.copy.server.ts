@@ -28,7 +28,7 @@ export const copyVideoImpl = (
     newTitle: string;
     copyClips: boolean;
     copyBeats: boolean;
-    archiveOld?: boolean;
+    archiveOld: boolean;
   }
 ): Effect.Effect<string, NotFoundError | UnknownDBServiceError> =>
   Effect.gen(function* () {

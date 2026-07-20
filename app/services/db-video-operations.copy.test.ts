@@ -67,6 +67,30 @@ describe("copyVideoImpl — archiveOld", () => {
     expect(newVideo!.archived).toBe(false);
   });
 
+  it("archives an already-archived source without double-suffixing the title", async () => {
+    const source = await createVideo({
+      title: "problem (old)",
+      archived: true,
+    });
+
+    const newVideoId = await run(
+      copyVideoImpl(db(), {
+        sourceVideoId: source.id,
+        newTitle: "problem",
+        copyClips: false,
+        copyBeats: false,
+        archiveOld: true,
+      })
+    );
+
+    const oldVideo = await getVideo(source.id);
+    expect(oldVideo!.title).toBe("problem (old) (old)");
+    expect(oldVideo!.archived).toBe(true);
+
+    const newVideo = await getVideo(newVideoId);
+    expect(newVideo!.title).toBe("problem");
+  });
+
   it("does not rename or archive the source when archiveOld is false", async () => {
     const source = await createVideo({ title: "problem" });
 
