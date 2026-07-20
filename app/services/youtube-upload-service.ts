@@ -19,32 +19,39 @@ const initiateResumableUpload = (opts: {
   title: string;
   description: string;
   privacyStatus: "public" | "unlisted";
+  notifySubscribers?: boolean;
   fileSize: number;
 }) =>
   Effect.tryPromise({
     try: async () => {
-      const res = await fetch(
-        "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${opts.accessToken}`,
-            "Content-Type": "application/json; charset=UTF-8",
-            "X-Upload-Content-Length": opts.fileSize.toString(),
-            "X-Upload-Content-Type": "video/mp4",
-          },
-          body: JSON.stringify({
-            snippet: {
-              title: opts.title,
-              description: opts.description,
-            },
-            status: {
-              privacyStatus: opts.privacyStatus,
-              selfDeclaredMadeForKids: false,
-            },
-          }),
-        }
+      const url = new URL(
+        "https://www.googleapis.com/upload/youtube/v3/videos"
       );
+      url.searchParams.set("uploadType", "resumable");
+      url.searchParams.set("part", "snippet,status");
+      if (opts.notifySubscribers === false) {
+        url.searchParams.set("notifySubscribers", "false");
+      }
+
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Length": opts.fileSize.toString(),
+          "X-Upload-Content-Type": "video/mp4",
+        },
+        body: JSON.stringify({
+          snippet: {
+            title: opts.title,
+            description: opts.description,
+          },
+          status: {
+            privacyStatus: opts.privacyStatus,
+            selfDeclaredMadeForKids: false,
+          },
+        }),
+      });
 
       if (!res.ok) {
         const errorText = await res.text();
@@ -78,6 +85,7 @@ export const uploadVideoToYouTube = (opts: {
   title: string;
   description: string;
   privacyStatus: "public" | "unlisted";
+  notifySubscribers?: boolean;
   onProgress: (percentage: number) => void;
 }) =>
   Effect.gen(function* () {
@@ -97,6 +105,7 @@ export const uploadVideoToYouTube = (opts: {
       title: opts.title,
       description: opts.description,
       privacyStatus: opts.privacyStatus,
+      notifySubscribers: opts.notifySubscribers,
       fileSize,
     });
 
