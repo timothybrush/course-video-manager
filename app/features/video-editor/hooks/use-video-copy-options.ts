@@ -5,11 +5,13 @@ const STORAGE_KEY = "video-copy:options";
 export interface VideoCopyOptions {
   copyClips: boolean;
   copyBeats: boolean;
+  archiveOld: boolean;
 }
 
 const DEFAULT_OPTIONS: VideoCopyOptions = {
   copyClips: true,
   copyBeats: true,
+  archiveOld: false,
 };
 
 const readStoredOptions = (): VideoCopyOptions => {
@@ -21,6 +23,7 @@ const readStoredOptions = (): VideoCopyOptions => {
       return {
         copyClips: parsed.copyClips ?? true,
         copyBeats: parsed.copyBeats ?? true,
+        archiveOld: parsed.archiveOld ?? false,
       };
     }
   } catch {

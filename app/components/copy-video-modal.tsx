@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useVideoCopyOptions } from "@/features/video-editor/hooks/use-video-copy-options";
 import { Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useFetcher } from "react-router";
 
 export function CopyVideoModal(props: {
@@ -37,6 +37,12 @@ export function CopyVideoModal(props: {
   copyClipsRef.current = copyClipsChecked;
   const copyBeatsRef = useRef(copyBeatsChecked);
   copyBeatsRef.current = copyBeatsChecked;
+
+  const [archiveOld, setArchiveOld] = useState(options.archiveOld);
+  const [nameEdited, setNameEdited] = useState(false);
+  const defaultName = archiveOld
+    ? props.videoTitle
+    : `${props.videoTitle} (copy)`;
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -65,6 +71,7 @@ export function CopyVideoModal(props: {
             setOptions({
               copyClips: newCopyClips,
               copyBeats: newCopyBeats,
+              archiveOld: formData.get("archiveOld") === "on",
             });
 
             await fetcher.submit(e.currentTarget);
@@ -80,12 +87,29 @@ export function CopyVideoModal(props: {
             <Input
               id="copy-video-name"
               name="name"
-              defaultValue={`${props.videoTitle} (copy)`}
+              key={nameEdited ? "edited" : defaultName}
+              defaultValue={defaultName}
+              onChange={() => setNameEdited(true)}
               required
             />
           </div>
 
           <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="archive-old"
+                name="archiveOld"
+                checked={archiveOld}
+                onCheckedChange={(checked) => {
+                  setArchiveOld(checked === true);
+                  setNameEdited(false);
+                }}
+              />
+              <Label htmlFor="archive-old">
+                Rename old video to &ldquo;(old)&rdquo; and archive it
+              </Label>
+            </div>
+
             <div className="flex items-center gap-2">
               <Checkbox
                 id="copy-clips"
