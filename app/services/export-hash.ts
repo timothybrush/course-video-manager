@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { Effect } from "effect";
 import { FileSystem } from "@effect/platform";
+import { resolveVideoFormat } from "@/features/videos/video-format";
 
 /**
  * Bump this constant to force re-export of all videos (e.g., after changing
@@ -24,12 +25,23 @@ export type ExportClip = {
  * (not transcript text). Clip order therefore lives in the array itself — it is
  * never re-derived from an `order` field, so reordering a video's clips yields a
  * new hash and triggers a re-export.
+ *
+ * The video's `format` is part of the address because it decides the export
+ * frame (landscape 16:9 vs. short 9:16): two videos with identical clips but
+ * different formats produce different output files and must not collide, and
+ * flipping a video's format must invalidate its existing export. The raw column
+ * is normalised via {@link resolveVideoFormat} so callers can pass it straight
+ * from the DB.
  */
-export const computeExportHash = (clips: ExportClip[]): string | null => {
+export const computeExportHash = (
+  clips: ExportClip[],
+  format: string | null | undefined
+): string | null => {
   if (clips.length === 0) return null;
 
   const payload = {
     v: EXPORT_VERSION,
+    fmt: resolveVideoFormat(format),
     clips: clips.map((c) => ({
       f: c.videoFilename,
       s: c.sourceStartTime,
@@ -65,10 +77,11 @@ export const resolveExportPath = (
 export const isExported = (
   finishedVideosDir: string,
   courseId: string,
-  clips: ExportClip[]
+  clips: ExportClip[],
+  format: string | null | undefined
 ) =>
   Effect.gen(function* () {
-    const hash = computeExportHash(clips);
+    const hash = computeExportHash(clips, format);
     if (!hash) return false;
 
     const fs = yield* FileSystem.FileSystem;

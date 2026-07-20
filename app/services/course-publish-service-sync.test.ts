@@ -164,7 +164,7 @@ const setupSync = async () => {
     sourceEndTime: c.sourceEndTime,
     order: c.order,
   }));
-  const exportHash = computeExportHash(clips)!;
+  const exportHash = computeExportHash(clips, "landscape")!;
 
   fs.writeFileSync(
     resolveExportPath(finishedVideosDir, course.id, exportHash),

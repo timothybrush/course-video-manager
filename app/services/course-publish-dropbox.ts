@@ -89,7 +89,10 @@ export const syncFrozenCourseVersionToDropbox = Effect.fn(
     for (const lesson of section.lessons) {
       for (const video of lesson.videos) {
         if (video.clips.length === 0) continue;
-        const hash = computeExportHash(toExportClips(video.clips));
+        const hash = computeExportHash(
+          toExportClips(video.clips),
+          video.format
+        );
         if (!hash) continue;
         videoPathOverrides.set(
           video.id,

@@ -43,7 +43,7 @@ const listFilesRecursive = (
 
 export const loadExportStatusMap = (opts: {
   courseId: string;
-  videos: { id: string; clips: ExportClip[] }[];
+  videos: { id: string; format: string; clips: ExportClip[] }[];
 }) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -55,7 +55,7 @@ export const loadExportStatusMap = (opts: {
       opts.videos,
       (video) =>
         Effect.gen(function* () {
-          const hash = computeExportHash(video.clips);
+          const hash = computeExportHash(video.clips, video.format);
           if (!hash) {
             hasExportedVideoMap[video.id] = false;
             return;

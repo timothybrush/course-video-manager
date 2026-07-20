@@ -255,6 +255,7 @@ type InputVideo = {
   body: string | null;
   description: string | null;
   archived: boolean;
+  format: string;
   clips: InputClip[];
   chapters: InputChapter[];
 };
@@ -417,7 +418,7 @@ function toVideoEntry(
     relativePath: `${assetBasePath}/${sectionPath}/${lessonPath}/${video.title}.mp4`,
     body: video.body!,
     description: video.description!,
-    hash: computeExportHash(exportClips)!,
+    hash: computeExportHash(exportClips, video.format)!,
     sha256: asset.sha256,
     bytes: asset.bytes,
     chapters: buildChapters(video.clips, video.chapters) ?? [],

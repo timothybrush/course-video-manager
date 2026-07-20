@@ -23,6 +23,7 @@ const makeVideo = (
   body: "Video body",
   description: "Video description",
   archived: false,
+  format: "landscape",
   clips: CLIPS,
   chapters: [],
   ...overrides,
@@ -362,7 +363,7 @@ describe("buildCourseJson", () => {
 
     const lesson = result.sections[0]!.lessons[0]!;
     if (lesson.type === "explainer") {
-      expect(lesson.explainer.hash).toBe(computeExportHash(CLIPS));
+      expect(lesson.explainer.hash).toBe(computeExportHash(CLIPS, "landscape"));
       expect(lesson.explainer.hash).not.toBeNull();
     }
   });

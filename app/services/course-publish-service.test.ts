@@ -152,7 +152,7 @@ const setup = async () => {
       sourceEndTime: 25,
     },
   ];
-  const exportHash = computeExportHash(clips)!;
+  const exportHash = computeExportHash(clips, "landscape")!;
 
   const run = <A, E>(effect: Effect.Effect<A, E, any>) =>
     Effect.runPromise(

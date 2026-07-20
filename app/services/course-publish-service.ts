@@ -14,6 +14,7 @@ import {
 } from "./export-hash";
 import { garbageCollect } from "./export-hash.server";
 import { FINAL_VIDEO_PADDING } from "@/features/video-editor/constants";
+import { resolveVideoFormat } from "@/features/videos/video-format";
 import { DoesNotExistOnDbError } from "./publish-to-dropbox";
 import { collectCourseViewLints } from "./lesson-warnings";
 import {
@@ -29,6 +30,7 @@ import { syncFrozenCourseVersionToDropbox } from "./course-publish-dropbox";
 
 export type VideoForExport = {
   id: string;
+  format: string;
   lesson?: {
     section: { repoVersion: { repo: { id: string } } };
   } | null;
@@ -84,7 +86,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             : videoOrId;
         if (video.clips.length === 0) return null;
 
-        const hash = computeExportHash(toExportClips(video.clips));
+        const hash = computeExportHash(
+          toExportClips(video.clips),
+          video.format
+        );
         if (!hash) return null;
 
         const namespace = video.lesson?.section.repoVersion.repo.id ?? video.id;
@@ -115,7 +120,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         const namespace = courseId ?? videoId;
 
         const exportClips = toExportClips(video.clips);
-        const hash = computeExportHash(exportClips);
+        const hash = computeExportHash(exportClips, video.format);
         if (!hash) {
           return yield* Effect.fail(
             new ExportError({ message: "Video has no clips to export" })
@@ -136,6 +141,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         // Export via ffmpeg → writes to {videoId}.mp4
         yield* videoProcessing.exportVideoClips({
           videoId,
+          format: resolveVideoFormat(video.format),
           shortsDirectoryOutputName: undefined,
           clips: video.clips.map((clip, index, array) => {
             const isFinalClip = index === array.length - 1;
@@ -198,7 +204,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           for (const lesson of section.lessons) {
             for (const video of lesson.videos) {
               if (video.clips.length === 0) continue;
-              const hash = computeExportHash(toExportClips(video.clips));
+              const hash = computeExportHash(
+                toExportClips(video.clips),
+                video.format
+              );
               if (!hash) continue;
               const filePath = resolveExportPathPure(
                 FINISHED_VIDEOS_DIRECTORY,
@@ -272,7 +281,10 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             for (const lesson of section.lessons) {
               for (const video of lesson.videos) {
                 if (video.clips.length === 0) continue;
-                const hash = computeExportHash(toExportClips(video.clips));
+                const hash = computeExportHash(
+                  toExportClips(video.clips),
+                  video.format
+                );
                 if (!hash) continue;
                 const filePath = resolveExportPathPure(
                   FINISHED_VIDEOS_DIRECTORY,

@@ -110,6 +110,7 @@ export function courseViewEffect(input: {
             courseId: selectedCourse.id,
             videos: (allVideos ?? []).map((v) => ({
               id: v.id,
+              format: v.format,
               clips: v.clips as ExportClip[],
             })),
           })
