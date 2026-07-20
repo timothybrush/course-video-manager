@@ -114,18 +114,6 @@ export function showSuccessToast(upload: uploadReducer.UploadEntry): void {
         },
       },
     });
-  } else if (upload.uploadType === "dropbox-publish") {
-    const missingCount = upload.missingVideoCount ?? 0;
-    if (missingCount > 0) {
-      toast.warning(
-        `"${upload.title}" published to Dropbox, but ${missingCount} video${missingCount === 1 ? " was" : "s were"} not exported`,
-        { duration: Infinity }
-      );
-    } else {
-      toast.success(`"${upload.title}" published to Dropbox`, {
-        duration: Infinity,
-      });
-    }
   } else if (upload.uploadType === "publish") {
     const newDraftVersionId = upload.newDraftVersionId;
     const courseId = upload.courseId;

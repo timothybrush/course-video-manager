@@ -119,7 +119,6 @@ describe("START_UPLOAD", () => {
       "ai-hero",
       "skills-changelog",
       "export",
-      "dropbox-publish",
       "publish",
     ];
 

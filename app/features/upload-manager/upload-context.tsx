@@ -57,7 +57,6 @@ export interface UploadContextType {
     versionId: string,
     includeTodoLessons: boolean
   ) => void;
-  startDropboxPublish: (repoId: string, repoName: string) => string;
   startPublish: (
     courseId: string,
     courseName: string,
@@ -434,38 +433,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const startDropboxPublish = useCallback(
-    (repoId: string, repoName: string) => {
-      const uploadId = generateUploadId();
-
-      const params = { repoId };
-      paramsMapRef.current.set(uploadId, {
-        type: "dropbox-publish",
-        params,
-      });
-
-      const action = {
-        type: "START_UPLOAD" as const,
-        uploadId,
-        videoId: "",
-        title: repoName,
-        uploadType: "dropbox-publish" as const,
-      };
-      dispatch(action);
-
-      initiateFromRegistry(
-        "dropbox-publish",
-        action,
-        params,
-        dispatch,
-        abortControllersRef.current
-      );
-
-      return uploadId;
-    },
-    []
-  );
-
   const startPublish = useCallback(
     (
       courseId: string,
@@ -580,7 +547,6 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         startExportUpload,
         startRenderVerticalUpload,
         startBatchExportUpload,
-        startDropboxPublish,
         startPublish,
         dismissUpload,
       }}

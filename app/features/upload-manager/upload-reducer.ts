@@ -10,7 +10,6 @@ export namespace uploadReducer {
     | "ai-hero"
     | "skills-changelog"
     | "export"
-    | "dropbox-publish"
     | "publish"
     | "render-vertical";
   export type BufferStage =
@@ -70,11 +69,6 @@ export namespace uploadReducer {
     isBatchEntry: boolean;
   }
 
-  export interface DropboxPublishUploadEntry extends BaseUploadEntry {
-    uploadType: "dropbox-publish";
-    missingVideoCount: number | null;
-  }
-
   export interface PublishUploadEntry extends BaseUploadEntry {
     uploadType: "publish";
     publishStage: PublishStage | null;
@@ -94,7 +88,6 @@ export namespace uploadReducer {
     | AiHeroUploadEntry
     | SkillsChangelogUploadEntry
     | ExportUploadEntry
-    | DropboxPublishUploadEntry
     | PublishUploadEntry
     | RenderVerticalUploadEntry;
 
@@ -135,11 +128,6 @@ export namespace uploadReducer {
     | { type: "UPLOAD_FATAL_ERROR"; uploadId: string; errorMessage: string }
     | { type: "RETRY"; uploadId: string }
     | { type: "DISMISS"; uploadId: string }
-    | {
-        type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT";
-        uploadId: string;
-        missingVideoCount: number;
-      }
     | {
         type: "UPDATE_PUBLISH_STAGE";
         uploadId: string;
@@ -252,22 +240,6 @@ export const uploadReducer = (
             ...upload,
             exportStage: action.stage,
             progress: stageProgress[action.stage],
-          },
-        },
-      };
-    }
-
-    case "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT": {
-      const upload = state.uploads[action.uploadId];
-      if (!upload || upload.uploadType !== "dropbox-publish") return state;
-
-      return {
-        ...state,
-        uploads: {
-          ...state.uploads,
-          [action.uploadId]: {
-            ...upload,
-            missingVideoCount: action.missingVideoCount,
           },
         },
       };

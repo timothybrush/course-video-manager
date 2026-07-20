@@ -451,73 +451,6 @@ const skillsChangelogConfig: UploadTypeConfig<
   supportsDependsOn: true,
 };
 
-export interface DropboxPublishParams {
-  repoId: string;
-}
-
-const dropboxPublishConfig: UploadTypeConfig<
-  DropboxPublishParams,
-  uploadReducer.DropboxPublishUploadEntry
-> = {
-  createEntry: (base) => ({
-    ...base,
-    uploadType: "dropbox-publish" as const,
-    missingVideoCount: null,
-  }),
-
-  resetEntry: (base) => ({
-    ...base,
-    uploadType: "dropbox-publish" as const,
-    missingVideoCount: null,
-  }),
-
-  applySuccess: (entry) => ({
-    ...entry,
-    status: "success" as const,
-    progress: 100,
-    errorMessage: null,
-    missingVideoCount: entry.missingVideoCount,
-  }),
-
-  initiate: (uploadId, _entry, params, dispatch, abortControllers) => {
-    withAbortManagement(uploadId, abortControllers, () =>
-      startSSEDropboxPublish(
-        { repoId: params.repoId },
-        {
-          onProgress: (percentage) => {
-            dispatch({
-              type: "UPDATE_PROGRESS",
-              uploadId,
-              progress: percentage,
-            });
-          },
-          onComplete: (missingVideoCount) => {
-            if (missingVideoCount > 0) {
-              dispatch({
-                type: "UPDATE_DROPBOX_PUBLISH_MISSING_COUNT",
-                uploadId,
-                missingVideoCount,
-              });
-            }
-            dispatch({ type: "UPLOAD_SUCCESS", uploadId });
-            abortControllers.delete(uploadId);
-          },
-          onError: (message) => {
-            dispatch({
-              type: "UPLOAD_ERROR",
-              uploadId,
-              errorMessage: message,
-            });
-            abortControllers.delete(uploadId);
-          },
-        }
-      )
-    );
-  },
-
-  supportsDependsOn: false,
-};
-
 export interface PublishParams {
   courseId: string;
   name: string;
@@ -708,7 +641,6 @@ export const uploadTypeRegistry: Record<
   buffer: bufferConfig,
   "ai-hero": aiHeroConfig,
   "skills-changelog": skillsChangelogConfig,
-  "dropbox-publish": dropboxPublishConfig,
   publish: publishConfig,
   "render-vertical": renderVerticalConfig,
 };
