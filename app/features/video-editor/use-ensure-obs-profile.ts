@@ -30,6 +30,7 @@ export function useEnsureOBSProfile(opts: {
     opts.ensureProfile(opts.targetProfile).then((result) => {
       if (result.type === "error") {
         opts.onError(result.message);
+        return;
       }
       setProfileReady(true);
     });

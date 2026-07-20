@@ -369,7 +369,6 @@ export const useOBSConnector = (props: {
   onClipAudioWindowClosed: () => void;
   silenceLength: SilenceLength;
   targetProfile: string;
-  onProfileError?: (message: string) => void;
 }) => {
   const [websocket] = useState(() => new OBSWebSocket());
 
@@ -481,7 +480,7 @@ export const useOBSConnector = (props: {
   const outerState = useMemo(() => innerToOuterState(state), [state]);
 
   const ensureProfileFn = useCallback(
-    (tp: string) => ensureOBSProfile(websocket, tp),
+    (targetProfile: string) => ensureOBSProfile(websocket, targetProfile),
     [websocket]
   );
 
@@ -489,10 +488,7 @@ export const useOBSConnector = (props: {
     obsState: outerState,
     targetProfile: props.targetProfile,
     ensureProfile: ensureProfileFn,
-    onError: (message) =>
-      props.onProfileError
-        ? props.onProfileError(message)
-        : console.error("[OBS profile switch]", message),
+    onError: (message) => console.error("[OBS profile switch]", message),
   });
 
   const mediaStream = useConnectToOBSVirtualCamera({
