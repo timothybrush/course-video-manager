@@ -332,11 +332,22 @@ export const ReferencePanel = (props: {
             >
               {group.clips.map((clip) => (
                 <ContextMenu key={clip.id}>
-                  <ContextMenuTrigger asChild>
-                    <p className="text-foreground/80 hover:text-foreground leading-snug text-sm cursor-context-menu">
-                      {clip.text}
-                    </p>
-                  </ContextMenuTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <ContextMenuTrigger asChild>
+                        <p className="text-foreground/80 hover:text-foreground leading-snug text-sm cursor-context-menu">
+                          {clip.text}
+                        </p>
+                      </ContextMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="p-1 w-auto">
+                      <img
+                        src={`/clips/${clip.id}/first-frame`}
+                        alt="First frame"
+                        className="rounded w-60 aspect-[16/9] object-cover bg-muted"
+                      />
+                    </TooltipContent>
+                  </Tooltip>
                   <ContextMenuContent>
                     <ContextMenuItem
                       onSelect={() =>
