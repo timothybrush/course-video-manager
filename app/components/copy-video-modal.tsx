@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useVideoCopyOptions } from "@/features/video-editor/hooks/use-video-copy-options";
 import { Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useFetcher } from "react-router";
 
 export function CopyVideoModal(props: {
@@ -37,6 +37,12 @@ export function CopyVideoModal(props: {
   copyClipsRef.current = copyClipsChecked;
   const copyBeatsRef = useRef(copyBeatsChecked);
   copyBeatsRef.current = copyBeatsChecked;
+
+  const [renameOld, setRenameOld] = useState(options.renameOld);
+  const [nameEdited, setNameEdited] = useState(false);
+  const defaultName = renameOld
+    ? props.videoTitle
+    : `${props.videoTitle} (copy)`;
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -65,6 +71,7 @@ export function CopyVideoModal(props: {
             setOptions({
               copyClips: newCopyClips,
               copyBeats: newCopyBeats,
+              renameOld: formData.get("renameOld") === "on",
             });
 
             await fetcher.submit(e.currentTarget);
@@ -80,12 +87,29 @@ export function CopyVideoModal(props: {
             <Input
               id="copy-video-name"
               name="name"
-              defaultValue={`${props.videoTitle} (copy)`}
+              key={nameEdited ? "edited" : defaultName}
+              defaultValue={defaultName}
+              onChange={() => setNameEdited(true)}
               required
             />
           </div>
 
           <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="rename-old"
+                name="renameOld"
+                checked={renameOld}
+                onCheckedChange={(checked) => {
+                  setRenameOld(checked === true);
+                  setNameEdited(false);
+                }}
+              />
+              <Label htmlFor="rename-old">
+                Rename old video to &ldquo;(old)&rdquo;
+              </Label>
+            </div>
+
             <div className="flex items-center gap-2">
               <Checkbox
                 id="copy-clips"

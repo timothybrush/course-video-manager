@@ -403,6 +403,7 @@ export const createVideoOperations = (
     newTitle: string;
     copyClips: boolean;
     copyBeats: boolean;
+    renameOld: boolean;
   }) {
     return yield* copyVideoImpl(db, opts);
   });
