@@ -12,13 +12,11 @@ export function BeatTitleEditor({
   placeholder,
   isReadOnly,
   onSave,
-  className,
 }: {
   title: string;
   placeholder: string;
   isReadOnly: boolean;
   onSave: (title: string) => void;
-  className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -58,8 +56,7 @@ export function BeatTitleEditor({
       className={cn(
         "truncate",
         !title.trim() && "italic text-muted-foreground",
-        !isReadOnly && "cursor-text hover:underline",
-        className
+        !isReadOnly && "cursor-text hover:underline"
       )}
       onClick={(e) => {
         e.stopPropagation();
