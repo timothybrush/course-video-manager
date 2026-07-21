@@ -28,11 +28,11 @@ export const copyVideoImpl = (
     newTitle: string;
     copyClips: boolean;
     copyBeats: boolean;
-    archiveOld: boolean;
+    renameOld: boolean;
   }
 ): Effect.Effect<string, NotFoundError | UnknownDBServiceError> =>
   Effect.gen(function* () {
-    const { sourceVideoId, newTitle, copyClips, copyBeats, archiveOld } = opts;
+    const { sourceVideoId, newTitle, copyClips, copyBeats, renameOld } = opts;
 
     // Load source video outside the transaction so we can surface NotFoundError
     // before opening a transaction.
@@ -75,12 +75,11 @@ export const copyVideoImpl = (
           throw new Error("No video returned after insert");
         }
 
-        if (archiveOld) {
+        if (renameOld) {
           await tx
             .update(videos)
             .set({
               title: `${sourceVideo.title} (old)`,
-              archived: true,
               updatedAt: now,
             })
             .where(eq(videos.id, sourceVideoId));

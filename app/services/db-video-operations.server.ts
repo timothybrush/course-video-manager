@@ -403,7 +403,7 @@ export const createVideoOperations = (
     newTitle: string;
     copyClips: boolean;
     copyBeats: boolean;
-    archiveOld: boolean;
+    renameOld: boolean;
   }) {
     return yield* copyVideoImpl(db, opts);
   });

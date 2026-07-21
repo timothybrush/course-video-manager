@@ -44,8 +44,8 @@ const db = () => testDb as unknown as Database;
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 
-describe("copyVideoImpl — archiveOld", () => {
-  it("renames the source video to '<title> (old)' and archives it", async () => {
+describe("copyVideoImpl — renameOld", () => {
+  it("renames the source video to '<title> (old)' without archiving it", async () => {
     const source = await createVideo({ title: "problem" });
 
     const newVideoId = await run(
@@ -54,23 +54,22 @@ describe("copyVideoImpl — archiveOld", () => {
         newTitle: "problem",
         copyClips: false,
         copyBeats: false,
-        archiveOld: true,
+        renameOld: true,
       })
     );
 
     const oldVideo = await getVideo(source.id);
     expect(oldVideo!.title).toBe("problem (old)");
-    expect(oldVideo!.archived).toBe(true);
+    expect(oldVideo!.archived).toBe(false);
 
     const newVideo = await getVideo(newVideoId);
     expect(newVideo!.title).toBe("problem");
     expect(newVideo!.archived).toBe(false);
   });
 
-  it("archives an already-archived source without double-suffixing the title", async () => {
+  it("appends (old) suffix even when source already has it", async () => {
     const source = await createVideo({
       title: "problem (old)",
-      archived: true,
     });
 
     const newVideoId = await run(
@@ -79,19 +78,18 @@ describe("copyVideoImpl — archiveOld", () => {
         newTitle: "problem",
         copyClips: false,
         copyBeats: false,
-        archiveOld: true,
+        renameOld: true,
       })
     );
 
     const oldVideo = await getVideo(source.id);
     expect(oldVideo!.title).toBe("problem (old) (old)");
-    expect(oldVideo!.archived).toBe(true);
 
     const newVideo = await getVideo(newVideoId);
     expect(newVideo!.title).toBe("problem");
   });
 
-  it("does not rename or archive the source when archiveOld is false", async () => {
+  it("does not rename the source when renameOld is false", async () => {
     const source = await createVideo({ title: "problem" });
 
     await run(
@@ -100,12 +98,11 @@ describe("copyVideoImpl — archiveOld", () => {
         newTitle: "problem (copy)",
         copyClips: false,
         copyBeats: false,
-        archiveOld: false,
+        renameOld: false,
       })
     );
 
     const oldVideo = await getVideo(source.id);
     expect(oldVideo!.title).toBe("problem");
-    expect(oldVideo!.archived).toBe(false);
   });
 });

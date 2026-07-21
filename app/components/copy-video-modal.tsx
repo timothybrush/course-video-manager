@@ -38,9 +38,9 @@ export function CopyVideoModal(props: {
   const copyBeatsRef = useRef(copyBeatsChecked);
   copyBeatsRef.current = copyBeatsChecked;
 
-  const [archiveOld, setArchiveOld] = useState(options.archiveOld);
+  const [renameOld, setRenameOld] = useState(options.renameOld);
   const [nameEdited, setNameEdited] = useState(false);
-  const defaultName = archiveOld
+  const defaultName = renameOld
     ? props.videoTitle
     : `${props.videoTitle} (copy)`;
 
@@ -71,7 +71,7 @@ export function CopyVideoModal(props: {
             setOptions({
               copyClips: newCopyClips,
               copyBeats: newCopyBeats,
-              archiveOld: formData.get("archiveOld") === "on",
+              renameOld: formData.get("renameOld") === "on",
             });
 
             await fetcher.submit(e.currentTarget);
@@ -97,16 +97,16 @@ export function CopyVideoModal(props: {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Checkbox
-                id="archive-old"
-                name="archiveOld"
-                checked={archiveOld}
+                id="rename-old"
+                name="renameOld"
+                checked={renameOld}
                 onCheckedChange={(checked) => {
-                  setArchiveOld(checked === true);
+                  setRenameOld(checked === true);
                   setNameEdited(false);
                 }}
               />
-              <Label htmlFor="archive-old">
-                Rename old video to &ldquo;(old)&rdquo; and archive it
+              <Label htmlFor="rename-old">
+                Rename old video to &ldquo;(old)&rdquo;
               </Label>
             </div>
 
