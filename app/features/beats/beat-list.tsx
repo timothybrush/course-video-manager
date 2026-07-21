@@ -206,14 +206,7 @@ function BeatRow({
         onClick={(e) => e.stopPropagation()}
         className="shrink-0"
       />
-      {Icon && (
-        <Icon
-          className={cn(
-            "w-3.5 h-3.5 shrink-0 text-muted-foreground",
-            completed && "opacity-40"
-          )}
-        />
-      )}
+      {Icon && <Icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
       <BeatTitleEditor
         title={beat.title}
         placeholder={BEAT_KIND_LABELS[kind]}
@@ -221,7 +214,6 @@ function BeatRow({
         onSave={(title) =>
           submitEvent({ type: "rename-beat", beatId: beat.id, title })
         }
-        className={completed ? "line-through opacity-40" : undefined}
       />
     </div>
   );
