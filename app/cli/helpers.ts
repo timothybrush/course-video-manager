@@ -255,5 +255,5 @@ export {
   parseError,
   dbError,
 } from "./errors";
-export type { CliError } from "./errors";
+export type { CliError, ParseError } from "./errors";
 export { CliOutput } from "./output";

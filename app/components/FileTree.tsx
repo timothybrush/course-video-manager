@@ -5,7 +5,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Trash2Icon } from "lucide-react";
+import { Edit2Icon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 
 type FileMetadata = {
@@ -102,6 +102,7 @@ type FileTreeNodeProps = {
   enabledFiles: Set<string>;
   onToggle: (paths: string[], enabled: boolean) => void;
   onFileClick?: (filePath: string) => void;
+  onEditFile?: (filePath: string) => void;
   onDeleteFile?: (filePath: string) => void;
   depth: number;
   disabled?: boolean;
@@ -112,6 +113,7 @@ const FileTreeNode = ({
   enabledFiles,
   onToggle,
   onFileClick,
+  onEditFile,
   onDeleteFile,
   depth,
   disabled,
@@ -143,6 +145,16 @@ const FileTreeNode = ({
           <span className="text-xs text-muted-foreground flex-shrink-0">
             ({formatFileSize(node.size)})
           </span>
+        )}
+        {onEditFile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            onClick={() => onEditFile(node.path)}
+          >
+            <Edit2Icon className="h-3 w-3" />
+          </Button>
         )}
         {onDeleteFile && (
           <Button
@@ -200,6 +212,7 @@ const FileTreeNode = ({
             enabledFiles={enabledFiles}
             onToggle={onToggle}
             onFileClick={onFileClick}
+            onEditFile={onEditFile}
             onDeleteFile={onDeleteFile}
             depth={depth + 1}
             disabled={disabled}
@@ -215,6 +228,7 @@ type FileTreeProps = {
   enabledFiles: Set<string>;
   onEnabledFilesChange: (enabledFiles: Set<string>) => void;
   onFileClick?: (filePath: string) => void;
+  onEditFile?: (filePath: string) => void;
   onDeleteFile?: (filePath: string) => void;
   disabled?: boolean;
 };
@@ -224,6 +238,7 @@ export const FileTree = ({
   enabledFiles,
   onEnabledFilesChange,
   onFileClick,
+  onEditFile,
   onDeleteFile,
   disabled,
 }: FileTreeProps) => {
@@ -252,6 +267,7 @@ export const FileTree = ({
           enabledFiles={enabledFiles}
           onToggle={handleToggle}
           onFileClick={onFileClick}
+          onEditFile={onEditFile}
           onDeleteFile={onDeleteFile}
           depth={0}
           disabled={disabled}

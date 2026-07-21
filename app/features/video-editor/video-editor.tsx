@@ -583,7 +583,6 @@ export const VideoEditor = (props: {
       <Suspense>
         <FilePasteModalWithFsData
           fsData={props.fsData}
-          lessonId={props.lessonId}
           videoId={props.videoId}
           isPasteModalOpen={isPasteModalOpen}
           handlePasteModalClose={handlePasteModalClose}

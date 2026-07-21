@@ -11,31 +11,31 @@ import { Loader2, ClipboardIcon } from "lucide-react";
 import { useFetcher } from "react-router";
 import { useEffect, useState, useRef } from "react";
 
-export function StandaloneFilePasteModal(props: {
+export function VideoFilePasteModal(props: {
   videoId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingFiles: Array<{ path: string }>;
-  onFileCreated?: (filename: string) => void;
+  onFileCreated?: (path: string) => void;
   defaultTextFilename?: string;
 }) {
-  const fetcher = useFetcher<{ success: boolean; filename: string }>();
-  const [filename, setFilename] = useState("");
+  const fetcher = useFetcher<{ success: boolean; path: string }>();
+  const [path, setPath] = useState("");
   const [pastedContent, setPastedContent] = useState<{
     type: "text" | "image";
     data: string;
   } | null>(null);
   const pasteAreaRef = useRef<HTMLDivElement>(null);
-  const filenameInputRef = useRef<HTMLInputElement>(null);
+  const pathInputRef = useRef<HTMLInputElement>(null);
 
-  // Generate smart sequential filename based on existing files
-  const generateFilename = (type: "text" | "image"): string => {
-    const existingFilenames = props.existingFiles.map((f) => f.path);
+  // Generate smart sequential path based on existing files
+  const generatePath = (type: "text" | "image"): string => {
+    const existingPaths = props.existingFiles.map((f) => f.path);
 
     if (type === "image") {
       // For images: diagram-1.png, diagram-2.png, etc.
       let counter = 1;
-      while (existingFilenames.includes(`diagram-${counter}.png`)) {
+      while (existingPaths.includes(`diagram-${counter}.png`)) {
         counter++;
       }
       return `diagram-${counter}.png`;
@@ -43,11 +43,11 @@ export function StandaloneFilePasteModal(props: {
       const baseName = props.defaultTextFilename || "notes.md";
       const ext = baseName.endsWith(".md") ? ".md" : "";
       const stem = ext ? baseName.slice(0, -ext.length) : baseName;
-      if (!existingFilenames.includes(baseName)) {
+      if (!existingPaths.includes(baseName)) {
         return baseName;
       }
       let counter = 1;
-      while (existingFilenames.includes(`${stem}-${counter}${ext}`)) {
+      while (existingPaths.includes(`${stem}-${counter}${ext}`)) {
         counter++;
       }
       return `${stem}-${counter}${ext}`;
@@ -57,7 +57,7 @@ export function StandaloneFilePasteModal(props: {
   // Reset form when modal opens
   useEffect(() => {
     if (props.open) {
-      setFilename("");
+      setPath("");
       setPastedContent(null);
       // Focus the paste area when modal opens
       setTimeout(() => {
@@ -66,15 +66,15 @@ export function StandaloneFilePasteModal(props: {
     }
   }, [props.open]);
 
-  // Auto-generate filename when content is pasted and focus filename input
+  // Auto-generate path when content is pasted and focus the path input
   useEffect(() => {
     if (pastedContent) {
-      const generatedFilename = generateFilename(pastedContent.type);
-      setFilename(generatedFilename);
-      // Focus the filename input after a short delay to ensure it's rendered
+      const generatedPath = generatePath(pastedContent.type);
+      setPath(generatedPath);
+      // Focus the path input after a short delay to ensure it's rendered
       setTimeout(() => {
-        filenameInputRef.current?.focus();
-        filenameInputRef.current?.select();
+        pathInputRef.current?.focus();
+        pathInputRef.current?.select();
       }, 100);
     }
   }, [pastedContent]);
@@ -82,9 +82,9 @@ export function StandaloneFilePasteModal(props: {
   // Handle successful file creation
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.success) {
-      const createdFilename = fetcher.data.filename;
+      const createdPath = fetcher.data.path;
       props.onOpenChange(false);
-      props.onFileCreated?.(createdFilename);
+      props.onFileCreated?.(createdPath);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -130,25 +130,18 @@ export function StandaloneFilePasteModal(props: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!pastedContent || !filename) {
+    if (!pastedContent || !path) {
       return;
     }
 
     const formData = new FormData();
     formData.append("videoId", props.videoId);
-    formData.append("filename", filename);
-
-    if (pastedContent.type === "text") {
-      formData.append("content", pastedContent.data);
-    } else {
-      // For images, we'll need to convert base64 to file
-      // This will be implemented in a later task
-      formData.append("content", pastedContent.data);
-    }
+    formData.append("path", path);
+    formData.append("content", pastedContent.data);
 
     fetcher.submit(formData, {
       method: "post",
-      action: "/api/standalone-files/create",
+      action: "/api/video-files/create",
       encType: "multipart/form-data",
     });
   };
@@ -205,13 +198,13 @@ export function StandaloneFilePasteModal(props: {
                 </Button>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="filename">Filename</Label>
+                <Label htmlFor="path">Path</Label>
                 <Input
-                  ref={filenameInputRef}
-                  id="filename"
-                  name="filename"
-                  value={filename}
-                  onChange={(e) => setFilename(e.target.value)}
+                  ref={pathInputRef}
+                  id="path"
+                  name="path"
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
                   required
                 />
               </div>
@@ -228,7 +221,7 @@ export function StandaloneFilePasteModal(props: {
             {pastedContent && (
               <Button
                 type="submit"
-                disabled={!filename || fetcher.state === "submitting"}
+                disabled={!path || fetcher.state === "submitting"}
               >
                 {fetcher.state === "submitting" ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

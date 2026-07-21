@@ -6,6 +6,7 @@ import { lessonCommand } from "./commands/lesson";
 import { videoCommand } from "./commands/video";
 import { clipCommand } from "./commands/clip";
 import { beatCommand } from "./commands/beat";
+import { fileCommand } from "./commands/file";
 import { pitchCommand } from "./commands/pitch";
 import { deliverableCommand } from "./commands/deliverable";
 import { searchCommand } from "./commands/search";
@@ -20,7 +21,8 @@ const ROOT_HELP = `cvm — agent-facing access to this Course Video Manager proj
 
 Read-mostly: most verbs are READS. A growing set of nouns has WRITE verbs —
 'beat' (add/update/move/delete), 'lesson' (create/update/move), 'video'
-(create/move/update), 'pitch' (create/update) and 'course' (publish). Every
+(create/move/update), 'file' (add/delete), 'pitch' (create/update) and 'course'
+(publish). Every
 other verb is read-only, and each verb's own --help is authoritative about
 whether it reads or writes.
 
@@ -65,6 +67,10 @@ WRITES
                                      or reorder / re-home it
     video   create/move/update       create a Video, re-home it to a lesson/
                                      pitch, or rename it (--name)
+    file    add/delete               attach scratch files to a Video (writer
+                                     context); delete is a real unlink, and
+                                     these are the only writes that do NOT
+                                     need the CVM server running
     pitch   create/update            create a Pitch (--title required) or patch
                                      its copy/ranking fields
     course  publish                  mirror the Draft Version to Dropbox and
@@ -76,7 +82,7 @@ WRITES
   (Dropbox) and reads publish-only config from the repo .env.
 
 NOUNS
-  course version section lesson video clip beat pitch deliverable
+  course version section lesson video clip beat file pitch deliverable
 
 SEARCH
   search <query>   Case-insensitive substring search DOWN THE TREE across every
@@ -99,6 +105,7 @@ export const rootCommand = Command.make("cvm").pipe(
     videoCommand,
     clipCommand,
     beatCommand,
+    fileCommand,
     pitchCommand,
     deliverableCommand,
     searchCommand,

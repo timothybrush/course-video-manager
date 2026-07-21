@@ -1,4 +1,7 @@
 import { Effect, Layer } from "effect";
+import nodeFs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
 import { DrizzleService } from "@/services/drizzle-service.server";
 import { CourseOperationsService } from "@/services/db-course-operations.server";
 import { VersionOperationsService } from "@/services/db-version-operations.server";
@@ -75,11 +78,41 @@ export const ndjson = (stdout: string): unknown[] =>
 export const one = <T = Record<string, unknown>>(stdout: string): T =>
   JSON.parse(stdout) as T;
 
+/**
+ * Point VIDEO_FILES_DIR at a fresh temp directory for the duration of a suite.
+ *
+ * `buildProgram` provides the REAL FileSystem, so without this any test that
+ * exercises `cvm file` would write into the repo's own ./video-files.
+ */
+export const makeTempVideoFilesDir = (): {
+  readonly dir: string;
+  readonly cleanup: () => void;
+} => {
+  const previous = process.env.VIDEO_FILES_DIR;
+  const dir = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "cvm-video-files-"));
+  process.env.VIDEO_FILES_DIR = dir;
+
+  return {
+    dir,
+    cleanup: () => {
+      nodeFs.rmSync(dir, { recursive: true, force: true });
+      if (previous === undefined) {
+        delete process.env.VIDEO_FILES_DIR;
+      } else {
+        process.env.VIDEO_FILES_DIR = previous;
+      }
+    },
+  };
+};
+
 export interface WriteSeed {
   draftSectionId: string;
   lessonId: string;
   lessonVideoId: string;
+  lessonVideoLineageId: string;
   standaloneActiveId: string;
+  standaloneActiveLineageId: string;
+  standaloneArchivedId: string;
   pitchActiveId: string;
   pitchArchivedId: string;
 }
@@ -127,6 +160,14 @@ export const seedWrite = async (db: TestDb): Promise<WriteSeed> => {
     .insert(schema.videos)
     .values({ title: "standalone-active.mp4", originalFootagePath: "f.mp4" })
     .returning();
+  const [standaloneArchived] = await db
+    .insert(schema.videos)
+    .values({
+      title: "standalone-archived.mp4",
+      originalFootagePath: "f.mp4",
+      archived: true,
+    })
+    .returning();
   const [pitchActive] = await db
     .insert(schema.pitches)
     .values({ title: "Active pitch" })
@@ -140,7 +181,10 @@ export const seedWrite = async (db: TestDb): Promise<WriteSeed> => {
     draftSectionId: draftSection!.id,
     lessonId: lesson!.id,
     lessonVideoId: lessonVideo!.id,
+    lessonVideoLineageId: lessonVideo!.lineageId,
     standaloneActiveId: standaloneActive!.id,
+    standaloneActiveLineageId: standaloneActive!.lineageId,
+    standaloneArchivedId: standaloneArchived!.id,
     pitchActiveId: pitchActive!.id,
     pitchArchivedId: pitchArchived!.id,
   };

@@ -68,12 +68,12 @@ export type SuggestionsPanelProps = {
   clips: Clip[];
   insertionPoint: FrontendInsertionPoint;
   files: FileMetadata[];
-  isStandalone: boolean;
   onSuggestionStateChange?: (state: SuggestionState) => void;
 };
 
 const SUGGESTIONS_ENABLED_KEY = "suggestions-enabled";
-const SUGGESTIONS_ENABLED_FILES_KEY = "suggestions-enabled-files";
+// -v2: stored bare filenames no longer match now that paths are relative.
+const SUGGESTIONS_ENABLED_FILES_KEY = "suggestions-enabled-files-v2";
 
 export function SuggestionsPanel(props: SuggestionsPanelProps) {
   const [enabled, setEnabled] = useState(() => {
@@ -231,7 +231,6 @@ export function SuggestionsPanel(props: SuggestionsPanelProps) {
         onClose={() => setIsPreviewModalOpen(false)}
         videoId={props.videoId}
         filePath={previewFilePath}
-        isStandalone={props.isStandalone}
       />
     </div>
   );

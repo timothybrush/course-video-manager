@@ -38,12 +38,10 @@ export const handle = { fullscreen: true, hideParentHeader: true };
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import { getBackButtonUrl } from "@/features/video-editor/video-editor-selectors";
 import type { loader as parentLoader } from "./_app.videos.$videoId";
-import { getVideoFilePath } from "@/services/video-files";
-import { Array as EffectArray } from "effect";
+import { getVideoFilePath, listVideoFiles } from "@/services/video-files";
 import { sortByOrder } from "@/lib/sort-by-order";
 import { createHttpClipService } from "@/services/clip-service";
 import path from "node:path";
-import { DEFAULT_CHECKED_EXTENSIONS } from "@/services/text-writing-agent";
 
 export type FileMetadata = {
   path: string;
@@ -61,37 +59,12 @@ const loadVideoEditorFsData = (opts: { lineageId: string }) =>
       fs.exists(videoDir),
     ]);
 
-    let standaloneFiles: Array<{ path: string }> = [];
-    let files: FileMetadata[] = [];
-
-    if (dirExists) {
-      const filesInDirectory = yield* fs.readDirectory(videoDir);
-      standaloneFiles = yield* Effect.forEach(
-        filesInDirectory,
-        (filename) =>
-          Effect.gen(function* () {
-            const filePath = getVideoFilePath(opts.lineageId, filename);
-            const stat = yield* fs.stat(filePath);
-            return stat.type !== "File" ? null : { path: filename };
-          }),
-        { concurrency: "unbounded" }
-      ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
-
-      files = yield* Effect.forEach(
-        filesInDirectory,
-        (filename) =>
-          Effect.gen(function* () {
-            const filePath = getVideoFilePath(opts.lineageId, filename);
-            const stat = yield* fs.stat(filePath);
-            if (stat.type !== "File") return null;
-            const extension = path.extname(filename).slice(1);
-            const defaultEnabled =
-              DEFAULT_CHECKED_EXTENSIONS.includes(extension);
-            return { path: filename, size: Number(stat.size), defaultEnabled };
-          }),
-        { concurrency: "unbounded" }
-      ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
-    }
+    const files: FileMetadata[] = dirExists
+      ? yield* listVideoFiles(opts.lineageId)
+      : [];
+    const standaloneFiles: Array<{ path: string }> = files.map((f) => ({
+      path: f.path,
+    }));
 
     return { hasExplainerFolder, standaloneFiles, files };
   });

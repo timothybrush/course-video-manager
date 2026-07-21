@@ -125,12 +125,11 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
     isCopied,
     isAddVideoToNextLessonModalOpen,
     isFileModalOpen,
-    selectedFilename,
+    selectedFilePath,
     selectedFileContent,
     isPasteModalOpen,
     isDeleteModalOpen,
     fileToDelete,
-    isLessonPasteModalOpen,
     isPreviewModalOpen,
     previewFilePath,
     isBannedPhrasesModalOpen,
@@ -462,7 +461,6 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
   } = useVideoContextHandlers({
     videoId,
     transcript,
-    isStandalone,
     openFolderFetcher,
     deleteLinkFetcher,
     dispatch,
@@ -601,7 +599,6 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
           includeCourseStructure={includeCourseStructure}
           onIncludeCourseStructureChange={handleIncludeCourseStructureChange}
           files={files}
-          isStandalone={isStandalone}
           enabledFiles={enabledFiles}
           onEnabledFilesChange={(files: Set<string>) =>
             dispatch({ type: "set-enabled-files", files })
@@ -661,10 +658,9 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
       </div>
       <WriteModals
         videoId={videoId}
-        isStandalone={isStandalone}
         defaultTextFilename={`${mode}.md`}
         files={files}
-        selectedFilename={selectedFilename}
+        selectedFilePath={selectedFilePath}
         selectedFileContent={selectedFileContent}
         isFileModalOpen={isFileModalOpen}
         onFileModalClose={(open) => {
@@ -672,7 +668,7 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
             open
               ? {
                   type: "open-file-modal",
-                  filename: selectedFilename,
+                  path: selectedFilePath,
                   content: selectedFileContent,
                 }
               : { type: "close-file-modal" }
@@ -684,27 +680,17 @@ export function WritePage({ videoId, loaderData }: WritePageProps) {
           dispatch({ type: "set-paste-modal-open", value: open });
           if (!open) revalidator.revalidate();
         }}
-        onStandaloneFileCreated={(filename) =>
-          dispatch({ type: "add-enabled-file", filename })
-        }
+        onFileCreated={(path) => dispatch({ type: "add-enabled-file", path })}
         isDeleteModalOpen={isDeleteModalOpen}
         fileToDelete={fileToDelete}
         onDeleteModalClose={(open) => {
           dispatch(
             open
-              ? { type: "open-delete-modal", filename: fileToDelete }
+              ? { type: "open-delete-modal", path: fileToDelete }
               : { type: "close-delete-modal" }
           );
           if (!open) revalidator.revalidate();
         }}
-        isLessonPasteModalOpen={isLessonPasteModalOpen}
-        onLessonPasteModalClose={(open) => {
-          dispatch({ type: "set-lesson-paste-modal-open", value: open });
-          if (!open) revalidator.revalidate();
-        }}
-        onLessonFileCreated={(filename) =>
-          dispatch({ type: "add-enabled-file", filename })
-        }
         isPreviewModalOpen={isPreviewModalOpen}
         previewFilePath={previewFilePath}
         onPreviewModalClose={() => dispatch({ type: "close-preview-modal" })}

@@ -98,6 +98,10 @@ _Avoid_: Link (reserved for the global reference-URL list), Clip URL, On-screen 
 The ordered text projection of a **Video** — its **Clips** and **Chapters** interleaved in timeline order. The unit of comparison for changelog diffs. Changes to either Clips or Chapters are first-class changes to the Transcript: a Chapter rename, insertion, deletion, or reorder is a Transcript change in the same sense that editing a Clip's text is. Rendered with each Chapter as a `## <name>` header between paragraphs of clip text.
 _Avoid_: Clip text (only covers Clips), Joined clips, Caption (reserved for the per-clip transcription product)
 
+**Video File**:
+A plain file on disk attached to a **Video**, living under the video's own directory (`{VIDEO_FILES_DIR}/{lineageId}/`) and addressed by a path _relative_ to it. Not a database row in any sense — the directory listing **is** the state, so attaching a file is the whole operation and deleting one is a real unlink (there is no `archived` flag and no restore). Belongs to the **Video**, never to the **Lesson**: lesson-bound and **Standalone Videos** behave identically. Its purpose is **writer context** — the Article Writer is fed a Video's **Transcript**, its **Beats**, and its text Video Files, so a Video File is how material that was never said on camera (a code sample, research notes, a snippet from a chat log) reaches the article. Files whose extension is one of `ts/tsx/js/jsx/json/md/mdx/txt/csv` are ticked by default in the writer's context picker (`defaultEnabled`); others are attached but start unticked, and images are passed to the writer as images. May be nested in subdirectories; dotfiles and `node_modules` are ignored. Managed from the editor UI or with `cvm file`.
+_Avoid_: Attachment, Asset (reserved for exported/published artifacts), Standalone file / Lesson file (the old UI-era split, now one concept)
+
 ### Video planning
 
 **Beat**:
