@@ -21,6 +21,39 @@ const makeDbCall = <T>(fn: () => Promise<T>) =>
     catch: (e) => new UnknownDBServiceError({ cause: e }),
   });
 
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * Returns a title no other non-archived video in the lesson is using, appending
+ * " (2)", " (3)" … until one is free.
+ *
+ * Videos with no lesson aren't covered by video_lesson_title_uniq, so any title
+ * works there.
+ */
+const freeTitleInLesson = async (
+  tx: Tx,
+  lessonId: string | null,
+  desiredTitle: string,
+  excludeVideoId: string
+) => {
+  if (!lessonId) return desiredTitle;
+
+  const siblings = await tx.query.videos.findMany({
+    where: and(eq(videos.lessonId, lessonId), eq(videos.archived, false)),
+    columns: { id: true, title: true },
+  });
+
+  const taken = new Set(
+    siblings.filter((v) => v.id !== excludeVideoId).map((v) => v.title)
+  );
+
+  if (!taken.has(desiredTitle)) return desiredTitle;
+
+  let suffix = 2;
+  while (taken.has(`${desiredTitle} (${suffix})`)) suffix++;
+  return `${desiredTitle} (${suffix})`;
+};
+
 export const copyVideoImpl = (
   db: Database,
   opts: {
@@ -55,6 +88,24 @@ export const copyVideoImpl = (
       db.transaction(async (tx) => {
         const now = new Date();
 
+        // Rename the source before inserting: the new video normally reuses the
+        // source's exact title, and video_lesson_title_uniq — unique on
+        // (lesson_id, title) for non-archived rows — rejects the insert while
+        // the old row still holds that title.
+        if (renameOld) {
+          const oldTitle = await freeTitleInLesson(
+            tx,
+            sourceVideo.lessonId,
+            `${sourceVideo.title} (old)`,
+            sourceVideoId
+          );
+
+          await tx
+            .update(videos)
+            .set({ title: oldTitle, updatedAt: now })
+            .where(eq(videos.id, sourceVideoId));
+        }
+
         // Insert new video row
         const newVideoRows = await tx
           .insert(videos)
@@ -73,16 +124,6 @@ export const copyVideoImpl = (
         const newVideo = newVideoRows[0];
         if (!newVideo) {
           throw new Error("No video returned after insert");
-        }
-
-        if (renameOld) {
-          await tx
-            .update(videos)
-            .set({
-              title: `${sourceVideo.title} (old)`,
-              updatedAt: now,
-            })
-            .where(eq(videos.id, sourceVideoId));
         }
 
         if (copyClips) {
