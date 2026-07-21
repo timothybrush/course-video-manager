@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useLocalStorageBoolean } from "@/hooks/use-local-storage";
 import { cn } from "@/lib/utils";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { Plus } from "lucide-react";
@@ -192,10 +194,26 @@ function BeatRow({
   const kind = beat.kind as BeatKind;
   const Icon = BEAT_KIND_ICONS[kind];
   const requestCreateBeat = useRequestCreateBeat();
+  const [completed, setCompleted] = useLocalStorageBoolean(
+    `beat-completion:${beat.id}`
+  );
 
   const titleRow = (
     <div className="flex items-center gap-1.5 text-sm text-foreground/80 cursor-context-menu">
-      {Icon && <Icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+      <Checkbox
+        checked={completed}
+        onCheckedChange={(checked) => setCompleted(checked === true)}
+        onClick={(e) => e.stopPropagation()}
+        className="shrink-0"
+      />
+      {Icon && (
+        <Icon
+          className={cn(
+            "w-3.5 h-3.5 shrink-0 text-muted-foreground",
+            completed && "opacity-40"
+          )}
+        />
+      )}
       <BeatTitleEditor
         title={beat.title}
         placeholder={BEAT_KIND_LABELS[kind]}
@@ -203,6 +221,7 @@ function BeatRow({
         onSave={(title) =>
           submitEvent({ type: "rename-beat", beatId: beat.id, title })
         }
+        className={completed ? "line-through opacity-40" : undefined}
       />
     </div>
   );
