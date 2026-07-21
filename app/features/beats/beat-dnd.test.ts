@@ -91,11 +91,8 @@ describe("computeBeatDrop", () => {
     });
   });
 
-  it("is a no-op when dragging upward to the immediately-preceding beat", () => {
-    // 'b' dragged onto 'a' means "before a", but b is already right after a.
-    // Wait — that IS a move: [a,b,c] → [b,a,c]. Only same-position is a no-op.
-    // Actually: overId='a', upward drag, beforeBeatId stays 'a'. beat after b
-    // in original is 'c', not 'a', so it's NOT a no-op → returns a drop.
+  it("reorders upward to the immediately-preceding beat", () => {
+    // 'b' onto 'a' → [a,b,c] becomes [b,a,c]; not a no-op.
     expect(computeBeatDrop({ activeId: "b", overId: "a", videos })).toEqual({
       beatId: "b",
       targetVideoId: "v1",
