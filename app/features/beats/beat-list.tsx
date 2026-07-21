@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useLocalStorageBoolean } from "@/hooks/use-local-storage";
 import { cn } from "@/lib/utils";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import { Plus } from "lucide-react";
@@ -31,7 +32,6 @@ import { BeatContextMenuContent } from "./beat-menu-items";
 import { BeatDescriptionEditor } from "./beat-description-editor";
 import { useShowBeatDescriptions } from "./beat-descriptions-context";
 import { BeatTitleEditor } from "./beat-title-editor";
-import { useBeatCompletion } from "./use-beat-completion";
 
 /**
  * The shape every surface's Beat rows agree on. A loosened `kind: string`
@@ -194,13 +194,15 @@ function BeatRow({
   const kind = beat.kind as BeatKind;
   const Icon = BEAT_KIND_ICONS[kind];
   const requestCreateBeat = useRequestCreateBeat();
-  const [completed, toggleCompleted] = useBeatCompletion(beat.id);
+  const [completed, setCompleted] = useLocalStorageBoolean(
+    `beat-completion:${beat.id}`
+  );
 
   const titleRow = (
     <div className="flex items-center gap-1.5 text-sm text-foreground/80 cursor-context-menu">
       <Checkbox
         checked={completed}
-        onCheckedChange={toggleCompleted}
+        onCheckedChange={(checked) => setCompleted(checked === true)}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0"
       />
