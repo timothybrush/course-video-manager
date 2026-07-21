@@ -70,18 +70,27 @@ export function computeBeatDrop({
   const targetVideo = videos.find((v) => v.id === targetVideoId);
   if (!targetVideo) return null;
 
-  // Order of the target as it would look without the dragged beat.
-  const remaining = targetVideo.beats
-    .map((s) => s.id)
-    .filter((id) => id !== activeId);
+  // For within-video moves, dnd-kit's SortableContext visually swaps items
+  // during a drag but reports overId as the item the pointer crossed. A
+  // downward drag past beat X means "place AFTER X", not "before X", so
+  // adjust beforeBeatId to the next sibling in the remaining list.
+  if (sourceVideoId === targetVideoId && beforeBeatId !== null) {
+    const activeIdx = targetVideo.beats.findIndex((b) => b.id === activeId);
+    const overIdx = targetVideo.beats.findIndex((b) => b.id === beforeBeatId);
 
-  const targetIndex =
-    beforeBeatId === null ? remaining.length : remaining.indexOf(beforeBeatId);
+    if (activeIdx >= 0 && overIdx >= 0 && activeIdx < overIdx) {
+      const remaining = targetVideo.beats.filter((b) => b.id !== activeId);
+      const overInRemaining = remaining.findIndex((b) => b.id === beforeBeatId);
+      const next = remaining[overInRemaining + 1];
+      beforeBeatId = next ? next.id : null;
+    }
+  }
 
   // No-op: the beat already sits exactly where it would land.
   if (sourceVideoId === targetVideoId) {
-    const currentIndex = targetVideo.beats.map((s) => s.id).indexOf(activeId);
-    if (currentIndex === targetIndex) return null;
+    const ids = targetVideo.beats.map((b) => b.id);
+    const afterActiveId = ids[ids.indexOf(activeId) + 1] ?? null;
+    if (afterActiveId === beforeBeatId) return null;
   }
 
   return { beatId: activeId, targetVideoId, beforeBeatId };

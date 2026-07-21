@@ -20,17 +20,22 @@ describe("computeBeatDrop", () => {
     expect(computeBeatDrop({ activeId: "a", overId: null, videos })).toBeNull();
   });
 
-  it("reorders within a video, inserting before the hovered beat", () => {
+  it("reorders downward within a video (non-adjacent)", () => {
+    // Drag 'a' past 'c' → dnd-kit reports overId='c'. a should move after c.
     expect(computeBeatDrop({ activeId: "a", overId: "c", videos })).toEqual({
+      beatId: "a",
+      targetVideoId: "v1",
+      beforeBeatId: null,
+    });
+  });
+
+  it("reorders downward within a video to the adjacent beat", () => {
+    // Drag 'a' past 'b' → a should move after b (before c).
+    expect(computeBeatDrop({ activeId: "a", overId: "b", videos })).toEqual({
       beatId: "a",
       targetVideoId: "v1",
       beforeBeatId: "c",
     });
-  });
-
-  it("is a no-op when dropping before the immediately-following beat", () => {
-    // 'a' is already right before 'b' — landing before 'b' changes nothing.
-    expect(computeBeatDrop({ activeId: "a", overId: "b", videos })).toBeNull();
   });
 
   it("moves across videos onto another video's beat", () => {
@@ -66,6 +71,35 @@ describe("computeBeatDrop", () => {
       beatId: "a",
       targetVideoId: "v3",
       beforeBeatId: null,
+    });
+  });
+
+  it("reorders downward within a video (adjacent)", () => {
+    // Drag 'b' past 'c' → dnd-kit reports overId='c'. b should move after c.
+    expect(computeBeatDrop({ activeId: "b", overId: "c", videos })).toEqual({
+      beatId: "b",
+      targetVideoId: "v1",
+      beforeBeatId: null,
+    });
+  });
+
+  it("reorders upward within a video", () => {
+    expect(computeBeatDrop({ activeId: "c", overId: "a", videos })).toEqual({
+      beatId: "c",
+      targetVideoId: "v1",
+      beforeBeatId: "a",
+    });
+  });
+
+  it("is a no-op when dragging upward to the immediately-preceding beat", () => {
+    // 'b' dragged onto 'a' means "before a", but b is already right after a.
+    // Wait — that IS a move: [a,b,c] → [b,a,c]. Only same-position is a no-op.
+    // Actually: overId='a', upward drag, beforeBeatId stays 'a'. beat after b
+    // in original is 'c', not 'a', so it's NOT a no-op → returns a drop.
+    expect(computeBeatDrop({ activeId: "b", overId: "a", videos })).toEqual({
+      beatId: "b",
+      targetVideoId: "v1",
+      beforeBeatId: "a",
     });
   });
 
