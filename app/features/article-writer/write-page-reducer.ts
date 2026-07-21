@@ -21,12 +21,11 @@ export interface WritePageState {
   isCopied: boolean;
   isAddVideoToNextLessonModalOpen: boolean;
   isFileModalOpen: boolean;
-  selectedFilename: string;
+  selectedFilePath: string;
   selectedFileContent: string;
   isPasteModalOpen: boolean;
   isDeleteModalOpen: boolean;
   fileToDelete: string;
-  isLessonPasteModalOpen: boolean;
   isPreviewModalOpen: boolean;
   previewFilePath: string;
   isBannedPhrasesModalOpen: boolean;
@@ -39,7 +38,7 @@ export type WritePageAction =
   | { type: "set-mode"; mode: Mode }
   | { type: "set-model"; model: Model }
   | { type: "set-enabled-files"; files: Set<string> }
-  | { type: "add-enabled-file"; filename: string }
+  | { type: "add-enabled-file"; path: string }
   | {
       type: "files-loaded";
       files: Array<{ path: string; defaultEnabled: boolean }>;
@@ -54,14 +53,13 @@ export type WritePageAction =
   | { type: "set-add-video-modal-open"; value: boolean }
   | {
       type: "open-file-modal";
-      filename: string;
+      path: string;
       content: string;
     }
   | { type: "close-file-modal" }
   | { type: "set-paste-modal-open"; value: boolean }
-  | { type: "open-delete-modal"; filename: string }
+  | { type: "open-delete-modal"; path: string }
   | { type: "close-delete-modal" }
-  | { type: "set-lesson-paste-modal-open"; value: boolean }
   | { type: "open-preview-modal"; filePath: string }
   | { type: "close-preview-modal" }
   | { type: "set-banned-phrases-modal-open"; value: boolean }
@@ -103,7 +101,7 @@ export function writePageReducer(
     case "add-enabled-file":
       return {
         ...state,
-        enabledFiles: new Set([...state.enabledFiles, action.filename]),
+        enabledFiles: new Set([...state.enabledFiles, action.path]),
       };
     case "set-include-transcript":
       return { ...state, includeTranscript: action.value };
@@ -136,7 +134,7 @@ export function writePageReducer(
       return {
         ...state,
         isFileModalOpen: true,
-        selectedFilename: action.filename,
+        selectedFilePath: action.path,
         selectedFileContent: action.content,
       };
     case "close-file-modal":
@@ -147,12 +145,10 @@ export function writePageReducer(
       return {
         ...state,
         isDeleteModalOpen: true,
-        fileToDelete: action.filename,
+        fileToDelete: action.path,
       };
     case "close-delete-modal":
       return { ...state, isDeleteModalOpen: false };
-    case "set-lesson-paste-modal-open":
-      return { ...state, isLessonPasteModalOpen: action.value };
     case "open-preview-modal":
       return {
         ...state,
@@ -225,12 +221,11 @@ export function createInitialState({
     isCopied: false,
     isAddVideoToNextLessonModalOpen: false,
     isFileModalOpen: false,
-    selectedFilename: "",
+    selectedFilePath: "",
     selectedFileContent: "",
     isPasteModalOpen: false,
     isDeleteModalOpen: false,
     fileToDelete: "",
-    isLessonPasteModalOpen: false,
     isPreviewModalOpen: false,
     previewFilePath: "",
     isBannedPhrasesModalOpen: false,

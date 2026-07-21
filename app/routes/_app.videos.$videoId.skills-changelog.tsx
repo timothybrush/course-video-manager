@@ -16,11 +16,9 @@ import type { WriterContextData } from "@/services/video-posting-context.server"
 import { VideoContextPanel } from "@/components/video-context-panel";
 import { FilePreviewModal } from "@/components/file-preview-modal";
 import { AddLinkModal } from "@/components/add-link-modal";
-import { StandaloneFileManagementModal } from "@/components/standalone-file-management-modal";
-import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-modal";
-import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
-import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
-import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
+import { VideoFileManagementModal } from "@/components/video-file-management-modal";
+import { VideoFilePasteModal } from "@/components/video-file-paste-modal";
+import { DeleteVideoFileModal } from "@/components/delete-video-file-modal";
 import { toast } from "sonner";
 import type { Route } from "./+types/_app.videos.$videoId.skills-changelog";
 import { SkillsChangelogPage } from "@/features/video-posting/skills-changelog-page";
@@ -58,7 +56,6 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
   const { videoId } = props.params;
   const {
     files,
-    isStandalone,
     transcriptWordCount,
     chapters,
     links,
@@ -94,27 +91,25 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
   }, [openFolderFetcher.state, openFolderFetcher.data]);
 
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
-  const [selectedFilename, setSelectedFilename] = useState<string>("");
+  const [selectedFilePath, setSelectedFilePath] = useState<string>("");
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>("");
-
-  const [isLessonPasteModalOpen, setIsLessonPasteModalOpen] = useState(false);
 
   const handleFileClick = (filePath: string) => {
     setPreviewFilePath(filePath);
     setIsPreviewModalOpen(true);
   };
 
-  const handleEditFile = async (filename: string) => {
+  const handleEditFile = async (filePath: string) => {
     try {
       const response = await fetch(
-        `/api/standalone-files/read?videoId=${videoId}&filename=${encodeURIComponent(filename)}`
+        `/api/video-files/read?videoId=${videoId}&path=${encodeURIComponent(filePath)}`
       );
       if (response.ok) {
         const content = await response.text();
-        setSelectedFilename(filename);
+        setSelectedFilePath(filePath);
         setSelectedFileContent(content);
         setIsFileModalOpen(true);
       }
@@ -123,8 +118,8 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
     }
   };
 
-  const handleDeleteFile = (filename: string) => {
-    setFileToDelete(filename);
+  const handleDeleteFile = (filePath: string) => {
+    setFileToDelete(filePath);
     setIsDeleteModalOpen(true);
   };
 
@@ -143,7 +138,6 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
           includeCourseStructure={includeCourseStructure}
           onIncludeCourseStructureChange={setIncludeCourseStructure}
           files={files}
-          isStandalone={isStandalone}
           enabledFiles={enabledFiles}
           onEnabledFilesChange={setEnabledFiles}
           onFileClick={handleFileClick}
@@ -153,11 +147,7 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
               action: `/api/videos/${videoId}/open-folder`,
             });
           }}
-          onAddFromClipboardClick={
-            isStandalone
-              ? () => setIsPasteModalOpen(true)
-              : () => setIsLessonPasteModalOpen(true)
-          }
+          onAddFromClipboardClick={() => setIsPasteModalOpen(true)}
           onEditFile={handleEditFile}
           onDeleteFile={handleDeleteFile}
           links={links}
@@ -191,7 +181,6 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
         onClose={() => setIsPreviewModalOpen(false)}
         videoId={videoId}
         filePath={previewFilePath}
-        isStandalone={isStandalone}
       />
 
       <AddLinkModal
@@ -199,52 +188,28 @@ export default function SkillsChangelogRoute(props: Route.ComponentProps) {
         onOpenChange={setIsAddLinkModalOpen}
       />
 
-      {isStandalone && (
-        <>
-          <StandaloneFileManagementModal
-            videoId={videoId}
-            filename={selectedFilename}
-            content={selectedFileContent}
-            open={isFileModalOpen}
-            onOpenChange={setIsFileModalOpen}
-          />
-          <StandaloneFilePasteModal
-            videoId={videoId}
-            open={isPasteModalOpen}
-            onOpenChange={setIsPasteModalOpen}
-            existingFiles={files}
-            onFileCreated={(filename) => {
-              setEnabledFiles((prev) => new Set([...prev, filename]));
-            }}
-          />
-          <DeleteStandaloneFileModal
-            videoId={videoId}
-            filename={fileToDelete}
-            open={isDeleteModalOpen}
-            onOpenChange={setIsDeleteModalOpen}
-          />
-        </>
-      )}
-
-      {!isStandalone && (
-        <>
-          <LessonFilePasteModal
-            videoId={videoId}
-            open={isLessonPasteModalOpen}
-            onOpenChange={setIsLessonPasteModalOpen}
-            existingFiles={files}
-            onFileCreated={(filename) => {
-              setEnabledFiles((prev) => new Set([...prev, filename]));
-            }}
-          />
-          <DeleteLessonFileModal
-            videoId={videoId}
-            filename={fileToDelete}
-            open={isDeleteModalOpen}
-            onOpenChange={setIsDeleteModalOpen}
-          />
-        </>
-      )}
+      <VideoFileManagementModal
+        videoId={videoId}
+        path={selectedFilePath}
+        content={selectedFileContent}
+        open={isFileModalOpen}
+        onOpenChange={setIsFileModalOpen}
+      />
+      <VideoFilePasteModal
+        videoId={videoId}
+        open={isPasteModalOpen}
+        onOpenChange={setIsPasteModalOpen}
+        existingFiles={files}
+        onFileCreated={(path) => {
+          setEnabledFiles((prev) => new Set([...prev, path]));
+        }}
+      />
+      <DeleteVideoFileModal
+        videoId={videoId}
+        path={fileToDelete}
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+      />
     </>
   );
 }

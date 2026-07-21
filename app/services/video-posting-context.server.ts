@@ -1,5 +1,4 @@
-import { Effect, Array as EffectArray } from "effect";
-import { FileSystem } from "@effect/platform";
+import { Effect } from "effect";
 import path from "path";
 import { VideoOperationsService } from "@/services/db-video-operations.server";
 import { CourseOperationsService } from "@/services/db-course-operations.server";
@@ -12,9 +11,8 @@ import {
   buildTranscript,
 } from "@/lib/transcript-builder";
 import { sortByOrder } from "@/lib/sort-by-order";
-import { DEFAULT_CHECKED_EXTENSIONS } from "@/services/text-writing-agent";
 import type { BeatKind } from "@/features/beats/beat-kinds";
-import { getVideoFilePath } from "@/services/video-files";
+import { getVideoFilePath, listVideoFiles } from "@/services/video-files";
 import { projectVersionPaths } from "@/services/path-projection";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
 import type { CourseStructure } from "@/components/video-context-panel";
@@ -42,7 +40,6 @@ export const loadVideoPostingContext = Effect.fn("loadVideoPostingContext")(
     const courseOps = yield* CourseOperationsService;
     const versionOps = yield* VersionOperationsService;
     const linkAuthOps = yield* LinkAuthOperationsService;
-    const fs = yield* FileSystem.FileSystem;
 
     const [video, globalLinks] = yield* Effect.all(
       [videoOps.getVideoWithClipsById(videoId), linkAuthOps.getLinks()],
@@ -59,7 +56,7 @@ export const loadVideoPostingContext = Effect.fn("loadVideoPostingContext")(
     );
 
     const lesson = video.lesson;
-    const files = yield* loadVideoFiles(fs, video.lineageId);
+    const files = yield* listVideoFiles(video.lineageId);
 
     if (!lesson) {
       return {
@@ -146,43 +143,6 @@ function computeChapterWordCounts(
   return sections;
 }
 
-function loadVideoFiles(fs: FileSystem.FileSystem, lineageId: string) {
-  return Effect.gen(function* () {
-    const videoDir = getVideoFilePath(lineageId);
-    const dirExists = yield* fs.exists(videoDir);
-
-    if (!dirExists) {
-      return [] as Array<{
-        path: string;
-        size: number;
-        defaultEnabled: boolean;
-      }>;
-    }
-
-    const filesInDirectory = yield* fs.readDirectory(videoDir);
-
-    return yield* Effect.forEach(filesInDirectory, (filename) =>
-      Effect.gen(function* () {
-        const filePath = getVideoFilePath(lineageId, filename);
-        const stat = yield* fs.stat(filePath);
-
-        if (stat.type !== "File") {
-          return null;
-        }
-
-        const extension = path.extname(filename).slice(1);
-        const defaultEnabled = DEFAULT_CHECKED_EXTENSIONS.includes(extension);
-
-        return {
-          path: filename,
-          size: Number(stat.size),
-          defaultEnabled,
-        };
-      })
-    ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
-  });
-}
-
 function loadCourseStructure(
   courseOps: CourseOperationsService,
   repoId: string,
@@ -256,7 +216,6 @@ export const loadWriterContext = Effect.fn("loadWriterContext")(function* (
   const versionOps = yield* VersionOperationsService;
   const linkAuthOps = yield* LinkAuthOperationsService;
   const beatOps = yield* BeatOperationsService;
-  const fs = yield* FileSystem.FileSystem;
 
   const [video, globalLinks, rawBeats] = yield* Effect.all(
     [
@@ -279,7 +238,7 @@ export const loadWriterContext = Effect.fn("loadWriterContext")(function* (
   );
 
   const lesson = video.lesson;
-  const files = yield* loadVideoFiles(fs, video.lineageId);
+  const files = yield* listVideoFiles(video.lineageId);
   const fullPath = path.resolve(getVideoFilePath(video.lineageId));
 
   if (!lesson) {

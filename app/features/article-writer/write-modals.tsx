@@ -1,8 +1,6 @@
-import { StandaloneFileManagementModal } from "@/components/standalone-file-management-modal";
-import { StandaloneFilePasteModal } from "@/components/standalone-file-paste-modal";
-import { DeleteStandaloneFileModal } from "@/components/delete-standalone-file-modal";
-import { DeleteLessonFileModal } from "@/components/delete-lesson-file-modal";
-import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
+import { VideoFileManagementModal } from "@/components/video-file-management-modal";
+import { VideoFilePasteModal } from "@/components/video-file-paste-modal";
+import { DeleteVideoFileModal } from "@/components/delete-video-file-modal";
 import { FilePreviewModal } from "@/components/file-preview-modal";
 import { BannedPhrasesModal } from "@/components/banned-phrases-modal";
 import { AddLinkModal } from "@/components/add-link-modal";
@@ -11,25 +9,19 @@ import type { BannedPhrase } from "./lint-rules";
 
 export interface WriteModalsProps {
   videoId: string;
-  isStandalone: boolean;
   files: Array<{ path: string; size: number; defaultEnabled: boolean }>;
 
-  // Standalone file modals
-  selectedFilename: string;
+  // File modals
+  selectedFilePath: string;
   selectedFileContent: string;
   isFileModalOpen: boolean;
   onFileModalClose: (open: boolean) => void;
   isPasteModalOpen: boolean;
   onPasteModalClose: (open: boolean) => void;
-  onStandaloneFileCreated: (filename: string) => void;
+  onFileCreated: (path: string) => void;
   isDeleteModalOpen: boolean;
   fileToDelete: string;
   onDeleteModalClose: (open: boolean) => void;
-
-  // Lesson file paste modal
-  isLessonPasteModalOpen: boolean;
-  onLessonPasteModalClose: (open: boolean) => void;
-  onLessonFileCreated: (filename: string) => void;
 
   // File preview modal
   isPreviewModalOpen: boolean;
@@ -49,7 +41,7 @@ export interface WriteModalsProps {
   onUpdateBannedPhrase: (index: number, updated: Partial<BannedPhrase>) => void;
   onResetBannedPhrases: () => void;
 
-  // Default filename for paste modals
+  // Default filename for the paste modal
   defaultTextFilename?: string;
 
   // Add link modal
@@ -70,21 +62,17 @@ export interface WriteModalsProps {
 export function WriteModals(props: WriteModalsProps) {
   const {
     videoId,
-    isStandalone,
     files,
-    selectedFilename,
+    selectedFilePath,
     selectedFileContent,
     isFileModalOpen,
     onFileModalClose,
     isPasteModalOpen,
     onPasteModalClose,
-    onStandaloneFileCreated,
+    onFileCreated,
     isDeleteModalOpen,
     fileToDelete,
     onDeleteModalClose,
-    isLessonPasteModalOpen,
-    onLessonPasteModalClose,
-    onLessonFileCreated,
     isPreviewModalOpen,
     previewFilePath,
     onPreviewModalClose,
@@ -105,58 +93,34 @@ export function WriteModals(props: WriteModalsProps) {
 
   return (
     <>
-      {/* Standalone file modals */}
-      {isStandalone && (
-        <>
-          <StandaloneFileManagementModal
-            videoId={videoId}
-            filename={selectedFilename}
-            content={selectedFileContent}
-            open={isFileModalOpen}
-            onOpenChange={onFileModalClose}
-          />
-          <StandaloneFilePasteModal
-            videoId={videoId}
-            open={isPasteModalOpen}
-            onOpenChange={onPasteModalClose}
-            existingFiles={files}
-            onFileCreated={onStandaloneFileCreated}
-            defaultTextFilename={defaultTextFilename}
-          />
-          <DeleteStandaloneFileModal
-            videoId={videoId}
-            filename={fileToDelete}
-            open={isDeleteModalOpen}
-            onOpenChange={onDeleteModalClose}
-          />
-        </>
-      )}
-      {/* Lesson file modals */}
-      {!isStandalone && (
-        <>
-          <LessonFilePasteModal
-            videoId={videoId}
-            open={isLessonPasteModalOpen}
-            onOpenChange={onLessonPasteModalClose}
-            existingFiles={files}
-            onFileCreated={onLessonFileCreated}
-            defaultTextFilename={defaultTextFilename}
-          />
-          <DeleteLessonFileModal
-            videoId={videoId}
-            filename={fileToDelete}
-            open={isDeleteModalOpen}
-            onOpenChange={onDeleteModalClose}
-          />
-        </>
-      )}
+      {/* File modals */}
+      <VideoFileManagementModal
+        videoId={videoId}
+        path={selectedFilePath}
+        content={selectedFileContent}
+        open={isFileModalOpen}
+        onOpenChange={onFileModalClose}
+      />
+      <VideoFilePasteModal
+        videoId={videoId}
+        open={isPasteModalOpen}
+        onOpenChange={onPasteModalClose}
+        existingFiles={files}
+        onFileCreated={onFileCreated}
+        defaultTextFilename={defaultTextFilename}
+      />
+      <DeleteVideoFileModal
+        videoId={videoId}
+        path={fileToDelete}
+        open={isDeleteModalOpen}
+        onOpenChange={onDeleteModalClose}
+      />
       {/* File preview modal */}
       <FilePreviewModal
         isOpen={isPreviewModalOpen}
         onClose={onPreviewModalClose}
         videoId={videoId}
         filePath={previewFilePath}
-        isStandalone={isStandalone}
       />
       {/* Banned phrases management modal */}
       <BannedPhrasesModal

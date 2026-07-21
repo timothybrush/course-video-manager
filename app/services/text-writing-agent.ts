@@ -24,14 +24,12 @@ import {
   type ModelMessage,
   type UIMessage,
 } from "ai";
-import { Array, Effect } from "effect";
+import { Effect } from "effect";
 import { VideoOperationsService } from "./db-video-operations.server";
 import { FileSystem } from "@effect/platform";
 import { calculateYouTubeChapters, type YouTubeChaptersItem } from "./utils";
-import { getVideoFilePath } from "./video-files";
+import { getVideoFilePath, listVideoFiles } from "./video-files";
 import type { TextWritingAgentMode } from "@/routes/videos.$videoId.completions";
-
-const NOT_A_FILE = Symbol("NOT_A_FILE");
 
 export type TextWritingAgentCodeFile = {
   path: string;
@@ -236,20 +234,6 @@ export const createModelMessagesForTextWritingAgent = async (props: {
   return modelMessages;
 };
 
-export const DEFAULT_CHECKED_EXTENSIONS = [
-  "ts",
-  "tsx",
-  "js",
-  "jsx",
-  "json",
-  "md",
-  "mdx",
-  "txt",
-  "csv",
-];
-
-export const ALWAYS_EXCLUDED_DIRECTORIES = ["node_modules", ".vite"];
-
 export const DEFAULT_UNCHECKED_PATHS = ["readme.md", "speaker-notes.md"];
 
 export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
@@ -273,27 +257,24 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
     const sectionPath = lesson ? lesson.section.title : undefined;
     const lessonPath = lesson ? lesson.title : undefined;
 
-    const videoDir = getVideoFilePath(video.lineageId);
-    const dirExists = yield* fs.exists(videoDir);
+    const entries = yield* listVideoFiles(video.lineageId);
 
-    if (dirExists) {
-      const filesInDirectory = yield* fs.readDirectory(videoDir);
-
-      const filteredFiles = filesInDirectory.filter((filename) => {
-        return (
-          props.enabledFiles === undefined ||
-          props.enabledFiles.includes(filename)
-        );
-      });
+    {
+      // `enabledFiles` carries paths relative to the video's directory, so
+      // nested files ("notes/snippet.md") match here rather than silently
+      // falling out of the writer's context.
+      const filteredFiles = entries
+        .map((entry) => entry.path)
+        .filter((filename) => {
+          return (
+            props.enabledFiles === undefined ||
+            props.enabledFiles.includes(filename)
+          );
+        });
 
       const allFiles = yield* Effect.forEach(filteredFiles, (filename) => {
         return Effect.gen(function* () {
           const filePath = getVideoFilePath(video.lineageId, filename);
-          const stat = yield* fs.stat(filePath);
-
-          if (stat.type !== "File") {
-            return NOT_A_FILE;
-          }
 
           const imageExtensions = [
             ".png",
@@ -324,7 +305,7 @@ export const acquireTextWritingContext = Effect.fn("acquireVideoContext")(
             };
           }
         });
-      }).pipe(Effect.map(Array.filter((r) => r !== NOT_A_FILE)));
+      });
 
       textFiles = allFiles
         .filter((f) => f.type === "text")

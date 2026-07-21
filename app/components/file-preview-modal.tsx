@@ -7,7 +7,6 @@ type FilePreviewModalProps = {
   onClose: () => void;
   videoId: string;
   filePath: string;
-  isStandalone: boolean;
 };
 
 type FileContent =
@@ -78,7 +77,6 @@ export function FilePreviewModal({
   onClose,
   videoId,
   filePath,
-  isStandalone,
 }: FilePreviewModalProps) {
   const [fileContent, setFileContent] = useState<FileContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,53 +97,26 @@ export function FilePreviewModal({
       try {
         const fileType = getFileType(filePath);
 
-        if (isStandalone) {
-          // Fetch from standalone files API
-          const filename = filePath.split("/").pop() || filePath;
-          const response = await fetch(
-            `/api/standalone-files/read?videoId=${encodeURIComponent(videoId)}&filename=${encodeURIComponent(filename)}`
-          );
+        const response = await fetch(
+          `/api/video-files/read?videoId=${encodeURIComponent(videoId)}&path=${encodeURIComponent(filePath)}`
+        );
 
-          if (!response.ok) {
-            throw new Error("Failed to load file");
-          }
+        if (!response.ok) {
+          throw new Error("Failed to load file");
+        }
 
-          if (fileType === "text") {
-            const text = await response.text();
-            setFileContent({ type: "text", content: text });
-          } else if (fileType === "image") {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            setFileContent({ type: "image", url });
-          } else {
-            setFileContent({
-              type: "binary",
-              message: "Binary file cannot be previewed",
-            });
-          }
+        if (fileType === "text") {
+          const text = await response.text();
+          setFileContent({ type: "text", content: text });
+        } else if (fileType === "image") {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          setFileContent({ type: "image", url });
         } else {
-          // Fetch from lesson files API
-          const response = await fetch(
-            `/api/lesson-files/read?videoId=${encodeURIComponent(videoId)}&filePath=${encodeURIComponent(filePath)}`
-          );
-
-          if (!response.ok) {
-            throw new Error("Failed to load file");
-          }
-
-          if (fileType === "text") {
-            const text = await response.text();
-            setFileContent({ type: "text", content: text });
-          } else if (fileType === "image") {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            setFileContent({ type: "image", url });
-          } else {
-            setFileContent({
-              type: "binary",
-              message: "Binary file cannot be previewed",
-            });
-          }
+          setFileContent({
+            type: "binary",
+            message: "Binary file cannot be previewed",
+          });
         }
       } catch (err) {
         setError(
@@ -157,7 +128,7 @@ export function FilePreviewModal({
     };
 
     fetchFileContent();
-  }, [isOpen, videoId, filePath, isStandalone]);
+  }, [isOpen, videoId, filePath]);
 
   // Cleanup image URLs when modal closes or content changes
   useEffect(() => {

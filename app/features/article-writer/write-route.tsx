@@ -8,46 +8,20 @@ import { LinkAuthOperationsService } from "@/services/db-link-auth-operations.se
 import { runtimeLive } from "@/services/layer.server";
 import { makeLoader } from "@/services/route-action.server";
 import { buildTranscript } from "@/lib/transcript-builder";
-import { Array as EffectArray, Effect } from "effect";
+import { Effect } from "effect";
 type WriteRouteComponentProps = {
   params: { videoId: string };
   loaderData: any;
 };
 import path from "path";
-import { FileSystem } from "@effect/platform";
-import { DEFAULT_CHECKED_EXTENSIONS } from "@/services/text-writing-agent";
-import { getVideoFilePath } from "@/services/video-files";
+import { getVideoFilePath, listVideoFiles } from "@/services/video-files";
 import { CoursePublishService } from "@/services/course-publish-service";
 import { WritePage } from "@/features/article-writer/write-page";
 import { useState, useEffect } from "react";
 
 type FileMetadata = { path: string; size: number; defaultEnabled: boolean };
 
-const loadWriteFiles = (lineageId: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const videoDir = getVideoFilePath(lineageId);
-    const dirExists = yield* fs.exists(videoDir);
-    if (!dirExists) return [];
-
-    const filesInDirectory = yield* fs.readDirectory(videoDir);
-    return yield* Effect.forEach(
-      filesInDirectory,
-      (filename) =>
-        Effect.gen(function* () {
-          const filePath = getVideoFilePath(lineageId, filename);
-          const stat = yield* fs.stat(filePath);
-          if (stat.type !== "File") return null;
-          const extension = path.extname(filename).slice(1);
-          return {
-            path: filename,
-            size: Number(stat.size),
-            defaultEnabled: DEFAULT_CHECKED_EXTENSIONS.includes(extension),
-          };
-        }),
-      { concurrency: "unbounded" }
-    ).pipe(Effect.map(EffectArray.filter((f) => f !== null)));
-  });
+const loadWriteFiles = (lineageId: string) => listVideoFiles(lineageId);
 
 export const loader = makeLoader({
   effect: ({ params }) =>

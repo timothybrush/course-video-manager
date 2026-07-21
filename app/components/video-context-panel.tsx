@@ -6,7 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { SectionWithWordCount } from "@/features/article-writer/types";
 import { FileTree } from "@/components/FileTree";
-import { StandaloneFileTree } from "@/components/StandaloneFileTree";
 import {
   ClipboardIcon,
   CheckIcon,
@@ -59,14 +58,13 @@ export type VideoContextPanelProps = {
 
   // Files
   files: FileMetadata[];
-  isStandalone: boolean;
   enabledFiles: Set<string>;
   onEnabledFilesChange: (files: Set<string>) => void;
   onFileClick?: (filePath: string) => void;
   onAddFromClipboardClick?: () => void;
   onOpenFolderClick?: () => void;
-  onEditFile?: (filename: string) => void;
-  onDeleteFile?: (filename: string) => void;
+  onEditFile?: (filePath: string) => void;
+  onDeleteFile?: (filePath: string) => void;
 
   // Links
   links: Link[];
@@ -101,7 +99,6 @@ export const VideoContextPanel = memo(function VideoContextPanel({
   includeCourseStructure,
   onIncludeCourseStructureChange,
   files,
-  isStandalone,
   enabledFiles,
   onEnabledFilesChange,
   onFileClick,
@@ -306,129 +303,66 @@ export const VideoContextPanel = memo(function VideoContextPanel({
                 <hr className="border-border my-6" />
               </>
             )}
-            {/* File tree - lesson-connected videos */}
-            {!isStandalone && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 py-1 px-2">
-                  <Checkbox
-                    id="include-files"
-                    checked={
-                      files.length === 0
-                        ? false
-                        : enabledFiles.size === files.length
-                          ? true
-                          : enabledFiles.size > 0
-                            ? "indeterminate"
-                            : false
+            {/* File tree */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 py-1 px-2">
+                <Checkbox
+                  id="include-files"
+                  checked={
+                    files.length === 0
+                      ? false
+                      : enabledFiles.size === files.length
+                        ? true
+                        : enabledFiles.size > 0
+                          ? "indeterminate"
+                          : false
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      onEnabledFilesChange(new Set(files.map((f) => f.path)));
+                    } else {
+                      onEnabledFilesChange(new Set());
                     }
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        onEnabledFilesChange(new Set(files.map((f) => f.path)));
-                      } else {
-                        onEnabledFilesChange(new Set());
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="include-files"
-                    className="text-sm flex-1 cursor-pointer"
-                  >
-                    Files
-                  </label>
-                  {onOpenFolderClick && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={onOpenFolderClick}
-                      title="Open folder"
-                    >
-                      <FolderOpenIcon className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {onAddFromClipboardClick && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7"
-                      onClick={onAddFromClipboardClick}
-                    >
-                      <ClipboardIcon className="h-3 w-3 mr-1" />
-                      Add from Clipboard
-                    </Button>
-                  )}
-                </div>
-                <FileTree
-                  files={files}
-                  enabledFiles={enabledFiles}
-                  onEnabledFilesChange={onEnabledFilesChange}
-                  onFileClick={onFileClick}
-                  onDeleteFile={onDeleteFile}
+                  }}
                 />
-              </div>
-            )}
-            {/* Standalone file tree */}
-            {isStandalone && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 py-1 px-2">
-                  <Checkbox
-                    id="include-standalone-files"
-                    checked={
-                      files.length === 0
-                        ? false
-                        : enabledFiles.size === files.length
-                          ? true
-                          : enabledFiles.size > 0
-                            ? "indeterminate"
-                            : false
-                    }
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        onEnabledFilesChange(new Set(files.map((f) => f.path)));
-                      } else {
-                        onEnabledFilesChange(new Set());
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="include-standalone-files"
-                    className="text-sm flex-1 cursor-pointer"
+                <label
+                  htmlFor="include-files"
+                  className="text-sm flex-1 cursor-pointer"
+                >
+                  Files
+                </label>
+                {onOpenFolderClick && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onOpenFolderClick}
+                    title="Open folder"
                   >
-                    Files
-                  </label>
-                  {onOpenFolderClick && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={onOpenFolderClick}
-                      title="Open folder"
-                    >
-                      <FolderOpenIcon className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {onAddFromClipboardClick && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7"
-                      onClick={onAddFromClipboardClick}
-                    >
-                      <ClipboardIcon className="h-3 w-3 mr-1" />
-                      Add from Clipboard
-                    </Button>
-                  )}
-                </div>
-                <StandaloneFileTree
-                  files={files}
-                  enabledFiles={enabledFiles}
-                  onEnabledFilesChange={onEnabledFilesChange}
-                  onEditFile={onEditFile ?? (() => {})}
-                  onDeleteFile={onDeleteFile ?? (() => {})}
-                  onFileClick={onFileClick}
-                />
+                    <FolderOpenIcon className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {onAddFromClipboardClick && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7"
+                    onClick={onAddFromClipboardClick}
+                  >
+                    <ClipboardIcon className="h-3 w-3 mr-1" />
+                    Add from Clipboard
+                  </Button>
+                )}
               </div>
-            )}
+              <FileTree
+                files={files}
+                enabledFiles={enabledFiles}
+                onEnabledFilesChange={onEnabledFilesChange}
+                onFileClick={onFileClick}
+                onEditFile={onEditFile}
+                onDeleteFile={onDeleteFile}
+              />
+            </div>
           </>
         )}
         {sidebarTab === "links" && (

@@ -12,24 +12,22 @@ import { Loader2 } from "lucide-react";
 import { useFetcher } from "react-router";
 import { useEffect, useState } from "react";
 
-export function StandaloneFileManagementModal(props: {
+export function VideoFileManagementModal(props: {
   videoId: string;
-  filename?: string;
+  path?: string;
   content?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const fetcher = useFetcher();
-  const [filename, setFilename] = useState(props.filename || "");
   const [content, setContent] = useState(props.content || "");
 
   // Reset form when modal opens with new data
   useEffect(() => {
-    setFilename(props.filename || "");
     setContent(props.content || "");
-  }, [props.filename, props.content, props.open]);
+  }, [props.content, props.open]);
 
-  const actionUrl = "/api/standalone-files/update";
+  const actionUrl = "/api/video-files/update";
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -52,17 +50,11 @@ export function StandaloneFileManagementModal(props: {
           }}
         >
           <input type="hidden" name="videoId" value={props.videoId} />
-          <input type="hidden" name="oldFilename" value={props.filename} />
           <div className="space-y-2">
-            <Label htmlFor="filename">Filename</Label>
-            <Input
-              id="filename"
-              name="filename"
-              value={filename}
-              onChange={(e) => setFilename(e.target.value)}
-              required
-              disabled
-            />
+            <Label htmlFor="path">Path</Label>
+            {/* Read-only rather than disabled: the endpoint needs the path,
+                and disabled inputs are omitted from the FormData. */}
+            <Input id="path" name="path" value={props.path || ""} readOnly />
           </div>
           <div className="space-y-2">
             <Label htmlFor="content">Content</Label>

@@ -9,9 +9,9 @@ import {
 import { Loader2, Trash2 } from "lucide-react";
 import { useFetcher } from "react-router";
 
-export function DeleteLessonFileModal(props: {
+export function DeleteVideoFileModal(props: {
   videoId: string;
-  filename: string;
+  path: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -26,26 +26,26 @@ export function DeleteLessonFileModal(props: {
             Delete File
           </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{props.filename}"? This action
-            cannot be undone.
+            Are you sure you want to delete "{props.path}"? This action cannot
+            be undone.
           </DialogDescription>
         </DialogHeader>
         <fetcher.Form
           method="post"
-          action="/api/lesson-files/delete"
+          action="/api/video-files/delete"
           className="space-y-4 py-4"
           onSubmit={async (e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             await fetcher.submit(formData, {
               method: "post",
-              action: "/api/lesson-files/delete",
+              action: "/api/video-files/delete",
             });
             props.onOpenChange(false);
           }}
         >
           <input type="hidden" name="videoId" value={props.videoId} />
-          <input type="hidden" name="filename" value={props.filename} />
+          <input type="hidden" name="path" value={props.path} />
           <div className="flex justify-end space-x-2">
             <Button
               variant="outline"

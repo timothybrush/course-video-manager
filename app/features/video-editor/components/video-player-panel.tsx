@@ -565,7 +565,6 @@ export const VideoPlayerPanel = () => {
                   lastTranscribedClipId={lastTranscribedClipId}
                   clips={clips}
                   insertionPoint={insertionPoint}
-                  isStandalone={!lessonId}
                   onSuggestionStateChange={handleSuggestionStateChange}
                 />
               </Suspense>

@@ -13,7 +13,7 @@ import { Effect } from "effect";
 import { useState } from "react";
 import { redirect, useRevalidator } from "react-router";
 import type { WriterContextData } from "@/services/video-posting-context.server";
-import { LessonFilePasteModal } from "@/components/lesson-file-paste-modal";
+import { VideoFilePasteModal } from "@/components/video-file-paste-modal";
 import type { Route } from "./+types/_app.videos.$videoId.lesson";
 import { LessonPage } from "@/features/video-posting/lesson-page";
 import { useWriterContext } from "@/features/article-writer/use-writer-context";
@@ -75,7 +75,7 @@ export default function LessonPostPage(props: Route.ComponentProps) {
   const writerContext = useWriterContext(writerContextPromise);
   const revalidator = useRevalidator();
 
-  const [isLessonPasteModalOpen, setIsLessonPasteModalOpen] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
 
   return (
     <>
@@ -86,15 +86,15 @@ export default function LessonPostPage(props: Route.ComponentProps) {
             body={videoBody}
             description={videoDescription}
             writerContext={writerContext}
-            onAddFileFromClipboard={() => setIsLessonPasteModalOpen(true)}
+            onAddFileFromClipboard={() => setIsPasteModalOpen(true)}
           />
         </div>
       </div>
 
-      <LessonFilePasteModal
+      <VideoFilePasteModal
         videoId={videoId}
-        open={isLessonPasteModalOpen}
-        onOpenChange={setIsLessonPasteModalOpen}
+        open={isPasteModalOpen}
+        onOpenChange={setIsPasteModalOpen}
         existingFiles={files}
         onFileCreated={() => {
           // Refresh the writer context so the new file shows in Repo Files.

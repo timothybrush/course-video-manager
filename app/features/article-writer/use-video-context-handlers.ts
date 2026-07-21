@@ -1,18 +1,16 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { FetcherWithComponents } from "react-router";
 import type { WritePageAction } from "./write-page-reducer";
 
 export function useVideoContextHandlers({
   videoId,
   transcript,
-  isStandalone,
   openFolderFetcher,
   deleteLinkFetcher,
   dispatch,
 }: {
   videoId: string;
   transcript: string;
-  isStandalone: boolean;
   openFolderFetcher: FetcherWithComponents<unknown>;
   deleteLinkFetcher: FetcherWithComponents<unknown>;
   dispatch: React.Dispatch<WritePageAction>;
@@ -43,17 +41,14 @@ export function useVideoContextHandlers({
     });
   }, [videoId, openFolderFetcher]);
 
-  const handleAddFromClipboardClick = useMemo(
-    () =>
-      isStandalone
-        ? () => dispatch({ type: "set-paste-modal-open", value: true })
-        : () => dispatch({ type: "set-lesson-paste-modal-open", value: true }),
-    [isStandalone, dispatch]
+  const handleAddFromClipboardClick = useCallback(
+    () => dispatch({ type: "set-paste-modal-open", value: true }),
+    [dispatch]
   );
 
   const handleDeleteFile = useCallback(
-    (filename: string) => {
-      dispatch({ type: "open-delete-modal", filename });
+    (path: string) => {
+      dispatch({ type: "open-delete-modal", path });
     },
     [dispatch]
   );
@@ -81,14 +76,14 @@ export function useVideoContextHandlers({
   );
 
   const handleEditFile = useCallback(
-    async (filename: string) => {
+    async (path: string) => {
       try {
         const response = await fetch(
-          `/api/standalone-files/read?videoId=${videoId}&filename=${encodeURIComponent(filename)}`
+          `/api/video-files/read?videoId=${videoId}&path=${encodeURIComponent(path)}`
         );
         if (response.ok) {
           const content = await response.text();
-          dispatch({ type: "open-file-modal", filename, content });
+          dispatch({ type: "open-file-modal", path, content });
         }
       } catch (error) {
         console.error("Failed to read file:", error);
