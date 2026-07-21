@@ -6,6 +6,11 @@ import {
 } from "@/test-utils/pglite";
 import * as schema from "@/db/schema";
 import { copyVideoImpl } from "@/services/db-video-operations.copy.server";
+import {
+  createCourseAndVersion,
+  createLesson,
+  createSection,
+} from "@/services/path-uniqueness-test-helpers";
 import type { Database } from "@/services/drizzle-service.server";
 import { Effect } from "effect";
 
@@ -87,6 +92,75 @@ describe("copyVideoImpl — renameOld", () => {
 
     const newVideo = await getVideo(newVideoId);
     expect(newVideo!.title).toBe("problem");
+  });
+
+  // The videos above have no lesson, so video_lesson_title_uniq — unique on
+  // (lesson_id, title) for non-archived rows — never fires. These cover a
+  // video that actually belongs to a lesson.
+  async function createLessonId() {
+    const { versionId } = await createCourseAndVersion(testDb);
+    const section = await createSection(testDb, versionId, "Section", 0);
+    const lesson = await createLesson(testDb, section.id, "Lesson", 0);
+    return lesson.id;
+  }
+
+  it("copies within a lesson when the new video reuses the source's title", async () => {
+    const lessonId = await createLessonId();
+    const source = await createVideo({ title: "Explainer", lessonId });
+
+    const newVideoId = await run(
+      copyVideoImpl(db(), {
+        sourceVideoId: source.id,
+        newTitle: "Explainer",
+        copyClips: false,
+        copyBeats: false,
+        renameOld: true,
+      })
+    );
+
+    expect((await getVideo(source.id))!.title).toBe("Explainer (old)");
+    expect((await getVideo(newVideoId))!.title).toBe("Explainer");
+  });
+
+  it("disambiguates the (old) title when the lesson already has one", async () => {
+    const lessonId = await createLessonId();
+    await createVideo({ title: "Explainer (old)", lessonId });
+    const source = await createVideo({ title: "Explainer", lessonId });
+
+    const newVideoId = await run(
+      copyVideoImpl(db(), {
+        sourceVideoId: source.id,
+        newTitle: "Explainer",
+        copyClips: false,
+        copyBeats: false,
+        renameOld: true,
+      })
+    );
+
+    expect((await getVideo(source.id))!.title).toBe("Explainer (old) (2)");
+    expect((await getVideo(newVideoId))!.title).toBe("Explainer");
+  });
+
+  it("ignores archived siblings when disambiguating the (old) title", async () => {
+    const lessonId = await createLessonId();
+    await createVideo({
+      title: "Explainer (old)",
+      lessonId,
+      archived: true,
+    });
+    const source = await createVideo({ title: "Explainer", lessonId });
+
+    await run(
+      copyVideoImpl(db(), {
+        sourceVideoId: source.id,
+        newTitle: "Explainer",
+        copyClips: false,
+        copyBeats: false,
+        renameOld: true,
+      })
+    );
+
+    expect((await getVideo(source.id))!.title).toBe("Explainer (old)");
   });
 
   it("does not rename the source when renameOld is false", async () => {
