@@ -543,6 +543,38 @@ describe("getSessionPanels", () => {
     expect(panels[0]!.archivedClips).toHaveLength(1);
   });
 
+  it("archived clips with null insertionOrder sort after those with positive insertionOrder", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 5,
+        shouldArchive: true,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c2"),
+        sessionId: sid("s1"),
+        shouldArchive: true,
+        insertionOrder: null,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c3"),
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+        shouldArchive: true,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
+      id("c1"),
+      id("c3"),
+      id("c2"),
+    ]);
+  });
+
   it("deleted clips panel appears first (before session panels)", () => {
     const sessions: RecordingSession[] = [
       makeSession({ id: sid("s1"), displayNumber: 1 }),

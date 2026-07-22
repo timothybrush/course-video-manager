@@ -100,23 +100,23 @@ export const archiveClips = (
   if (archiveClipMode.type === "move-insertion-point-to-previous-clip") {
     const slicedItems = items.slice(0, archiveClipMode.originalClipIndex);
 
-    const previousNonUndefinedItem = slicedItems.findLast(isVisibleItem);
+    const previousVisibleItem = slicedItems.findLast(isVisibleItem);
 
     let newInsertionPoint: FrontendInsertionPoint;
 
-    if (previousNonUndefinedItem) {
+    if (previousVisibleItem) {
       if (
-        previousNonUndefinedItem.type === "on-database" ||
-        previousNonUndefinedItem.type === "optimistically-added"
+        previousVisibleItem.type === "on-database" ||
+        previousVisibleItem.type === "optimistically-added"
       ) {
         newInsertionPoint = {
           type: "after-clip",
-          frontendClipId: previousNonUndefinedItem.frontendId,
+          frontendClipId: previousVisibleItem.frontendId,
         };
       } else {
         newInsertionPoint = {
           type: "after-chapter",
-          frontendChapterId: previousNonUndefinedItem.frontendId,
+          frontendChapterId: previousVisibleItem.frontendId,
         };
       }
     } else {
