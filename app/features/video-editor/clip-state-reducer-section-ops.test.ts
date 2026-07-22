@@ -492,9 +492,10 @@ describe("clipStateReducer", () => {
         })
         .getState();
 
-      expect(state.items).toHaveLength(2);
+      expect(state.items).toHaveLength(3);
       expect(state.items).toMatchObject([
         { name: "Section 1" },
+        { frontendId: "fe-1", shouldArchive: true },
         { name: "Section 2" },
       ]);
 

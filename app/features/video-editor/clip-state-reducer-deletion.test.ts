@@ -168,10 +168,101 @@ describe("clipStateReducer", () => {
         frontendChapterId: "fe-s1",
       });
     });
+
+    it("Should keep deleted database clips in items with shouldArchive for recovery", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-2" as FrontendId,
+              databaseId: "db-2" as DatabaseId,
+              scene: "Clip 2",
+              insertionOrder: null,
+            }),
+          ],
+          insertionPoint: { type: "end" },
+        })
+      );
+
+      const state = tester
+        .send({
+          type: "clips-deleted",
+          clipIds: ["fe-1" as FrontendId],
+        })
+        .getState();
+
+      // Clip stays in items with shouldArchive
+      expect(state.items).toHaveLength(2);
+      expect(state.items[0]).toMatchObject({
+        frontendId: "fe-1",
+        type: "on-database",
+        shouldArchive: true,
+      });
+      expect(state.items[1]).toMatchObject({
+        frontendId: "fe-2",
+        type: "on-database",
+      });
+
+      // Should have fired archive-clips effect
+      expect(tester.getExec()).toHaveBeenCalledWith({
+        type: "archive-clips",
+        clipIds: ["db-1"],
+      });
+    });
+
+    it("Should move insertion point past shouldArchive clips when finding previous item", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              scene: "Clip 1",
+              insertionOrder: null,
+              shouldArchive: true,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-2" as FrontendId,
+              databaseId: "db-2" as DatabaseId,
+              scene: "Clip 2",
+              insertionOrder: null,
+            }),
+          ],
+          insertionPoint: {
+            type: "after-clip",
+            frontendClipId: "fe-2" as FrontendId,
+          },
+        })
+      );
+
+      const state = tester
+        .send({
+          type: "clips-deleted",
+          clipIds: ["fe-2" as FrontendId],
+        })
+        .getState();
+
+      // Should skip fe-1 (shouldArchive) and use "end" as insertion point
+      expect(state.insertionPoint).toEqual({
+        type: "end",
+      });
+    });
   });
 
   describe("Deleting Latest Inserted Clip", () => {
-    it("When all clips have no insertion order, the last clip should be deleted", () => {
+    it("When all clips have no insertion order, the last clip should be marked shouldArchive", () => {
       const finalState = new ReducerTester(
         clipStateReducer,
         createInitialState({
@@ -203,6 +294,10 @@ describe("clipStateReducer", () => {
       expect(finalState.items).toMatchObject([
         {
           frontendId: "1",
+        },
+        {
+          frontendId: "2",
+          shouldArchive: true,
         },
       ]);
     });
@@ -303,15 +398,20 @@ describe("clipStateReducer", () => {
       // First delete marks opt-1 as shouldArchive
       tester.send({ type: "delete-latest-inserted-clip" });
 
-      // Second delete should skip opt-1 and archive db-1
+      // Second delete should skip opt-1 and mark db-1 as shouldArchive
       tester.resetExec();
       const stateAfterSecond = tester
         .send({ type: "delete-latest-inserted-clip" })
         .getState();
 
-      // db-1 is removed from items (database clips get set to undefined and filtered out)
+      // db-1 stays in items with shouldArchive (recoverable)
       // opt-1 remains with shouldArchive
       expect(stateAfterSecond.items).toMatchObject([
+        {
+          frontendId: "db-1",
+          type: "on-database",
+          shouldArchive: true,
+        },
         {
           frontendId: "opt-1",
           type: "optimistically-added",

@@ -387,7 +387,12 @@ describe("clipStateReducer", () => {
         reportEffect2
       );
 
-      expect(stateWithOneDatabaseClipDeleted.items.length).toBe(0);
+      expect(stateWithOneDatabaseClipDeleted.items.length).toBe(1);
+      expect(stateWithOneDatabaseClipDeleted.items[0]).toMatchObject({
+        type: "on-database",
+        databaseId: "123",
+        shouldArchive: true,
+      });
       expect(reportEffect2).toHaveBeenCalledWith({
         type: "archive-clips",
         clipIds: ["123"],

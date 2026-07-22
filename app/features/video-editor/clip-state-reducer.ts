@@ -21,6 +21,7 @@ import {
   handleChapterAction,
   isChapterAction,
 } from "./clip-state-reducer-chapters";
+import { DELETED_CLIPS_SESSION_ID } from "./video-editor-selectors";
 
 export namespace clipStateReducer {
   export type State = ClipReducerState;
@@ -438,8 +439,7 @@ export const clipStateReducer: EffectReducer<
         items: state.items.map((c) => {
           if (c.frontendId === action.clipId) {
             const { shouldArchive, ...rest } = c as
-              | ClipOnDatabase
-              | ClipOptimisticallyAdded;
+              ClipOnDatabase | ClipOptimisticallyAdded;
             return rest;
           }
           return c;
@@ -447,20 +447,22 @@ export const clipStateReducer: EffectReducer<
       };
     }
     case "permanently-remove-archived": {
+      const isDeletedClipsPanel = action.sessionId === DELETED_CLIPS_SESSION_ID;
+
       const itemsToRemove = state.items.filter((item) => {
         if (
           item.type === "optimistically-added" &&
           (item.shouldArchive || item.isOrphaned) &&
+          !isDeletedClipsPanel &&
           item.sessionId === action.sessionId
         ) {
           return true;
         }
-        if (
-          item.type === "on-database" &&
-          item.shouldArchive &&
-          item.sessionId === action.sessionId
-        ) {
-          return true;
+        if (item.type === "on-database" && item.shouldArchive) {
+          if (isDeletedClipsPanel) {
+            return !item.sessionId;
+          }
+          return item.sessionId === action.sessionId;
         }
         return false;
       });

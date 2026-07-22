@@ -78,7 +78,7 @@ export const archiveClips = (
       items[index] = undefined;
     } else if (itemToReplace.type === "on-database") {
       clipsToArchive.add(itemToReplace.databaseId);
-      items[index] = undefined;
+      itemToReplace.shouldArchive = true;
     } else if (itemToReplace.type === "chapter-optimistically-added") {
       itemToReplace.shouldArchive = true;
     } else if (itemToReplace.type === "chapter-on-database") {
@@ -87,14 +87,20 @@ export const archiveClips = (
     }
   }
 
+  const isVisibleItem = (
+    item: TimelineItem | undefined
+  ): item is TimelineItem => {
+    if (item === undefined) return false;
+    if ("shouldArchive" in item && item.shouldArchive) return false;
+    return true;
+  };
+
   // If the insertion point is after a clip, and that clip has been deleted,
   // we need to find a candidate for the insertion point
   if (archiveClipMode.type === "move-insertion-point-to-previous-clip") {
     const slicedItems = items.slice(0, archiveClipMode.originalClipIndex);
 
-    const previousNonUndefinedItem = slicedItems.findLast(
-      (c) => c !== undefined
-    );
+    const previousNonUndefinedItem = slicedItems.findLast(isVisibleItem);
 
     let newInsertionPoint: FrontendInsertionPoint;
 
@@ -142,7 +148,7 @@ export const archiveClips = (
 
   if (firstDeletedChapterIndex !== undefined) {
     const slicedItems = items.slice(0, firstDeletedChapterIndex);
-    const previousItem = slicedItems.findLast((c) => c !== undefined);
+    const previousItem = slicedItems.findLast(isVisibleItem);
 
     let newInsertionPoint: FrontendInsertionPoint;
     if (previousItem) {
