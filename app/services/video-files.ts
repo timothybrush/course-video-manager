@@ -1,7 +1,9 @@
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import { Data, Effect } from "effect";
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * The per-Video scratch file store.
@@ -47,8 +49,41 @@ export class InvalidVideoFilePathError extends Data.TaggedError(
   readonly message: string;
 }> {}
 
+/** Walk up from `start` until a directory containing package.json is found. */
+function findRepoRoot(start: string): string | undefined {
+  let dir = start;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    if (existsSync(path.join(dir, "package.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+/**
+ * The store's base directory: VIDEO_FILES_DIR when set (tests pin a temp dir
+ * this way), otherwise `<repoRoot>/video-files` anchored to THIS module's
+ * install location — the same trick `app/cli/env.ts` uses for DATABASE_URL.
+ *
+ * Deliberately NEVER cwd-relative: the globally-linked `cvm` bin runs from
+ * arbitrary directories, and a `./video-files` fallback once scattered files
+ * into whichever repo the agent happened to be in, invisibly to the server.
+ */
 export function getVideoFilesBaseDir(): string {
-  return process.env.VIDEO_FILES_DIR || "./video-files";
+  const fromEnv = process.env.VIDEO_FILES_DIR;
+  if (fromEnv != null && fromEnv !== "") {
+    return fromEnv;
+  }
+
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const repoRoot = findRepoRoot(moduleDir);
+  if (repoRoot === undefined) {
+    throw new Error(
+      "Could not locate the course-video-manager repo root to resolve the video file store; set VIDEO_FILES_DIR explicitly."
+    );
+  }
+  return path.join(repoRoot, "video-files");
 }
 
 export function isUrl(value: string): boolean {

@@ -2,7 +2,7 @@ import { CliConfig, Command } from "@effect/cli";
 import { NodeContext } from "@effect/platform-node";
 import { Effect } from "effect";
 import * as Console from "effect/Console";
-import { ensureDatabaseUrl, ensureVideoFilesDir } from "./env";
+import { ensureDatabaseUrl } from "./env";
 import { rootCommand } from "./index";
 import { cliRuntime, type CliServices } from "./layer";
 import { CliOutput } from "./output";
@@ -118,9 +118,6 @@ export const buildProgram = (
  */
 export const runCli = (argv: ReadonlyArray<string>): Promise<number> => {
   const env = ensureDatabaseUrl();
-  // Anchor the video file store to the repo root so `cvm file` writes land
-  // where the web server reads, regardless of the invoking cwd.
-  ensureVideoFilesDir();
   if (!env.ok) {
     process.stderr.write(JSON.stringify(env.error) + "\n");
     return Promise.resolve(4);
