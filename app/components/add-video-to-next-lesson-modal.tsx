@@ -38,15 +38,15 @@ export function AddVideoToNextLessonModal(props: {
         >
           <input type="hidden" name="lessonId" value={props.lessonId} />
           <div className="space-y-2">
-            <Label htmlFor="video-path">Video Name</Label>
+            <Label htmlFor="video-title">Video Name</Label>
             <Input
-              id="video-path"
+              id="video-title"
               placeholder="Problem, Solution, Explainer..."
               defaultValue={getVideoPath({
                 videoCount: 0,
                 hasExplainerFolder: props.hasExplainerFolder,
               })}
-              name="path"
+              name="title"
             />
           </div>
           <div className="flex justify-end space-x-2">
