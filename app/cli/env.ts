@@ -107,6 +107,43 @@ export const ensureDatabaseUrl = (): EnsureDatabaseUrlResult => {
 };
 
 /**
+ * Anchor VIDEO_FILES_DIR to the INSTALL LOCATION, the same way
+ * `ensureDatabaseUrl` anchors DATABASE_URL.
+ *
+ * `getVideoFilesBaseDir()` falls back to the cwd-relative `./video-files`, which
+ * is correct for the web server (run from the repo root) but wrong for the
+ * globally-linked `cvm` bin: `cvm file add` invoked from another repo silently
+ * wrote files into THAT repo's ./video-files, where the server never looks.
+ *
+ * Precedence:
+ *   1. An already-set process.env.VIDEO_FILES_DIR WINS (never overwritten —
+ *      this is how the test harness pins a temp dir).
+ *   2. Otherwise the VIDEO_FILES_DIR line from the repo-root `.env` file.
+ *   3. Otherwise `<repoRoot>/video-files` — the server's effective default.
+ *
+ * Best-effort: if the repo root cannot be located the env is left unset and
+ * the cwd-relative fallback applies (matching pre-anchor behaviour).
+ */
+export const ensureVideoFilesDir = (): void => {
+  const existing = process.env.VIDEO_FILES_DIR;
+  if (existing != null && existing !== "") return;
+
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const repoRoot = findRepoRoot(moduleDir);
+  if (repoRoot === undefined) return;
+
+  const envPath = join(repoRoot, ".env");
+  const fromEnvFile = existsSync(envPath)
+    ? readEnvValue(envPath, "VIDEO_FILES_DIR")
+    : undefined;
+
+  process.env.VIDEO_FILES_DIR =
+    fromEnvFile != null && fromEnvFile !== ""
+      ? fromEnvFile
+      : join(repoRoot, "video-files");
+};
+
+/**
  * Load EVERY key from the repo-root `.env` into `process.env` (never
  * overwriting a value already set), anchored to the install location the same
  * way `ensureDatabaseUrl` is.
