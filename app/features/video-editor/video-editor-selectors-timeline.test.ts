@@ -589,4 +589,50 @@ describe("getSessionPanels", () => {
     const panels = getSessionPanels(items, sessions);
     expect(panels[0]!.sessionId).toBe(DELETED_CLIPS_SESSION_ID);
   });
+
+  it("routes deleted on-database clips with a sessionId back into the session panel", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1, status: "done" }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+        insertionOrder: 5,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c2"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels).toHaveLength(1);
+    expect(panels[0]!.sessionId).toBe(sid("s1"));
+    expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
+      id("c1"),
+      id("c2"),
+    ]);
+  });
+
+  it("does not create a deleted clips panel when all archived clips have sessionIds", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1, status: "done" }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels).toHaveLength(1);
+    expect(panels[0]!.sessionId).toBe(sid("s1"));
+    expect(
+      panels.find((p) => p.sessionId === DELETED_CLIPS_SESSION_ID)
+    ).toBeUndefined();
+  });
 });

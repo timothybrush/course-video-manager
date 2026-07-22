@@ -464,6 +464,7 @@ const handleNewDatabaseClips = (
           diagramSnapshotId: databaseClip.diagramSnapshotId ?? null,
           diagramName: null,
           webLinks: [],
+          sessionId: frontendClip.sessionId,
         };
         newClipsState[index] = newDatabaseClip;
         clipsToUpdateScene.set(databaseClip.id, {
