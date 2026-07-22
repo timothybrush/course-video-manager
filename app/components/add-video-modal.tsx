@@ -23,7 +23,8 @@ export function AddVideoModal(props: {
 
   // No redirect fires on success anymore, so close the modal once the submit
   // round-trip completes. Track that we actually submitted so a stale
-  // fetcher.data doesn't re-close the modal the next time it opens.
+  // fetcher.data doesn't re-close the modal the next time it opens. Action
+  // errors are not handled here — they propagate to the route error boundary.
   const didSubmit = useRef(false);
   const { onOpenChange } = props;
   useEffect(() => {
@@ -59,15 +60,15 @@ export function AddVideoModal(props: {
           className="space-y-4 py-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="video-path">Video Name</Label>
+            <Label htmlFor="video-title">Video Name</Label>
             <Input
-              id="video-path"
+              id="video-title"
               placeholder="Problem, Solution, Explainer..."
               defaultValue={getVideoPath({
                 videoCount: props.videoCount,
                 hasExplainerFolder: props.hasExplainerFolder,
               })}
-              name="path"
+              name="title"
             />
           </div>
           <div className="flex justify-end space-x-2">
