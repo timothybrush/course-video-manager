@@ -14,6 +14,11 @@ import { Effect } from "effect";
 import type { AuthoringStatus } from "./lesson-authoring-status";
 import { parseLessonPath } from "./lesson-path-service";
 import { parseSectionPath } from "./section-path-service";
+import {
+  requireDraftVersion,
+  requireDraftVersionForLesson,
+  requireDraftVersionForSection,
+} from "./draft-guard.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -138,6 +143,7 @@ export const createLessonSectionOperations = (db: Database) => {
     }[];
     repoVersionId: string;
   }) {
+    yield* requireDraftVersion(db, repoVersionId);
     const seen = new Set<string>();
     for (const section of newSections) {
       if (seen.has(section.sectionPathWithNumber)) {
@@ -174,6 +180,7 @@ export const createLessonSectionOperations = (db: Database) => {
       lessonNumber: number;
     }[]
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     const seen = new Set<string>();
     for (const lesson of newLessons) {
       if (seen.has(lesson.lessonPathWithNumber)) {
@@ -210,6 +217,7 @@ export const createLessonSectionOperations = (db: Database) => {
       order: number;
     }
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     const lessonResult = yield* makeDbCall(() =>
       db
         .insert(lessons)
@@ -238,6 +246,7 @@ export const createLessonSectionOperations = (db: Database) => {
       authoringStatus?: string | null;
     }
   ) {
+    yield* requireDraftVersionForLesson(db, lessonId);
     const lessonResult = yield* makeDbCall(() =>
       db
         .update(lessons)
@@ -258,6 +267,7 @@ export const createLessonSectionOperations = (db: Database) => {
   });
 
   const deleteLesson = Effect.fn("deleteLesson")(function* (lessonId: string) {
+    yield* requireDraftVersionForLesson(db, lessonId);
     const lessonResult = yield* makeDbCall(() =>
       db.update(lessons).set({ archived: true }).where(eq(lessons.id, lessonId))
     );
@@ -268,6 +278,7 @@ export const createLessonSectionOperations = (db: Database) => {
   const deleteSection = Effect.fn("deleteSection")(function* (
     sectionId: string
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     const sectionResult = yield* makeDbCall(() =>
       db.delete(sections).where(eq(sections.id, sectionId))
     );
@@ -278,6 +289,7 @@ export const createLessonSectionOperations = (db: Database) => {
   const archiveSection = Effect.fn("archiveSection")(function* (
     sectionId: string
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     return yield* makeDbCall(() =>
       db
         .update(sections)
@@ -290,6 +302,7 @@ export const createLessonSectionOperations = (db: Database) => {
     sectionId: string,
     order: number
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     return yield* makeDbCall(() =>
       db.update(sections).set({ order }).where(eq(sections.id, sectionId))
     );
@@ -299,6 +312,7 @@ export const createLessonSectionOperations = (db: Database) => {
     sectionId: string,
     title: string
   ) {
+    yield* requireDraftVersionForSection(db, sectionId);
     return yield* makeDbCall(() =>
       db.update(sections).set({ title }).where(eq(sections.id, sectionId))
     );
@@ -306,6 +320,7 @@ export const createLessonSectionOperations = (db: Database) => {
 
   const updateSectionDescription = Effect.fn("updateSectionDescription")(
     function* (sectionId: string, description: string) {
+      yield* requireDraftVersionForSection(db, sectionId);
       return yield* makeDbCall(() =>
         db
           .update(sections)
@@ -365,6 +380,7 @@ export const createLessonSectionOperations = (db: Database) => {
     lessonId: string,
     order: number
   ) {
+    yield* requireDraftVersionForLesson(db, lessonId);
     return yield* makeDbCall(() =>
       db.update(lessons).set({ order }).where(eq(lessons.id, lessonId))
     );
@@ -380,6 +396,8 @@ export const createLessonSectionOperations = (db: Database) => {
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
+      // All rows in one batch belong to the same version; guard via the first.
+      yield* requireDraftVersionForLesson(db, ids[0]!);
 
       yield* makeDbCall(() =>
         db
@@ -418,6 +436,8 @@ export const createLessonSectionOperations = (db: Database) => {
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
+      // All rows in one batch belong to the same version; guard via the first.
+      yield* requireDraftVersionForSection(db, ids[0]!);
 
       yield* makeDbCall(() =>
         db

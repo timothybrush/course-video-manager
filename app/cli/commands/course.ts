@@ -156,7 +156,7 @@ DEPTH
   --depth all expand the full subtree (course..clips).
 
 VERSIONS
-  Defaults to the Draft Version (latest by createdAt). Pass --course-version <id> to
+  Defaults to the Draft Version. Pass --course-version <id> to
   pin a Published Version snapshot; an unknown version id exits 2.
 
 NOTE ON FLAG ORDER
@@ -267,9 +267,11 @@ const transcriptsCmd = Command.make("transcripts", { id }, ({ id }) =>
 const COURSE_HELP = `Course — the primary domain entity: a structured collection of versions,
 sections, lessons, and videos, published as immutable snapshots.
 
-A Course's structure is snapshotted into Course Versions: a single Draft Version
-(latest, mutable) plus zero or more Published Versions (frozen at Publish).
-Version-scoped reads (tree, transcripts) default to the Draft Version.
+A Course's structure is snapshotted into Course Versions, whose commitState is
+the authoritative lifecycle: a single Draft Version (mutable — the only state
+accepting writes), at most one Pending Version (Submitted, mid-Commit), and
+zero or more Published Versions (immutable). Version-scoped reads (tree,
+transcripts) default to the Draft Version.
 
 VERBS
   list                 All courses (--archived to include archived).

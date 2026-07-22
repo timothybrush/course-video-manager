@@ -15,6 +15,10 @@ import { Effect } from "effect";
 import { copyVideoImpl } from "@/services/db-video-operations.copy.server";
 import { createVideoWriteOps } from "@/services/db-video-operations.write.server";
 import type { VideoFormat } from "@/features/videos/video-format";
+import {
+  requireDraftVersionForLesson,
+  requireDraftVersionForVideo,
+} from "@/services/draft-guard.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -292,6 +296,7 @@ export const createVideoOperations = (
       originalFootagePath: string;
     }
   ) {
+    yield* requireDraftVersionForLesson(db, lessonId);
     yield* assertVideoTitleAvailable(lessonId, video.title);
 
     const videoResults = yield* makeDbCall(() =>
@@ -356,6 +361,7 @@ export const createVideoOperations = (
       originalFootagePath: string;
     }
   ) {
+    yield* requireDraftVersionForVideo(db, videoId);
     const videoResult = yield* makeDbCall(() =>
       db.update(videos).set(video).where(eq(videos.id, videoId))
     );
@@ -364,6 +370,7 @@ export const createVideoOperations = (
   });
 
   const deleteVideo = Effect.fn("deleteVideo")(function* (videoId: string) {
+    yield* requireDraftVersionForVideo(db, videoId);
     const videoResult = yield* makeDbCall(() =>
       db.update(videos).set({ archived: true }).where(eq(videos.id, videoId))
     );
@@ -375,6 +382,7 @@ export const createVideoOperations = (
     videoId: string;
     title: string;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
     const video = yield* makeDbCall(() =>
       db.query.videos.findFirst({
         where: eq(videos.id, opts.videoId),
@@ -405,6 +413,7 @@ export const createVideoOperations = (
     copyBeats: boolean;
     renameOld: boolean;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.sourceVideoId);
     return yield* copyVideoImpl(db, opts);
   });
 
@@ -412,6 +421,8 @@ export const createVideoOperations = (
     videoId: string;
     lessonId: string;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
+    yield* requireDraftVersionForLesson(db, opts.lessonId);
     yield* makeDbCall(() =>
       db
         .update(videos)

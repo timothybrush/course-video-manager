@@ -61,6 +61,19 @@ export const courses = createTable(
   ]
 );
 
+/**
+ * The CourseVersion lifecycle: Draft → Pending → Published.
+ * - `draft`: the single mutable CourseVersion per course — the only state
+ *   that accepts section/lesson/video/clip writes.
+ * - `pending`: Submitted for publish — name/description stamped, a fresh
+ *   Draft cloned. At most one Pending per course. A Pending is either
+ *   Promoted (its Dropbox `course.json` rename committed) or Discarded.
+ * - `published`: immutable, never deleted.
+ * The database is authoritative for this state; no positional/name-based
+ * inference (see issue #1348).
+ */
+export type CourseVersionCommitState = "draft" | "pending" | "published";
+
 export const courseVersions = createTable("course_version", {
   id: varchar("id", { length: 255 })
     .notNull()
@@ -71,6 +84,10 @@ export const courseVersions = createTable("course_version", {
     .notNull(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
+  commitState: text("commit_state")
+    .$type<CourseVersionCommitState>()
+    .notNull()
+    .default("draft"),
   createdAt: timestamp("created_at", {
     mode: "date",
     withTimezone: true,

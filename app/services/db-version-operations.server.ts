@@ -18,6 +18,7 @@ import {
   NotFoundError,
   NotLatestVersionError,
   UnknownDBServiceError,
+  VersionNotDraftError,
 } from "@/services/db-service-errors";
 import { asc, and, desc, eq, isNull } from "drizzle-orm";
 import { Effect } from "effect";
@@ -32,6 +33,8 @@ import {
   lockCourseForVersionMutation,
   type CopyVersionStructureInput,
 } from "@/services/db-version-mutation.server";
+import { createVersionLifecycleOps } from "@/services/db-version-lifecycle.server";
+import { createVersionPathOps } from "@/services/db-version-paths.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -275,14 +278,9 @@ export const createVersionOperations = (db: Database) => {
         });
       }
 
-      const latestVersion = yield* makeDbCall(() =>
-        db.query.courseVersions.findFirst({
-          where: eq(courseVersions.repoId, version.repoId),
-          orderBy: desc(courseVersions.createdAt),
-        })
-      );
-
-      if (!latestVersion || latestVersion.id !== versionId) {
+      // The commit state is authoritative: only a Draft Version may be
+      // renamed. (Previously inferred positionally from "latest by createdAt".)
+      if (version.commitState !== "draft") {
         return yield* new CannotUpdatePublishedVersionError({ versionId });
       }
 
@@ -322,6 +320,14 @@ export const createVersionOperations = (db: Database) => {
         return yield* new NotLatestVersionError({
           sourceVersionId: input.sourceVersionId,
           latestVersionId: latestVersion?.id ?? "none",
+        });
+      }
+
+      // Only a Draft may be cloned from — the commit state is authoritative.
+      if (latestVersion.commitState !== "draft") {
+        return yield* new VersionNotDraftError({
+          versionId: latestVersion.id,
+          commitState: latestVersion.commitState,
         });
       }
 
@@ -517,7 +523,20 @@ export const createVersionOperations = (db: Database) => {
     input: CopyVersionStructureInput
   ) {
     return yield* withDbTransaction(db, (transaction) =>
-      copyVersionStructureInDb(transaction, input)
+      Effect.gen(function* () {
+        const result = yield* copyVersionStructureInDb(transaction, input);
+        // Manual create-version freezes its source without a Dropbox commit:
+        // the old Draft becomes an immutable `published` snapshot (that is what
+        // the positional model treated every non-latest version as), and the
+        // clone becomes the course's single Draft.
+        yield* makeDbCall(() =>
+          transaction
+            .update(courseVersions)
+            .set({ commitState: "published" })
+            .where(eq(courseVersions.id, input.sourceVersionId))
+        );
+        return result;
+      })
     );
   });
 
@@ -612,6 +631,7 @@ export const createVersionOperations = (db: Database) => {
           id: version.id,
           name: version.name,
           description: version.description,
+          commitState: version.commitState,
           createdAt: version.createdAt,
           sections: version.sections.map((s) => ({
             id: s.id,
@@ -634,96 +654,6 @@ export const createVersionOperations = (db: Database) => {
     }
   );
 
-  // Minimal sibling tree used to project version-scoped paths.
-  const loadVersionTreeForProjection = (repoVersionId: string) =>
-    makeDbCall(() =>
-      db.query.sections.findMany({
-        where: and(
-          eq(sections.repoVersionId, repoVersionId),
-          isNull(sections.archivedAt)
-        ),
-        orderBy: asc(sections.order),
-        columns: { id: true, order: true, title: true },
-        with: {
-          lessons: {
-            where: eq(lessons.archived, false),
-            orderBy: asc(lessons.order),
-            columns: { id: true, order: true, title: true },
-          },
-        },
-      })
-    );
-
-  // Resolve one lesson's derived directory from its version siblings.
-  const resolveLessonDir = Effect.fn("resolveLessonDir")(function* (
-    lessonId: string
-  ) {
-    const lesson = yield* makeDbCall(() =>
-      db.query.lessons.findFirst({
-        where: eq(lessons.id, lessonId),
-        columns: { id: true },
-        with: { section: { columns: { id: true, repoVersionId: true } } },
-      })
-    );
-
-    if (!lesson) {
-      return yield* new NotFoundError({
-        type: "resolveLessonDir",
-        params: { lessonId },
-      });
-    }
-
-    const versionSections = yield* loadVersionTreeForProjection(
-      lesson.section.repoVersionId
-    );
-    const paths = projectVersionPaths(versionSections);
-    const sectionPath = paths.get(lesson.section.id);
-    const lessonPath = paths.get(lessonId);
-
-    if (!sectionPath || !lessonPath) {
-      return yield* new NotFoundError({
-        type: "resolveLessonDir",
-        params: { lessonId },
-      });
-    }
-
-    return `${sectionPath}/${lessonPath}`;
-  });
-
-  // Resolve one section's derived directory from its version siblings.
-  const resolveSectionDir = Effect.fn("resolveSectionDir")(function* (
-    sectionId: string
-  ) {
-    const section = yield* makeDbCall(() =>
-      db.query.sections.findFirst({
-        where: eq(sections.id, sectionId),
-        columns: { id: true, repoVersionId: true },
-      })
-    );
-
-    if (!section) {
-      return yield* new NotFoundError({
-        type: "resolveSectionDir",
-        params: { sectionId },
-      });
-    }
-
-    const versionSections = yield* loadVersionTreeForProjection(
-      section.repoVersionId
-    );
-    const paths = projectVersionPaths(versionSections);
-    const sectionPath = paths.get(sectionId);
-
-    if (!sectionPath) {
-      return yield* new NotFoundError({
-        type: "resolveSectionDir",
-        params: { sectionId },
-      });
-    }
-
-    return sectionPath;
-  });
-
   return {
     getCourseVersions,
     getLatestCourseVersion,
@@ -735,10 +665,12 @@ export const createVersionOperations = (db: Database) => {
     updateCourseVersion,
     copyVersionStructure,
     freezeAndCloneVersion,
+    // Promote / Discard + commitState readers (issues #1348/#1401).
+    ...createVersionLifecycleOps(db),
     getVideoIdsForVersion,
     getAllVersionsWithStructure,
-    resolveLessonDir,
-    resolveSectionDir,
+    // resolveLessonDir / resolveSectionDir (split for the file token budget).
+    ...createVersionPathOps(db),
   };
 };
 

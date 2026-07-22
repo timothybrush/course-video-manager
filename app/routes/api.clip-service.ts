@@ -15,6 +15,10 @@ import { makeAction } from "@/services/route-action.server";
 
 export const action = makeAction({
   input: "json",
+  errors: {
+    // Write-closure: writes into a Pending/Published version are refused.
+    VersionNotDraftError: 409,
+  },
   effect: ({ payload }) =>
     Effect.gen(function* () {
       const event = yield* Schema.decodeUnknown(ClipServiceEventSchema)(

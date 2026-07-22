@@ -5,6 +5,7 @@ export type VersionWithStructure = {
   id: string;
   name: string;
   description: string;
+  commitState: string;
   createdAt: Date;
   sections: Array<{
     id: string;

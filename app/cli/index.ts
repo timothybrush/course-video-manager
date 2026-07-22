@@ -28,8 +28,9 @@ whether it reads or writes.
 
 DOMAIN MODEL
   A Course is the primary entity. Its structure is snapshotted into Course
-  Versions: a Draft Version (latest, editable) and zero or more Published
-  Versions (frozen at Publish). Version-scoped reads default to the Draft.
+  Versions, whose commitState is authoritative: one Draft Version (editable),
+  at most one Pending Version (Submitted, mid-publish), and zero or more
+  Published Versions (immutable). Version-scoped reads default to the Draft.
   A Version contains Sections (directory-backed groupings), each containing
   Lessons. A Lesson contains Videos; a Video is an ordered sequence of Clips
   (recorded timeline) and is planned as an ordered sequence of Beats
@@ -73,8 +74,8 @@ WRITES
                                      need the CVM server running
     pitch   create/update            create a Pitch (--title required) or patch
                                      its copy/ranking fields
-    course  publish                  mirror the Draft Version to Dropbox and
-                                     freeze it as a named Published Version
+    course  publish                  Submit the Draft as a Pending Version,
+                                     Commit it to Dropbox, Promote to Published
                                      (--name vX.Y.Z, a lowercase-'v' semver)
   See each noun's --help for the authoritative contract.
 

@@ -237,8 +237,45 @@ describe("CoursePublishService — publish", () => {
     expect(stages).toContain("uploading");
   });
 
-  it("retries the exact frozen version with the original to-do policy", async () => {
+  it("Promotes the Pending Version and leaves a fresh Draft on success", async () => {
+    const { course, run } = await setup();
+
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        const outcome = yield* svc.publish(
+          course.id,
+          "v1.0",
+          "First release",
+          true
+        );
+        const versionOps = yield* VersionOperationsService;
+        const versions = yield* versionOps.getCourseVersions(course.id);
+        return { outcome, versions };
+      })
+    );
+
+    expect(result.versions).toHaveLength(2);
+    const published = result.versions.find(
+      (v) => v.id === result.outcome.publishedVersionId
+    );
+    const draft = result.versions.find(
+      (v) => v.id === result.outcome.newDraftVersionId
+    );
+    expect(published).toMatchObject({
+      name: "v1.0",
+      commitState: "published",
+    });
+    expect(draft).toMatchObject({ name: "", commitState: "draft" });
+  });
+
+  it("Discards the Pending Version after one failed in-flight retry of the Commit", async () => {
     const { course, dropboxDir, run } = await setup();
+
+    // Every Commit attempt stages into a fresh `.cvm-staging-<uuid>` dir, so
+    // the number of distinct staging dirs observed = the number of attempts.
+    const stagingDirsSeen = new Set<string>();
+    let watcher: fs.FSWatcher | null = null;
 
     const result = await run(
       Effect.gen(function* () {
@@ -246,62 +283,127 @@ describe("CoursePublishService — publish", () => {
         const outcome = yield* svc
           .publish(course.id, "v1.0", "First release", false, (stage) => {
             if (stage === "uploading") {
-              fs.mkdirSync(
-                path.join(dropboxDir, "test-course", "course.json"),
-                {
-                  recursive: true,
+              // A directory squatting on course.json makes the atomic rename
+              // (the commit receipt) fail — persistently, so the in-flight
+              // retry fails too.
+              const courseDir = path.join(dropboxDir, "test-course");
+              fs.mkdirSync(path.join(courseDir, "course.json"), {
+                recursive: true,
+              });
+              watcher = fs.watch(courseDir, (_event, filename) => {
+                if (filename?.startsWith(".cvm-staging-")) {
+                  stagingDirsSeen.add(filename);
                 }
+              });
+            }
+          })
+          .pipe(
+            Effect.catchTag("PublishCommitFailedError", (error) =>
+              Effect.succeed({ error: true as const, errorDetails: error })
+            )
+          );
+        const versionOps = yield* VersionOperationsService;
+        const versions = yield* versionOps.getCourseVersions(course.id);
+        return { outcome, versions };
+      })
+    );
+    watcher!.close();
+
+    expect(result.outcome).toMatchObject({
+      error: true,
+      errorDetails: { reason: "sync_failed" },
+    });
+    // One original attempt + exactly one in-flight retry (issue #1401).
+    expect(stagingDirsSeen.size).toBe(2);
+    // The Pending Version was auto-Discarded: only the fresh Draft remains,
+    // and the submitted content lives on inside it.
+    expect(result.versions).toHaveLength(1);
+    expect(result.versions[0]).toMatchObject({
+      id: (result.outcome as any).errorDetails.newDraftVersionId,
+      name: "",
+      commitState: "draft",
+    });
+    expect(
+      result.versions.some(
+        (v) => v.id === (result.outcome as any).errorDetails.discardedVersionId
+      )
+    ).toBe(false);
+  });
+
+  it("Discards immediately on missing assets, naming the missing videos", async () => {
+    const { course, video, exportHash, run } = await setup();
+
+    // Pre-export so validation passes, then yank the file mid-publish.
+    fs.writeFileSync(
+      path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`),
+      "data"
+    );
+
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        const outcome = yield* svc
+          .publish(course.id, "v1.0", "First release", true, (stage) => {
+            if (stage === "uploading") {
+              fs.rmSync(
+                path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`)
               );
             }
           })
           .pipe(
-            Effect.catchTag("DropboxCommitPendingError", (error) =>
+            Effect.catchTag("PublishCommitFailedError", (error) =>
               Effect.succeed({ error: true as const, errorDetails: error })
             )
           );
-        const pending = (outcome as any).errorDetails;
-        fs.rmSync(path.join(dropboxDir, "test-course", "course.json"), {
-          recursive: true,
-        });
-        yield* svc.createDraftVersion({
-          sourceVersionId: pending.newDraftVersionId,
-          repoId: course.id,
-          newVersionName: "",
-        });
-        const retry = yield* svc.syncFrozenVersionToDropbox(
-          course.id,
-          pending.pendingVersionId,
-          pending.includeTodoLessons
-        );
         const versionOps = yield* VersionOperationsService;
         const versions = yield* versionOps.getCourseVersions(course.id);
-        const manifest = JSON.parse(
-          fs.readFileSync(
-            path.join(dropboxDir, "test-course", "course.json"),
-            "utf-8"
-          )
-        );
-        return { outcome, versions, retry, manifest };
+        return { outcome, versions };
       })
     );
 
     expect(result.outcome).toMatchObject({
       error: true,
       errorDetails: {
-        reason: "sync_failed",
-        includeTodoLessons: false,
+        reason: "missing_assets",
+        missingVideoIds: [video.id],
       },
     });
-    expect(result.versions).toHaveLength(3);
-    expect(result.versions.some((version) => version.name === "v1.0")).toBe(
-      true
+    // Discarded immediately: only the fresh Draft remains.
+    expect(result.versions).toHaveLength(1);
+    expect(result.versions[0]).toMatchObject({
+      name: "",
+      commitState: "draft",
+    });
+  });
+
+  it("re-syncs the newest Published Version by commit state", async () => {
+    const { course, dropboxDir, run } = await setup();
+
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        const outcome = yield* svc.publish(
+          course.id,
+          "v1.0",
+          "First release",
+          false
+        );
+        fs.rmSync(path.join(dropboxDir, "test-course", "course.json"));
+        const retry = yield* svc.syncToDropbox(course.id, false);
+        const manifest = JSON.parse(
+          fs.readFileSync(
+            path.join(dropboxDir, "test-course", "course.json"),
+            "utf-8"
+          )
+        );
+        return { outcome, retry, manifest };
+      })
     );
-    expect(result.versions.some((version) => version.name === "")).toBe(true);
+
     expect(result.retry.missingVideos).toEqual([]);
     expect(result.manifest.courseVersionId).toBe(
-      (result.outcome as any).errorDetails.pendingVersionId
+      result.outcome.publishedVersionId
     );
-    expect(result.manifest.sections).toEqual([]);
   });
 
   it("fails with PublishValidationError when export fails after retries", async () => {

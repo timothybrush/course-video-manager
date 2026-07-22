@@ -59,13 +59,13 @@ export const syncFrozenCourseVersionToDropbox = Effect.fn(
   const targetVersion = yield* versionOps.getCourseVersionById(
     input.courseVersionId
   );
-  const latestVersion = yield* versionOps.getLatestCourseVersion(
-    input.courseId
-  );
+  // The commit state is authoritative: only a non-Draft version (a Pending
+  // Version mid-Commit, or a Published Version being re-synced) may be
+  // mirrored to Dropbox. (Previously inferred positionally as "not the
+  // latest version".)
   if (
     targetVersion.repoId !== input.courseId ||
-    !latestVersion ||
-    latestVersion.id === input.courseVersionId
+    targetVersion.commitState === "draft"
   ) {
     return yield* new PublishValidationError({
       unfrozenCourseVersionId: input.courseVersionId,

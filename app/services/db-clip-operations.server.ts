@@ -10,6 +10,12 @@ import {
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { Effect } from "effect";
 import { generateNKeysBetween } from "fractional-indexing";
+import {
+  requireDraftVersionForChapter,
+  requireDraftVersionForClip,
+  requireDraftVersionForClipWebLink,
+  requireDraftVersionForVideo,
+} from "./draft-guard.server";
 import { compareOrderStrings } from "@/lib/sort-by-order";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
@@ -59,6 +65,7 @@ export const createClipOperations = (db: Database) => {
       pauseType?: string;
     }
   ) {
+    yield* requireDraftVersionForClip(db, clipId);
     const [clip] = yield* makeDbCall(() =>
       db.update(clips).set(updatedClip).where(eq(clips.id, clipId)).returning()
     );
@@ -67,6 +74,7 @@ export const createClipOperations = (db: Database) => {
   });
 
   const archiveClip = Effect.fn("archiveClip")(function* (clipId: string) {
+    yield* requireDraftVersionForClip(db, clipId);
     const clipExists = yield* makeDbCall(() =>
       db.query.clips.findFirst({
         where: eq(clips.id, clipId),
@@ -91,6 +99,7 @@ export const createClipOperations = (db: Database) => {
     clipId: string,
     direction: "up" | "down"
   ) {
+    yield* requireDraftVersionForClip(db, clipId);
     // First, get the clip to know what video we're working with
     const clip = yield* makeDbCall(() =>
       db.query.clips.findFirst({
@@ -173,6 +182,7 @@ export const createClipOperations = (db: Database) => {
     name: string,
     order: string
   ) {
+    yield* requireDraftVersionForVideo(db, videoId);
     const [chapter] = yield* makeDbCall(() =>
       db
         .insert(chapters)
@@ -204,6 +214,7 @@ export const createClipOperations = (db: Database) => {
       | { type: "after-clip"; databaseClipId: string }
       | { type: "after-chapter"; chapterId: string }
   ) {
+    yield* requireDraftVersionForVideo(db, videoId);
     // Get all non-archived clips and chapters for this video, ordered
     const allClips = yield* makeDbCall(() =>
       db.query.clips.findMany({
@@ -309,6 +320,7 @@ export const createClipOperations = (db: Database) => {
       targetItemId: string,
       targetItemType: "clip" | "chapter"
     ) {
+      yield* requireDraftVersionForVideo(db, videoId);
       // Get all non-archived clips and chapters for this video, ordered
       const allClips = yield* makeDbCall(() =>
         db.query.clips.findMany({
@@ -414,6 +426,7 @@ export const createClipOperations = (db: Database) => {
       name?: string;
     }
   ) {
+    yield* requireDraftVersionForChapter(db, chapterId);
     const [chapter] = yield* makeDbCall(() =>
       db
         .update(chapters)
@@ -435,6 +448,7 @@ export const createClipOperations = (db: Database) => {
   const archiveChapter = Effect.fn("archiveChapter")(function* (
     chapterId: string
   ) {
+    yield* requireDraftVersionForChapter(db, chapterId);
     const chapterExists = yield* makeDbCall(() =>
       db.query.chapters.findFirst({
         where: eq(chapters.id, chapterId),
@@ -462,6 +476,7 @@ export const createClipOperations = (db: Database) => {
     chapterId: string,
     direction: "up" | "down"
   ) {
+    yield* requireDraftVersionForChapter(db, chapterId);
     // Get the chapter to know what video we're working with
     const chapter = yield* makeDbCall(() =>
       db.query.chapters.findFirst({
@@ -557,6 +572,7 @@ export const createClipOperations = (db: Database) => {
     }[];
   }) {
     const { videoId, insertionPoint, clips: inputClips } = opts;
+    yield* requireDraftVersionForVideo(db, videoId);
     let prevOrder: string | null | undefined = null;
     let nextOrder: string | null | undefined = null;
 
@@ -668,6 +684,7 @@ export const createClipOperations = (db: Database) => {
     }[]
   ) {
     if (links.length === 0) return [];
+    yield* requireDraftVersionForClip(db, clipId);
 
     const inserted = yield* makeDbCall(() =>
       db
@@ -689,6 +706,7 @@ export const createClipOperations = (db: Database) => {
   const deleteClipWebLink = Effect.fn("deleteClipWebLink")(function* (
     linkId: string
   ) {
+    yield* requireDraftVersionForClipWebLink(db, linkId);
     yield* makeDbCall(() =>
       db.delete(clipWebLinks).where(eq(clipWebLinks.id, linkId))
     );

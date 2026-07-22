@@ -30,6 +30,7 @@ import {
   handleCreateVideoFromSelection,
 } from "./clip-service-handler.helpers";
 import type { DrizzleService } from "./drizzle-service.server";
+import { requireDraftForClipServiceEvent } from "./draft-guard.server";
 
 export type { VideoProcessingAdapter, LoggerAdapter };
 
@@ -52,6 +53,10 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
     videoProcessing: VideoProcessingAdapter,
     logger: LoggerAdapter = noopLogger
   ) {
+    // Write-closure (issue #1348): refuse write events whose target lives in
+    // a non-Draft version before dispatching (see draft-guard.server.ts).
+    yield* requireDraftForClipServiceEvent(db, event);
+
     switch (event.type) {
       case "create-video": {
         const [video] = yield* Effect.promise(() =>

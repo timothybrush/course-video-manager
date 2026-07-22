@@ -9,16 +9,20 @@ export class PublishValidationError extends Data.TaggedError(
   unfrozenCourseVersionId?: string;
 }> {}
 
-export class DropboxCommitPendingError extends Data.TaggedError(
-  "DropboxCommitPendingError"
+/**
+ * A caught Commit failure. Per issue #1401 this is TERMINAL, not recoverable:
+ * the Pending Version has already been auto-Discarded by the time this error
+ * surfaces (after one in-flight retry for `sync_failed`; immediately for
+ * `missing_assets`). Nothing is lost — the Submitted content lives on,
+ * unchanged, in the new Draft — so recovery is simply "fix the cause and
+ * publish again".
+ */
+export class PublishCommitFailedError extends Data.TaggedError(
+  "PublishCommitFailedError"
 )<{
-  // The Submitted Version, now durably Pending, whose Dropbox commit did not
-  // land. It is NOT Published (the commit failed), so it must not be named as
-  // such — recovery retries or discards this exact Pending Version.
-  pendingVersionId: string;
+  discardedVersionId: string;
   newDraftVersionId: string;
   reason: "sync_failed" | "missing_assets";
-  includeTodoLessons: boolean;
   missingVideoIds?: string[];
 }> {}
 

@@ -21,20 +21,36 @@ _Avoid_: Exercise, Tutorial, Step
 ### Course versions
 
 **CourseVersion**:
-A snapshot of a course's section/lesson/video structure at a point in time; either a Draft Version or a Published Version.
+A snapshot of a course's section/lesson/video structure. Its lifecycle state is recorded explicitly (never inferred from position or naming): Draft Version → Pending Version → Published Version.
 _Avoid_: Version (too vague), Revision
 
 **Draft Version**:
-The single mutable CourseVersion that is currently being edited; always the latest by `createdAt`; has no name or description.
+The single mutable CourseVersion being edited — the only state accepting section/lesson/video/clip writes. Exactly one per course; no name or description.
 _Avoid_: Current version, Working version
 
+**Pending Version**:
+A Submitted CourseVersion whose Dropbox commit receipt has not yet landed. Immutable, named, short-lived: either Promoted (receipt landed) or Discarded (commit failed). At most one per course; one found at rest means exactly one thing — a crash between receipt and Promote.
+_Avoid_: Frozen version (ambiguous with Published), In-flight version
+
 **Published Version**:
-An immutable CourseVersion with a name and description, created by the Publish flow; cannot be deleted.
+An immutable CourseVersion with a name and description, created by Promoting a Pending Version; cannot be deleted.
 _Avoid_: Released version, Committed version
 
+**Submit**:
+The Draft → Pending transition: stamps the publish name/description, marks the Draft Pending, and clones a fresh Draft. Refused while a Pending Version exists.
+_Avoid_: Freeze (only half the story), Snapshot
+
+**Promote**:
+The Pending → Published transition, recorded once the Dropbox commit receipt (the atomic `course.json` rename) has landed.
+_Avoid_: Finalize, Confirm
+
+**Discard**:
+Deletes a Pending Version whose commit did not land — never a Draft or Published one. Loses nothing: the Submitted content lives on in the Draft that Submit cloned. A caught commit failure auto-Discards (sync failures get one in-flight retry first; missing assets Discard immediately).
+_Avoid_: Rollback, Delete version
+
 **Publish**:
-The atomic operation that uploads to Dropbox, freezes the Draft Version as a Published Version (setting name/description), and clones a new Draft Version. Its structure is derived from the database (not parsed from disk); its Dropbox output is exclusively `.mp4` video files plus a single `course.json` and its companion `course.schema.json` (the JSON Schema describing course.json, referenced by course.json's `$schema` field) — no authoring sidecar files (`.transcript.md`, `.body.md`, `.meta.json`, `TODO.md`) and no `changelog.md`. Every shipping **Video** must be complete — it has exportable **Clips** (hence an `.mp4` and an **Export Hash**), a `body`, and a `description` — so every field in `course.json` is present, never null; an incomplete Video fails the Publish (see ADR 0019).
-_Avoid_: Commit, Deploy, Push
+The release flow: Submit, then the Dropbox commit (upload culminating in the atomic `course.json` rename — the sole commit receipt), then Promote. Structure is derived from the database (never parsed from disk); the Dropbox output is exclusively `.mp4` files plus one `course.json` and its companion `course.schema.json` (its JSON Schema, referenced via `$schema`) — no authoring sidecars (`.transcript.md`, `.body.md`, `.meta.json`, `TODO.md`), no `changelog.md`. Every shipping **Video** must be complete — exportable **Clips** (hence an `.mp4` and an **Export Hash**), a `body`, and a `description` — so no `course.json` field is ever null; an incomplete Video fails the Publish (ADR 0019).
+_Avoid_: Commit (that is one phase of it), Deploy, Push
 
 **Export Version Key**:
 A hardcoded constant in the codebase (`EXPORT_VERSION`) that, when bumped, invalidates all video export hashes and forces re-export.
@@ -43,7 +59,7 @@ _Avoid_: Version number, Build version
 ### Authoring lifecycle
 
 **Lesson Authoring Status**:
-A per-version marker on a **Lesson** indicating where it sits in the authoring workflow. Two values: `todo` (default for every newly created lesson) and `done` (set by clicking the To-Do pill in the UI). Stored as `authoringStatus` on the lesson row and copied forward by `copyVersionStructure` at Publish, so a Published Version's lessons keep whatever status they had at publish time. Every lesson has a status (there is no longer a ghost/real distinction). Distinct from **Pitch State** (which tracks pitches, not lessons). Surfaced live via the To-Do pill and in the changelog via the **Marked Ready** / **Marked TODO** transitions.
+A per-version marker on a **Lesson**: `todo` (default for new lessons) or `done` (set via the To-Do pill). Stored as `authoringStatus` and copied forward at Publish, so a Published Version's lessons keep their status at publish time. Every lesson has one (no ghost/real distinction). Distinct from **Pitch State**. Surfaced via the To-Do pill and the **Marked Ready** / **Marked TODO** changelog buckets.
 _Avoid_: TODO flag, Completion
 
 **Marked Ready** / **Marked TODO**:
@@ -91,7 +107,7 @@ A clip added to the frontend state during recording before it is persisted to th
 _Avoid_: Pending clip, Temporary clip
 
 **Clip Web Link**:
-A web page that was on screen — in a focused Chrome window, showing an `http(s)` page — while a **Clip** was being recorded. A one-to-many child of a Clip (a Clip can have several), captured live during the **Optimistic Clip** lifecycle from the browser link-capture Chrome extension (see `chrome-extension/`), which streams focus/URL events over the Stream Deck **WebSocket** hub. Deduped to one row per distinct URL per Clip. Surfaced as chips under the Clip in the editor and annotated inline in the **Transcript** (`«on screen: …»`, deduped to a URL's first appearance) so the writer agent knows which page accompanied each moment. Deliberately distinct from the global **Link** list (course-wide reference URLs with no clip/timing association): a Clip Web Link is positional and per-clip.
+A web page on screen (focused Chrome window, `http(s)` page) while a **Clip** was recorded. One-to-many child of a Clip, captured live during the **Optimistic Clip** lifecycle by the link-capture Chrome extension (`chrome-extension/`) over the Stream Deck WebSocket hub; deduped per URL per Clip. Shown as chips under the Clip and annotated in the **Transcript** (`«on screen: …»`, first appearance only) so the writer agent knows which page accompanied each moment. Distinct from the global **Link** list: a Clip Web Link is positional and per-clip.
 _Avoid_: Link (reserved for the global reference-URL list), Clip URL, On-screen link (informal, ok in prose)
 
 **Transcript**:
@@ -99,13 +115,13 @@ The ordered text projection of a **Video** — its **Clips** and **Chapters** in
 _Avoid_: Clip text (only covers Clips), Joined clips, Caption (reserved for the per-clip transcription product)
 
 **Video File**:
-A plain file on disk attached to a **Video**, living under the video's own directory (`{VIDEO_FILES_DIR}/{lineageId}/`) and addressed by a path _relative_ to it. Not a database row in any sense — the directory listing **is** the state, so attaching a file is the whole operation and deleting one is a real unlink (there is no `archived` flag and no restore). Belongs to the **Video**, never to the **Lesson**: lesson-bound and **Standalone Videos** behave identically. Its purpose is **writer context** — the Article Writer is fed a Video's **Transcript**, its **Beats**, and its text Video Files, so a Video File is how material that was never said on camera (a code sample, research notes, a snippet from a chat log) reaches the article. Files whose extension is one of `ts/tsx/js/jsx/json/md/mdx/txt/csv` are ticked by default in the writer's context picker (`defaultEnabled`); others are attached but start unticked, and images are passed to the writer as images. May be nested in subdirectories; dotfiles and `node_modules` are ignored. Managed from the editor UI or with `cvm file`.
+A plain file on disk attached to a **Video**, under `{VIDEO_FILES_DIR}/{lineageId}/` and addressed relative to it. Not a database row — the directory listing **is** the state; deleting is a real unlink (no `archived`, no restore). Belongs to the Video, never the Lesson; lesson-bound and **Standalone Videos** behave identically. Purpose: **writer context** — the Article Writer reads a Video's **Transcript**, **Beats**, and text Video Files, so this is how material never said on camera (code samples, notes) reaches the article. Extensions `ts/tsx/js/jsx/json/md/mdx/txt/csv` are ticked by default in the writer's picker; others start unticked; images pass as images. Subdirectories allowed; dotfiles and `node_modules` ignored. Managed from the editor UI or `cvm file`.
 _Avoid_: Attachment, Asset (reserved for exported/published artifacts), Standalone file / Lesson file (the old UI-era split, now one concept)
 
 ### Video planning
 
 **Beat**:
-A single film-time planning unit of a **Video**, classified by its **job** — what it does for the viewer. We lean into the screenwriting sense of a _beat_: a narrative unit of story/action. A Video's plan is an ordered sequence of Beats, authored _before_ the video is recorded; planning a video means choosing "one of these, then one of these". A first-class entity that belongs to a **Video** (not the **Lesson** or **Pitch**), so each Video carries its own plan and duplicating a Video copies its Beats. A Beat can be **moved between Videos** by dragging it from one video's plan into another's (reassigning its parent), but Videos themselves are not reordered — they sort alphabetically by name. Deliberately **distinct from a Chapter**: a Chapter is a recorded-timeline grouping that maps 1:1 to YouTube and groups **Clips**; a Beat is the _intended_ structure and need not correspond to any Chapter or Clip. The two are separate views — "what I planned to shoot" vs "what I shot". Five kinds, drawn from the Mise en Place glossary: **Definition**, **Walkthrough**, **Playthrough**, **Quest**, **Reaction**.
+A single film-time planning unit of a **Video**, classified by its **job** for the viewer (the screenwriting sense of _beat_). A Video's plan is an ordered sequence of Beats authored _before_ recording. First-class entity belonging to the **Video** (not Lesson or Pitch): duplicating a Video copies its Beats, and a Beat can be dragged between Videos (Videos themselves sort alphabetically, never reordered). Deliberately **distinct from a Chapter** (the recorded-timeline grouping of **Clips**): a Beat is the _intended_ structure — "what I planned to shoot" vs "what I shot". Five kinds from the Mise en Place glossary: **Definition**, **Walkthrough**, **Playthrough**, **Quest**, **Reaction**.
 _Avoid_: Chapter (the recorded YouTube grouping), Segment (now only the transcript/silence homonym), Section (course Section), Block, Unit
 
 **Beat Description**:
@@ -113,7 +129,7 @@ A free-text planning note on a **Beat** — "what I'm actually going to do or sa
 _Avoid_: Notes, Summary, Body, Caption
 
 **Section Workbench**:
-A drill-down authoring surface for a single **Section**, reached by clicking a **Section**'s header (lands at the top) or a **Lesson**'s title (deep-links to that lesson) in the course view. Routed at `/courses/:courseId/sections/:sectionId`. A reskin and expansion of the compact course view, scoped to one section and expanded by default, so it has the room the course view lacks: it shows each Lesson's **Videos** and their **Beats** with **Beat Descriptions** inline-editable. Its added value is the beat/description layer — structural editing (lesson/video drag-drop, context menus) is inherited from the reused course-view components rather than re-added or stripped out. Sibling sections are not shown — navigation back to them goes through the course view.
+A drill-down authoring surface for one **Section** (`/courses/:courseId/sections/:sectionId`), reached from the course view via a Section header (top) or Lesson title (deep link). An expanded reskin of the compact course view: shows each Lesson's **Videos** and **Beats** with **Beat Descriptions** inline-editable. Its added value is that beat/description layer; structural editing is inherited from the reused course-view components. Sibling sections are not shown — go back through the course view.
 _Avoid_: Section page, Lesson page (the workbench is section-altitude; there is no lesson-altitude page), Section editor
 
 ### Video warnings
@@ -151,7 +167,7 @@ A time-bounded window during which clips are captured via OBS, grouping optimist
 _Avoid_: Session, Take session
 
 **Silence Length**:
-A per-Recording-Session setting (`short` or `long`) that controls how long a silence must last before it ends a clip. `short` (default) cuts on brief mid-sentence pauses; `long` only cuts on extended pauses. Locked at the start of recording and applied symmetrically to both the frontend speech detector and the backend FFmpeg silence detection.
+A per-Recording-Session setting (`short` or `long`) for how long a silence must last to end a clip: `short` (default) cuts on brief mid-sentence pauses, `long` only on extended ones. Locked at recording start; applied symmetrically to the frontend speech detector and backend FFmpeg silence detection.
 _Avoid_: Pause Length (former name — reused "Pause", now the clip-level held pause), Silence mode, Silence sensitivity, Pause threshold
 
 **Pause**:
@@ -173,26 +189,20 @@ A reusable packaging artifact — the YouTube/newsletter/tweet copy and thumbnai
 _Avoid_: Idea, Concept, Draft (overloaded with Draft Version)
 
 **Pitch State**:
-A Pitch's state, derived (never stored) from the **Deliverable Status** of its linked **Deliverables**:
-
-- **Idle** — no linked Deliverable.
-- **Scheduled** — at least one linked Deliverable, not all terminal.
-- **Shipped** — at least one linked Deliverable, all terminal (`done`/`cancelled`).
-
-Abandonment is separate: a Pitch is hidden by **Archive**, not by Pitch State.
+A Pitch's state, derived (never stored) from its linked **Deliverables'** **Deliverable Status**: **Idle** (none linked), **Scheduled** (some linked, not all terminal), **Shipped** (all terminal — `done`/`cancelled`). Abandonment is separate: a Pitch is hidden by **Archive**, not Pitch State.
 _Avoid_: Pitch Status (no stored status field), Desk State, Pipeline state
 
 **Effort**:
-A manual planning estimate on a **Pitch** — how much work the eventual video will take to produce. Three values: `low` (1), `medium` (2), `high` (3). Stored as an integer mirroring **Priority**; defaults to `medium`. Lives on the Pitch (not the Video) because the estimate is a triage input used _before_ the video exists. Within a priority band, low-effort pitches sort first ("low-hanging fruit"); effort never overrides priority across bands.
+A manual planning estimate on a **Pitch** of the eventual video's production work: `low` (1), `medium` (2, default), `high` (3), stored as an integer mirroring **Priority**. Lives on the Pitch because it is a triage input used _before_ the video exists. Within a priority band, low-effort sorts first ("low-hanging fruit"); effort never overrides priority across bands.
 _Avoid_: Estimate, Cost, Size, Complexity
 
 **Default Pitch Filter**:
-The pitches index defaults to **Idle + Scheduled** (everything that isn't **Shipped**); a reveal toggle brings **Shipped** into view. At the default, the filter URL param is omitted so `/pitches` bookmarks survive default changes.
+The pitches index defaults to **Idle + Scheduled**; a reveal toggle brings **Shipped** into view. At the default the filter URL param is omitted, so `/pitches` bookmarks survive default changes.
 
 ### Reference video
 
 **Reference Video**:
-Another **Video** on the same **Lesson**, opened alongside the one being recorded so the author can read its **Clip** transcripts (grouped by **Chapter**) while re-recording. Not a domain link — there's no FK; the candidate set is derived as "other non-archived Videos on this Lesson." Opt-in per editor session: hidden by default, added via the editor's actions menu ("Add Reference"), and removed the same way. The visible reference is whichever sibling the user picked; the panel never auto-selects. When the Lesson has no eligible siblings, the action is unavailable and the editor stays in its default two-column layout.
+Another **Video** on the same **Lesson**, opened alongside the one being recorded so the author can read its **Clip** transcripts (grouped by **Chapter**) while re-recording. No FK — the candidate set is "other non-archived Videos on this Lesson". Opt-in per editor session via the actions menu ("Add Reference"); the panel never auto-selects. With no eligible siblings the action is unavailable.
 _Avoid_: Previous Take (implies take-history we don't model), Reference Take, Source Video
 
 ### Diagrams
@@ -214,7 +224,7 @@ The diagram-less mode of the Diagram Playground popup: a full-window picker/grid
 _Avoid_: Diagram picker, Diagrams page (overloaded with the deprecated parent route)
 
 **Preserved Snapshot**:
-A **DiagramSnapshot** flagged to remain visible in its Diagram's timeline regardless of whether any non-archived **Clip** pins to it. Created via the "Preserve snapshot" action in the playground, which forks `headScene` into a new snapshot independent of any Clip, or auto-created when a **Restore to Head** would overwrite an unpreserved head (silent auto-preserve). Non-preserved snapshots disappear from the timeline if all their pinning Clips become archived; Preserved Snapshots do not. A snapshot can be both Preserved _and_ pinned by Clips (the two are independent reasons to keep it visible). Surfaced in the UI via a pill on the timeline thumbnail.
+A **DiagramSnapshot** flagged to stay visible in its Diagram's timeline even with no non-archived **Clip** pinning it. Created via "Preserve snapshot" (forks `headScene` into a Clip-independent snapshot) or silently auto-created when **Restore to Head** would overwrite an unpreserved head. Non-preserved snapshots vanish when all pinning Clips are archived; Preserved ones don't. Preserved and pinned are independent reasons to keep a snapshot visible. Shown as a pill on the timeline thumbnail.
 _Avoid_: Manual snapshot, Saved snapshot, Standalone snapshot, Bookmark
 
 **Restore to Head**:
@@ -224,7 +234,7 @@ _Avoid_: Revert, Roll back, Undo
 ### Video destinations
 
 **Skills Changelog**:
-A published AI Hero entity that bundles an article and a Kit newsletter draft for a single **Video**. Created via `POST /api/skills/changelog`; publishes immediately (`state: "published"`) and triggers the Inngest `skill-changelog/published` event, which creates a Kit newsletter draft (template `5176054`, from `matt@aihero.dev`) — drafts only, never sends. The newsletter is required; the article and newsletter fields are authored together on a single page. Public page at `https://www.aihero.dev/skills/<slug>`; newsletter copy includes a hardcoded footer linking back to that page.
+A published AI Hero entity bundling an article and a Kit newsletter draft for one **Video**. Created via `POST /api/skills/changelog`; publishes immediately and triggers Inngest `skill-changelog/published`, which creates a Kit newsletter draft (template `5176054`, from `matt@aihero.dev`) — drafts only, never sends. Newsletter required; article + newsletter authored on one page. Public at `https://www.aihero.dev/skills/<slug>`, with a footer linking back.
 _Avoid_: Changelog (ambiguous with course publish changelog), Skill post, Changelog entry
 
 ### Deliverables and scheduling
@@ -242,7 +252,7 @@ The in-app view of all **Deliverables** across past and future dates, used for b
 _Avoid_: Delivery calendar, Schedule, Roadmap, Content calendar
 
 **ISO Week**:
-ISO 8601 week numbering: weeks start on Monday and week 1 is the week containing the year's first Thursday. Surfaces as `Week N` in the agenda header. Reusable by future surfaces.
+ISO 8601 week numbering (weeks start Monday; week 1 contains the year's first Thursday). Surfaces as `Week N` in the agenda header.
 _Avoid_: Calendar week, Week number (without "ISO" qualifier)
 
 ### Ordering and lifecycle
@@ -269,5 +279,5 @@ A persisted state where a **Lesson** depends on another lesson ordered _after_ i
 _Avoid_: Broken dependency, Invalid order
 
 **Dependency Group**:
-A maximal run of _contiguous_ lessons within a single **Section**, in display order, chained by **Lesson Dependencies**. Built by walking a section's lessons top-to-bottom: the next lesson joins the current group iff it has a **direct** dependency on any lesson already in the group; otherwise the current group closes and the next lesson begins a new one. Purely a **within-section**, **contiguous**, **directed-backward** view of relatedness — a dependency that spans a gap (a non-member lesson interrupts) or points forward (an **Order Violation**) is _not_ represented. Surfaced in the compact course view as dashed lines connecting adjacent lesson-type icons; a group of one shows no line. Suppressed entirely whenever a search or filter is active (the rendered list no longer reflects true adjacency). Read-only visual grouping — distinct from **Section** (the durable, order-backed grouping).
+A maximal run of _contiguous_ lessons within one **Section**, in display order, chained by **Lesson Dependencies**: walking top-to-bottom, a lesson joins the group iff it directly depends on a lesson already in it. Purely within-section, contiguous, directed-backward — gap-spanning or forward (**Order Violation**) dependencies are not represented. Shown as dashed lines between adjacent lesson icons (a group of one shows none); suppressed while a search/filter is active. Read-only visual grouping, distinct from **Section**.
 _Avoid_: Dependency block, Cluster, Chain, Lesson group

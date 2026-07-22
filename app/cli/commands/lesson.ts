@@ -28,24 +28,26 @@ import {
 } from "./lesson.help";
 
 /**
- * Refuse a write that targets a PUBLISHED (frozen) version.
+ * Refuse a write that targets a non-Draft (Pending/Published) version.
  *
- * A course's Draft is simply its latest version (newest `createdAt`); every
- * older version is a frozen snapshot that Publish left behind, and mutating one
- * would silently corrupt history. Structural writes (`create`, `update`,
- * `move`) all gate on this so a stale id can never edit a snapshot. `repoId` +
- * `versionId` come off any lesson/section hierarchy (`repoVersion.repoId`,
- * `repoVersionId`). Rejection is invalid-input (exit 3), not not-found — the id
+ * The version's `commitState` is authoritative (no positional inference): only
+ * a Draft accepts structural writes; a Pending or Published Version is an
+ * immutable snapshot, and mutating one would silently corrupt history.
+ * Structural writes (`create`, `update`, `move`) all gate on this so a stale
+ * id can never edit a snapshot. (The DB-mutation layer enforces the same rule
+ * with VersionNotDraftError; this pre-check just gives a friendlier exit-3
+ * message.) Rejection is invalid-input (exit 3), not not-found — the id
  * resolves fine, it just isn't editable.
  */
 const assertDraftVersion = (coords: { repoId: string; versionId: string }) =>
   Effect.gen(function* () {
     const versionOps = yield* VersionOperationsService;
-    const latest = yield* versionOps.getLatestCourseVersion(coords.repoId);
-    if (!latest || latest.id !== coords.versionId) {
+    const version = yield* versionOps.getCourseVersionById(coords.versionId);
+    if (version.commitState !== "draft") {
       return yield* parseError(
-        "cannot edit a published version — edits go to the Draft " +
-          "(the course's latest version)",
+        "cannot edit a " +
+          version.commitState +
+          " version — edits go to the Draft",
         "lesson"
       );
     }

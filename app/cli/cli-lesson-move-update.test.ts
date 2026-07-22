@@ -76,9 +76,10 @@ const addLesson = async (
 };
 
 /**
- * A course with two sections of lessons, plus an older frozen version carrying
- * one lesson (for the Draft-guard tests). The draft is the NEWER version by
- * createdAt.
+ * A course with two sections of lessons, plus an older Published Version
+ * carrying one lesson (for the Draft-guard tests). The commit state is
+ * authoritative: the draft row is `commitState: "draft"`, the frozen one
+ * `"published"`.
  */
 const seedMove = async (db: TestDb): Promise<MoveSeed> => {
   const [course] = await db
@@ -91,6 +92,7 @@ const seedMove = async (db: TestDb): Promise<MoveSeed> => {
     .values({
       repoId: course!.id,
       name: "v1",
+      commitState: "published",
       createdAt: new Date("2024-01-01T00:00:00Z"),
     })
     .returning();
