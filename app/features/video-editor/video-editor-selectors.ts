@@ -35,6 +35,8 @@ export const getTimelineItems = (items: TimelineItem[]): TimelineItem[] => {
   });
 };
 
+export const DELETED_CLIPS_SESSION_ID = "__deleted__" as SessionId;
+
 export type SessionPanelData = {
   sessionId: SessionId;
   displayNumber: number;
@@ -42,6 +44,7 @@ export type SessionPanelData = {
   startedAt: number;
   pendingClips: ClipOptimisticallyAdded[];
   archivedClips: (ClipOptimisticallyAdded | ClipOnDatabase)[];
+  label?: string;
 };
 
 /**
@@ -71,18 +74,20 @@ export const getSessionPanels = (
         clips.push(item);
         pendingBySession.set(item.sessionId, clips);
       }
-    } else if (
-      item.type === "on-database" &&
-      item.shouldArchive &&
-      item.sessionId
-    ) {
-      const clips = archivedBySession.get(item.sessionId) ?? [];
+    } else if (item.type === "on-database" && item.shouldArchive) {
+      const key = item.sessionId ?? DELETED_CLIPS_SESSION_ID;
+      const clips = archivedBySession.get(key) ?? [];
       clips.push(item);
-      archivedBySession.set(item.sessionId, clips);
+      archivedBySession.set(key, clips);
     }
   }
 
-  return sessions
+  const newestFirst = (
+    a: { insertionOrder: number | null },
+    b: { insertionOrder: number | null }
+  ) => (b.insertionOrder ?? 0) - (a.insertionOrder ?? 0);
+
+  const panels: SessionPanelData[] = sessions
     .filter(
       (session) =>
         session.status === "recording" ||
@@ -95,10 +100,27 @@ export const getSessionPanels = (
       displayNumber: session.displayNumber,
       isRecording: session.status === "recording",
       startedAt: session.startedAt,
-      pendingClips: pendingBySession.get(session.id) ?? [],
-      archivedClips: archivedBySession.get(session.id) ?? [],
+      pendingClips: (pendingBySession.get(session.id) ?? []).sort(newestFirst),
+      archivedClips: (archivedBySession.get(session.id) ?? []).sort(
+        newestFirst
+      ),
     }))
     .sort((a, b) => b.displayNumber - a.displayNumber);
+
+  const deletedClips = archivedBySession.get(DELETED_CLIPS_SESSION_ID);
+  if (deletedClips && deletedClips.length > 0) {
+    panels.unshift({
+      sessionId: DELETED_CLIPS_SESSION_ID,
+      displayNumber: 0,
+      isRecording: false,
+      startedAt: 0,
+      pendingClips: [],
+      archivedClips: deletedClips.sort(newestFirst),
+      label: "Deleted clips",
+    });
+  }
+
+  return panels;
 };
 
 export const getClips = (items: TimelineItem[]): Clip[] => {

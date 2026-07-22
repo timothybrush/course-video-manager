@@ -8,7 +8,11 @@ import type {
   TimelineItem,
   RecordingSession,
 } from "./clip-state-reducer";
-import { getTimelineItems, getSessionPanels } from "./video-editor-selectors";
+import {
+  getTimelineItems,
+  getSessionPanels,
+  DELETED_CLIPS_SESSION_ID,
+} from "./video-editor-selectors";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -168,15 +172,27 @@ describe("getTimelineItems", () => {
 // ---------------------------------------------------------------------------
 
 describe("getSessionPanels", () => {
-  it("groups pending optimistic clips by session", () => {
+  it("groups pending optimistic clips by session (newest first)", () => {
     const sessions: RecordingSession[] = [
       makeSession({ id: sid("s1"), displayNumber: 1 }),
       makeSession({ id: sid("s2"), displayNumber: 2 }),
     ];
     const items: TimelineItem[] = [
-      makeOptimisticClip({ frontendId: id("c1"), sessionId: sid("s1") }),
-      makeOptimisticClip({ frontendId: id("c2"), sessionId: sid("s2") }),
-      makeOptimisticClip({ frontendId: id("c3"), sessionId: sid("s1") }),
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 1,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c2"),
+        sessionId: sid("s2"),
+        insertionOrder: 2,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c3"),
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+      }),
     ];
     const panels = getSessionPanels(items, sessions);
     expect(panels).toHaveLength(2);
@@ -186,8 +202,8 @@ describe("getSessionPanels", () => {
     ]);
     expect(panels[1]!.sessionId).toBe(sid("s1"));
     expect(panels[1]!.pendingClips.map((c) => c.frontendId)).toEqual([
-      id("c1"),
       id("c3"),
+      id("c1"),
     ]);
   });
 
@@ -284,16 +300,22 @@ describe("getSessionPanels", () => {
       makeSession({ id: sid("s1"), displayNumber: 1 }),
     ];
     const items: TimelineItem[] = [
-      makeOptimisticClip({ frontendId: id("c1"), sessionId: sid("s1") }),
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 1,
+      }),
       makeOptimisticClip({
         frontendId: id("c2"),
         sessionId: sid("s1"),
+        insertionOrder: 2,
         shouldArchive: true,
       }),
       makeClipOnDatabase({
         frontendId: id("c3"),
         shouldArchive: true,
         sessionId: sid("s1"),
+        insertionOrder: 3,
       }),
     ];
     const panels = getSessionPanels(items, sessions);
@@ -302,8 +324,8 @@ describe("getSessionPanels", () => {
     expect(panels[0]!.pendingClips[0]!.frontendId).toBe(id("c1"));
     expect(panels[0]!.archivedClips).toHaveLength(2);
     expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
-      id("c2"),
       id("c3"),
+      id("c2"),
     ]);
   });
 
@@ -419,5 +441,198 @@ describe("getSessionPanels", () => {
     const items: TimelineItem[] = [];
     const panels = getSessionPanels(items, sessions);
     expect(panels).toHaveLength(0);
+  });
+
+  it("sorts pending clips newest first (highest insertionOrder first)", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 1,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c2"),
+        sessionId: sid("s1"),
+        insertionOrder: 2,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c3"),
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels[0]!.pendingClips.map((c) => c.frontendId)).toEqual([
+      id("c3"),
+      id("c2"),
+      id("c1"),
+    ]);
+  });
+
+  it("sorts archived clips newest first", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 1,
+        shouldArchive: true,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c2"),
+        sessionId: sid("s1"),
+        insertionOrder: 2,
+        shouldArchive: true,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c3"),
+        sessionId: sid("s1"),
+        shouldArchive: true,
+        insertionOrder: 3,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
+      id("c3"),
+      id("c2"),
+      id("c1"),
+    ]);
+  });
+
+  it("shows deleted on-database clips without sessionId in a deleted clips panel", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c2"),
+        shouldArchive: true,
+      }),
+      makeOptimisticClip({ frontendId: id("c3"), sessionId: sid("s1") }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    // Session panel + deleted clips panel
+    expect(panels).toHaveLength(2);
+    const deletedPanel = panels.find(
+      (p) => p.sessionId === DELETED_CLIPS_SESSION_ID
+    );
+    expect(deletedPanel).toBeDefined();
+    expect(deletedPanel!.archivedClips).toHaveLength(2);
+    expect(deletedPanel!.label).toBe("Deleted clips");
+  });
+
+  it("shows deleted clips panel even with no sessions", () => {
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+      }),
+    ];
+    const panels = getSessionPanels(items, []);
+    expect(panels).toHaveLength(1);
+    expect(panels[0]!.sessionId).toBe(DELETED_CLIPS_SESSION_ID);
+    expect(panels[0]!.archivedClips).toHaveLength(1);
+  });
+
+  it("archived clips with null insertionOrder sort after those with positive insertionOrder", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeOptimisticClip({
+        frontendId: id("c1"),
+        sessionId: sid("s1"),
+        insertionOrder: 5,
+        shouldArchive: true,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c2"),
+        sessionId: sid("s1"),
+        shouldArchive: true,
+        insertionOrder: null,
+      }),
+      makeOptimisticClip({
+        frontendId: id("c3"),
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+        shouldArchive: true,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
+      id("c1"),
+      id("c3"),
+      id("c2"),
+    ]);
+  });
+
+  it("deleted clips panel appears first (before session panels)", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1 }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+      }),
+      makeOptimisticClip({ frontendId: id("c2"), sessionId: sid("s1") }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels[0]!.sessionId).toBe(DELETED_CLIPS_SESSION_ID);
+  });
+
+  it("routes deleted on-database clips with a sessionId back into the session panel", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1, status: "done" }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+        insertionOrder: 5,
+      }),
+      makeClipOnDatabase({
+        frontendId: id("c2"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+        insertionOrder: 3,
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels).toHaveLength(1);
+    expect(panels[0]!.sessionId).toBe(sid("s1"));
+    expect(panels[0]!.archivedClips.map((c) => c.frontendId)).toEqual([
+      id("c1"),
+      id("c2"),
+    ]);
+  });
+
+  it("does not create a deleted clips panel when all archived clips have sessionIds", () => {
+    const sessions: RecordingSession[] = [
+      makeSession({ id: sid("s1"), displayNumber: 1, status: "done" }),
+    ];
+    const items: TimelineItem[] = [
+      makeClipOnDatabase({
+        frontendId: id("c1"),
+        shouldArchive: true,
+        sessionId: sid("s1"),
+      }),
+    ];
+    const panels = getSessionPanels(items, sessions);
+    expect(panels).toHaveLength(1);
+    expect(panels[0]!.sessionId).toBe(sid("s1"));
+    expect(
+      panels.find((p) => p.sessionId === DELETED_CLIPS_SESSION_ID)
+    ).toBeUndefined();
   });
 });

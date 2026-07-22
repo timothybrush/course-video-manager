@@ -5,8 +5,10 @@ import {
   type ClipOnDatabase,
   type ClipOptimisticallyAdded,
   type DatabaseId,
+  type FrontendId,
 } from "./clip-state-reducer";
 import { ReducerTester } from "@/test-utils/reducer-tester";
+import { DELETED_CLIPS_SESSION_ID } from "./video-editor-selectors";
 
 const createInitialState = (
   overrides: Partial<clipStateReducer.State> = {}
@@ -342,6 +344,42 @@ describe("clipStateReducer", () => {
       expect(newClip2.shouldArchive).toBeUndefined();
       expect(newClip2.frontendId).not.toBe(clip1Id);
       expect(newClip2.frontendId).not.toBe(clip2Id);
+    });
+
+    it("Should remove session-less archived clips when using DELETED_CLIPS_SESSION_ID", () => {
+      const tester = new ReducerTester(
+        clipStateReducer,
+        createInitialState({
+          items: [
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-1" as FrontendId,
+              databaseId: "db-1" as DatabaseId,
+              shouldArchive: true,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-2" as FrontendId,
+              databaseId: "db-2" as DatabaseId,
+              shouldArchive: true,
+            }),
+            fromPartial({
+              type: "on-database",
+              frontendId: "fe-3" as FrontendId,
+              databaseId: "db-3" as DatabaseId,
+            }),
+          ],
+        })
+      );
+
+      tester.send({
+        type: "permanently-remove-archived",
+        sessionId: DELETED_CLIPS_SESSION_ID,
+      });
+
+      // Only the non-archived clip remains
+      expect(tester.getState().items).toHaveLength(1);
+      expect(tester.getState().items[0]!.frontendId).toBe("fe-3" as FrontendId);
     });
   });
 

@@ -344,9 +344,13 @@ describe("clipStateReducer - effect clips", () => {
         })
         .getState();
 
-      // Reconciled clip is on-database, so it gets archived (removed from items)
-      expect(state.items).toHaveLength(1);
+      // Reconciled clip is on-database, so it stays with shouldArchive for recovery
+      expect(state.items).toHaveLength(2);
       expect(state.items[0]).toMatchObject({ text: "Clip 1" });
+      expect(state.items[1]).toMatchObject({
+        databaseId: "db-effect-456",
+        shouldArchive: true,
+      });
     });
   });
 });
