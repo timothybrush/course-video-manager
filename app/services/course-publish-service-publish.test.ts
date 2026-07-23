@@ -184,15 +184,15 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        return yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true,
-          (stage) => {
+        return yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onStageChange: (stage) => {
             stages.push(stage);
-          }
-        );
+          },
+        });
       })
     );
 
@@ -221,15 +221,15 @@ describe("CoursePublishService — publish", () => {
     await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true,
-          (stage) => {
+        yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onStageChange: (stage) => {
             stages.push(stage);
-          }
-        );
+          },
+        });
       })
     );
 
@@ -243,12 +243,12 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        const outcome = yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true
-        );
+        const outcome = yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+        });
         const versionOps = yield* VersionOperationsService;
         const versions = yield* versionOps.getCourseVersions(course.id);
         return { outcome, versions };
@@ -281,8 +281,13 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         const outcome = yield* svc
-          .publish(course.id, "v1.0", "First release", false, (stage) => {
-            if (stage === "uploading") {
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: false,
+            onStageChange: (stage) => {
+              if (stage !== "uploading") return;
               // A directory squatting on course.json makes the atomic rename
               // (the commit receipt) fail — persistently, so the in-flight
               // retry fails too.
@@ -295,7 +300,7 @@ describe("CoursePublishService — publish", () => {
                   stagingDirsSeen.add(filename);
                 }
               });
-            }
+            },
           })
           .pipe(
             Effect.catchTag("PublishCommitFailedError", (error) =>
@@ -343,12 +348,18 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         const outcome = yield* svc
-          .publish(course.id, "v1.0", "First release", true, (stage) => {
-            if (stage === "uploading") {
-              fs.rmSync(
-                path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`)
-              );
-            }
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+            onStageChange: (stage) => {
+              if (stage === "uploading") {
+                fs.rmSync(
+                  path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`)
+                );
+              }
+            },
           })
           .pipe(
             Effect.catchTag("PublishCommitFailedError", (error) =>
@@ -382,12 +393,12 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        const outcome = yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          false
-        );
+        const outcome = yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: false,
+        });
         fs.rmSync(path.join(dropboxDir, "test-course", "course.json"));
         const retry = yield* svc.syncToDropbox(course.id, false);
         const manifest = JSON.parse(
@@ -418,7 +429,12 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         return yield* svc
-          .publish(course.id, "v1.0", "First release", true)
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+          })
           .pipe(
             Effect.catchTag("PublishValidationError", (e) =>
               Effect.succeed({
@@ -441,16 +457,15 @@ describe("CoursePublishService — publish", () => {
     await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true,
-          undefined,
-          (event, data) => {
-            events.push({ event, data });
-          }
-        );
+        yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onDetailEvent: (e) => {
+            events.push({ event: e.event, data: e.data });
+          },
+        });
       })
     );
 
@@ -478,7 +493,7 @@ describe("CoursePublishService — publish", () => {
       events.some((e) => e.event === "complete" && e.data.videoId === video.id)
     ).toBe(true);
 
-    // The Commit sync's per-lesson upload percentage flows through too.
+    // The Dropbox commit's per-lesson upload percentage flows through too.
     const progressEvents = events.filter((e) => e.event === "progress");
     expect(progressEvents.length).toBeGreaterThan(0);
     expect(progressEvents.at(-1)?.data.percentage).toBe(100);
@@ -497,16 +512,15 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         return yield* svc
-          .publish(
-            course.id,
-            "v1.0",
-            "First release",
-            true,
-            undefined,
-            (event, data) => {
-              events.push({ event, data });
-            }
-          )
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+            onDetailEvent: (e) => {
+              events.push({ event: e.event, data: e.data });
+            },
+          })
           .pipe(
             Effect.catchTag("PublishValidationError", (e) =>
               Effect.succeed({

@@ -568,6 +568,17 @@ const publishConfig: UploadTypeConfig<
           // (issue #1401), so there is no recoverable "pending" state to
           // retry from here — every failure is terminal for this attempt.
           onError: (message) => {
+            // The per-video export entries this publish spawned would
+            // otherwise dangle at their last stage forever: the stream that
+            // fed them is gone, so fail the ones still in flight too.
+            for (const [, exportUploadId] of exportUploadIds) {
+              dispatch({
+                type: "UPLOAD_FATAL_ERROR",
+                uploadId: exportUploadId,
+                errorMessage: message,
+              });
+            }
+            exportUploadIds.clear();
             dispatch({
               type: "UPLOAD_FATAL_ERROR",
               uploadId,

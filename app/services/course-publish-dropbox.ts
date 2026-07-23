@@ -36,7 +36,8 @@ export const syncFrozenCourseVersionToDropbox = Effect.fn(
   courseId: string;
   courseVersionId: string;
   includeTodoLessons: boolean;
-  onProgress?: (event: string, data: unknown) => void;
+  // The Dropbox commit's per-lesson upload percentage.
+  onProgress?: (event: "progress", data: { percentage: number }) => void;
 }) {
   const effectFs = yield* FileSystem.FileSystem;
   const versionOps = yield* VersionOperationsService;

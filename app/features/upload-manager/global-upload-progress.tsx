@@ -307,7 +307,7 @@ function UploadStatusDetail({ upload }: { upload: uploadReducer.UploadEntry }) {
       if (upload.uploadType === "publish" && upload.publishStage) {
         const stageLabel = PUBLISH_STAGE_LABELS[upload.publishStage];
         if (upload.publishStage === "uploading") {
-          // The Dropbox sync reports a per-lesson percentage — show it.
+          // The Dropbox commit reports a per-lesson percentage — show it.
           return (
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground shrink-0">
