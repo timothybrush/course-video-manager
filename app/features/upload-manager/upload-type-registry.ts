@@ -488,6 +488,9 @@ const publishConfig: UploadTypeConfig<
   }),
 
   initiate: (uploadId, _entry, params, dispatch, abortControllers) => {
+    // videoId → uploadId for the per-video export entries this publish spawns.
+    // They render exactly like standalone batch-export entries.
+    const exportUploadIds = new Map<string, string>();
     withAbortManagement(uploadId, abortControllers, () =>
       startSSEPublish(
         {
@@ -499,6 +502,58 @@ const publishConfig: UploadTypeConfig<
         {
           onStageChange: (stage) => {
             dispatch({ type: "UPDATE_PUBLISH_STAGE", uploadId, stage });
+          },
+          onExportVideos: (videos) => {
+            for (const video of videos) {
+              const exportUploadId = `${uploadId}-export-${video.id}`;
+              exportUploadIds.set(video.id, exportUploadId);
+              dispatch({
+                type: "START_UPLOAD",
+                uploadId: exportUploadId,
+                videoId: video.id,
+                title: video.title,
+                uploadType: "export",
+                isBatchEntry: true,
+              });
+            }
+          },
+          onExportStageChange: (videoId, stage) => {
+            const exportUploadId = exportUploadIds.get(videoId);
+            if (exportUploadId) {
+              dispatch({
+                type: "UPDATE_EXPORT_STAGE",
+                uploadId: exportUploadId,
+                stage,
+              });
+            }
+          },
+          onExportComplete: (videoId) => {
+            const exportUploadId = exportUploadIds.get(videoId);
+            if (exportUploadId) {
+              dispatch({ type: "UPLOAD_SUCCESS", uploadId: exportUploadId });
+              exportUploadIds.delete(videoId);
+            }
+          },
+          // Terminal per video: the publish already retried the export
+          // server-side, and the publish itself is about to fail — never
+          // auto-retry a standalone export from here.
+          onExportError: (videoId, message) => {
+            const exportUploadId = exportUploadIds.get(videoId);
+            if (exportUploadId) {
+              dispatch({
+                type: "UPLOAD_FATAL_ERROR",
+                uploadId: exportUploadId,
+                errorMessage: message,
+              });
+              exportUploadIds.delete(videoId);
+            }
+          },
+          onUploadProgress: (percentage) => {
+            dispatch({
+              type: "UPDATE_PROGRESS",
+              uploadId,
+              progress: percentage,
+            });
           },
           onComplete: (result) => {
             dispatch({
@@ -513,6 +568,17 @@ const publishConfig: UploadTypeConfig<
           // (issue #1401), so there is no recoverable "pending" state to
           // retry from here — every failure is terminal for this attempt.
           onError: (message) => {
+            // The per-video export entries this publish spawned would
+            // otherwise dangle at their last stage forever: the stream that
+            // fed them is gone, so fail the ones still in flight too.
+            for (const [, exportUploadId] of exportUploadIds) {
+              dispatch({
+                type: "UPLOAD_FATAL_ERROR",
+                uploadId: exportUploadId,
+                errorMessage: message,
+              });
+            }
+            exportUploadIds.clear();
             dispatch({
               type: "UPLOAD_FATAL_ERROR",
               uploadId,

@@ -27,6 +27,11 @@ import {
   PublishValidationError,
 } from "./course-publish-errors";
 import { syncFrozenCourseVersionToDropbox } from "./course-publish-dropbox";
+import {
+  runObservedExportLoop,
+  type EmitPublishDetailEvent,
+  type PublishStage,
+} from "./course-publish-export-events";
 
 export type VideoForExport = {
   id: string;
@@ -41,8 +46,6 @@ export type VideoForExport = {
     order: string;
   }>;
 };
-
-const MAX_CONCURRENT_EXPORTS = 6;
 
 const toExportClips = (
   clips: Array<{
@@ -60,6 +63,25 @@ const toExportClips = (
 
 type ExportOwner =
   { kind: "course"; courseId: string } | { kind: "standalone" };
+
+// The Dropbox commit only ever reports its per-lesson upload percentage.
+type DropboxSyncProgressCallback = (
+  event: "progress",
+  data: { percentage: number }
+) => void;
+
+export type PublishOptions = {
+  courseId: string;
+  versionName: string;
+  versionDescription: string;
+  includeTodoLessons: boolean;
+  // The coarse publish lifecycle stage (validating → … → complete).
+  onStageChange?: (stage: PublishStage) => void;
+  // Per-video export events (same names/payloads as batchExport: `videos`,
+  // `stage`, `complete`, `error` keyed by videoId) plus the Dropbox commit's
+  // `progress` percentage — pure observability.
+  onDetailEvent?: EmitPublishDetailEvent;
+};
 
 export class CoursePublishService extends Effect.Service<CoursePublishService>()(
   "CoursePublishService",
@@ -179,22 +201,21 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         return targetPath;
       });
 
-      const batchExport = Effect.fn("batchExport")(function* (
+      // The shared walk behind batchExport and publish: which Videos this
+      // publish/export will ship (the effective Sections for the toggle) that
+      // have no export file yet, titled `section/lesson/videoTitle`. Withheld
+      // to-do Lessons' Videos are not included.
+      const findUnexportedVideos = Effect.fn("findUnexportedVideos")(function* (
         versionId: string,
-        includeTodoLessons: boolean,
-        sendEvent?: (event: string, data: unknown) => void
+        includeTodoLessons: boolean
       ) {
         const version = yield* versionOps.getVersionWithSections(versionId);
         const courseId = version.repo.id;
-
-        // Export only what this publish will ship — the effective Sections for
-        // the current toggle. Withheld to-do Lessons' Videos are not exported.
         const effectiveSections = computeEffectiveSections(
           version.sections,
           includeTodoLessons
         );
 
-        // Find unexported videos
         const unexportedVideos: Array<{
           id: string;
           title: string;
@@ -224,43 +245,26 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           }
         }
 
-        sendEvent?.("videos", {
-          videos: unexportedVideos.map((v) => ({
-            id: v.id,
-            title: v.title,
-          })),
+        return { courseId, unexportedVideos };
+      });
+
+      const batchExport = Effect.fn("batchExport")(function* (
+        versionId: string,
+        includeTodoLessons: boolean,
+        onDetailEvent?: EmitPublishDetailEvent
+      ) {
+        const { courseId, unexportedVideos } = yield* findUnexportedVideos(
+          versionId,
+          includeTodoLessons
+        );
+
+        yield* runObservedExportLoop({
+          unexportedVideos,
+          exportVideo: exportVideoCore,
+          onDetailEvent,
         });
 
         if (unexportedVideos.length === 0) return;
-
-        for (const video of unexportedVideos) {
-          sendEvent?.("stage", { videoId: video.id, stage: "queued" });
-        }
-
-        yield* Effect.forEach(
-          unexportedVideos,
-          (video) =>
-            exportVideoCore(video.id, (stage) => {
-              sendEvent?.("stage", { videoId: video.id, stage });
-            }).pipe(
-              Effect.retry(Schedule.recurs(2)),
-              Effect.tap(() => {
-                sendEvent?.("complete", { videoId: video.id });
-              }),
-              Effect.catchAll((e) =>
-                Effect.sync(() => {
-                  sendEvent?.("error", {
-                    videoId: video.id,
-                    message:
-                      "message" in e && typeof e.message === "string"
-                        ? e.message
-                        : "Export failed unexpectedly",
-                  });
-                })
-              )
-            ),
-          { concurrency: MAX_CONCURRENT_EXPORTS }
-        );
 
         // GC once after all exports
         yield* garbageCollect(courseId);
@@ -342,7 +346,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         courseId: string,
         courseVersionId: string,
         includeTodoLessons: boolean,
-        onProgress?: (event: string, data: unknown) => void
+        onProgress?: DropboxSyncProgressCallback
       ) {
         return yield* syncFrozenCourseVersionToDropbox({
           courseId,
@@ -356,7 +360,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         function* (
           courseId: string,
           includeTodoLessons: boolean,
-          onProgress?: (event: string, data: unknown) => void
+          onProgress?: DropboxSyncProgressCallback
         ) {
           const latestVersion =
             yield* versionOps.getLatestCourseVersion(courseId);
@@ -386,21 +390,17 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
       );
 
       const publishUnlocked = Effect.fn("publishUnlocked")(function* (
-        courseId: string,
-        versionName: string,
-        versionDescription: string,
-        includeTodoLessons: boolean,
-        onProgress?: (
-          stage:
-            | "validating"
-            | "exporting"
-            | "uploading"
-            | "freezing"
-            | "cloning"
-            | "complete"
-        ) => void
+        options: PublishOptions
       ) {
-        onProgress?.("validating");
+        const {
+          courseId,
+          versionName,
+          versionDescription,
+          includeTodoLessons,
+          onStageChange,
+          onDetailEvent,
+        } = options;
+        onStageChange?.("validating");
 
         const latestVersion =
           yield* versionOps.getLatestCourseVersion(courseId);
@@ -419,21 +419,18 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         }
 
         if (unexportedVideoIds.length > 0) {
-          onProgress?.("exporting");
-          const failedVideoIds: string[] = [];
-          yield* Effect.forEach(
-            unexportedVideoIds,
-            (videoId) =>
-              exportVideoCore(videoId).pipe(
-                Effect.retry(Schedule.recurs(2)),
-                Effect.catchAll(() =>
-                  Effect.sync(() => {
-                    failedVideoIds.push(videoId);
-                  })
-                )
-              ),
-            { concurrency: MAX_CONCURRENT_EXPORTS }
+          onStageChange?.("exporting");
+          // Re-walk with titles so the export step is observable per Video —
+          // the same walk (and events) the standalone batchExport emits.
+          const { unexportedVideos } = yield* findUnexportedVideos(
+            latestVersion.id,
+            includeTodoLessons
           );
+          const { failedVideoIds } = yield* runObservedExportLoop({
+            unexportedVideos,
+            exportVideo: exportVideoCore,
+            onDetailEvent,
+          });
           if (failedVideoIds.length > 0) {
             return yield* new PublishValidationError({
               failedExportVideoIds: failedVideoIds,
@@ -442,8 +439,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           yield* garbageCollect(courseId);
         }
 
-        onProgress?.("freezing");
-        onProgress?.("cloning");
+        onStageChange?.("freezing");
+        onStageChange?.("cloning");
         const { version: newDraft } = yield* versionOps.freezeAndCloneVersion({
           sourceVersionId: latestVersion.id,
           repoId: courseId,
@@ -452,8 +449,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           sourceDescription: versionDescription,
         });
 
-        onProgress?.("uploading");
-        // Commit: the Dropbox sync culminating in the atomic `course.json`
+        onStageChange?.("uploading");
+        // Commit: the Dropbox commit, culminating in the atomic `course.json`
         // rename — the external commit receipt. A caught failure is TERMINAL
         // for this Pending Version (issue #1401): retry the Commit once
         // in-flight (`sync_failed` only), then auto-Discard. The sync is
@@ -463,7 +460,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           syncFrozenVersionToDropboxUnlocked(
             courseId,
             latestVersion.id,
-            includeTodoLessons
+            includeTodoLessons,
+            (event, data) => onDetailEvent?.({ event, data })
           ).pipe(Effect.retry(Schedule.recurs(1)))
         );
         if (Exit.isFailure(commitExit)) {
@@ -491,7 +489,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         // Promote: the receipt landed, so the Pending Version is Published.
         yield* versionOps.promotePendingVersion(latestVersion.id);
 
-        onProgress?.("complete");
+        onStageChange?.("complete");
 
         return {
           publishedVersionId: latestVersion.id,
@@ -505,7 +503,7 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         courseId: string,
         courseVersionId: string,
         includeTodoLessons: boolean,
-        onProgress?: (event: string, data: unknown) => void
+        onProgress?: DropboxSyncProgressCallback
       ) {
         return yield* courseVersionMutationSemaphore.withPermits(1)(
           syncFrozenVersionToDropboxUnlocked(
@@ -520,36 +518,16 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
       const syncToDropbox = Effect.fn("syncToDropbox")(function* (
         courseId: string,
         includeTodoLessons: boolean,
-        onProgress?: (event: string, data: unknown) => void
+        onProgress?: DropboxSyncProgressCallback
       ) {
         return yield* courseVersionMutationSemaphore.withPermits(1)(
           syncToDropboxUnlocked(courseId, includeTodoLessons, onProgress)
         );
       });
 
-      const publish = Effect.fn("publish")(function* (
-        courseId: string,
-        versionName: string,
-        versionDescription: string,
-        includeTodoLessons: boolean,
-        onProgress?: (
-          stage:
-            | "validating"
-            | "exporting"
-            | "uploading"
-            | "freezing"
-            | "cloning"
-            | "complete"
-        ) => void
-      ) {
+      const publish = Effect.fn("publish")(function* (options: PublishOptions) {
         return yield* courseVersionMutationSemaphore.withPermits(1)(
-          publishUnlocked(
-            courseId,
-            versionName,
-            versionDescription,
-            includeTodoLessons,
-            onProgress
-          )
+          publishUnlocked(options)
         );
       });
 

@@ -21,10 +21,8 @@ export const action = async (args: Route.ActionArgs) => {
     program: (sendEvent) =>
       Effect.gen(function* () {
         const publishService = yield* CoursePublishService;
-        yield* publishService.batchExport(
-          versionId,
-          includeTodoLessons,
-          sendEvent
+        yield* publishService.batchExport(versionId, includeTodoLessons, (e) =>
+          sendEvent(e.event, e.data)
         );
       }),
     errorHandlers: [

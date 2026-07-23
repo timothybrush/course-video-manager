@@ -98,4 +98,50 @@ describe("publish failure handling", () => {
     });
     expect(clients.startPublish).toHaveBeenCalledTimes(1);
   });
+
+  it("fails the still-in-flight spawned export entries on a publish-level error", () => {
+    const dispatch = vi.fn();
+    const abortControllers = new Map<string, AbortController>();
+
+    publishConfig.initiate(
+      "upload-1",
+      entry,
+      {
+        courseId: "course-1",
+        name: "v1.0.0",
+        description: "First release",
+        includeTodoLessons: false,
+      },
+      dispatch,
+      abortControllers
+    );
+    clients.publishCallbacks!.onExportVideos!([
+      { id: "vid-1", title: "01-intro/01.01-welcome/Problem" },
+      { id: "vid-2", title: "01-intro/01.02-setup/Solution" },
+    ]);
+    // vid-2 finishes before the publish dies — its entry already resolved.
+    clients.publishCallbacks!.onExportComplete!("vid-2");
+    clients.publishCallbacks!.onError!("Stream disconnected");
+
+    // The in-flight export entry is terminally failed, not left dangling.
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "UPLOAD_FATAL_ERROR",
+      uploadId: "upload-1-export-vid-1",
+      errorMessage: "Stream disconnected",
+    });
+    // The already-completed entry is not re-touched by the failure.
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "UPLOAD_FATAL_ERROR",
+        uploadId: "upload-1-export-vid-2",
+      })
+    );
+    // The parent publish entry still fails terminally.
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "UPLOAD_FATAL_ERROR",
+      uploadId: "upload-1",
+      errorMessage:
+        "Stream disconnected. Publish status may be unknown, so refresh before starting another publish.",
+    });
+  });
 });

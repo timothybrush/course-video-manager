@@ -184,15 +184,15 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        return yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true,
-          (stage) => {
+        return yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onStageChange: (stage) => {
             stages.push(stage);
-          }
-        );
+          },
+        });
       })
     );
 
@@ -221,15 +221,15 @@ describe("CoursePublishService — publish", () => {
     await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true,
-          (stage) => {
+        yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onStageChange: (stage) => {
             stages.push(stage);
-          }
-        );
+          },
+        });
       })
     );
 
@@ -243,12 +243,12 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        const outcome = yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          true
-        );
+        const outcome = yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+        });
         const versionOps = yield* VersionOperationsService;
         const versions = yield* versionOps.getCourseVersions(course.id);
         return { outcome, versions };
@@ -281,8 +281,13 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         const outcome = yield* svc
-          .publish(course.id, "v1.0", "First release", false, (stage) => {
-            if (stage === "uploading") {
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: false,
+            onStageChange: (stage) => {
+              if (stage !== "uploading") return;
               // A directory squatting on course.json makes the atomic rename
               // (the commit receipt) fail — persistently, so the in-flight
               // retry fails too.
@@ -295,7 +300,7 @@ describe("CoursePublishService — publish", () => {
                   stagingDirsSeen.add(filename);
                 }
               });
-            }
+            },
           })
           .pipe(
             Effect.catchTag("PublishCommitFailedError", (error) =>
@@ -343,12 +348,18 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         const outcome = yield* svc
-          .publish(course.id, "v1.0", "First release", true, (stage) => {
-            if (stage === "uploading") {
-              fs.rmSync(
-                path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`)
-              );
-            }
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+            onStageChange: (stage) => {
+              if (stage === "uploading") {
+                fs.rmSync(
+                  path.join(finishedVideosDir, `${course.id}-${exportHash}.mp4`)
+                );
+              }
+            },
           })
           .pipe(
             Effect.catchTag("PublishCommitFailedError", (error) =>
@@ -382,12 +393,12 @@ describe("CoursePublishService — publish", () => {
     const result = await run(
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
-        const outcome = yield* svc.publish(
-          course.id,
-          "v1.0",
-          "First release",
-          false
-        );
+        const outcome = yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: false,
+        });
         fs.rmSync(path.join(dropboxDir, "test-course", "course.json"));
         const retry = yield* svc.syncToDropbox(course.id, false);
         const manifest = JSON.parse(
@@ -418,7 +429,12 @@ describe("CoursePublishService — publish", () => {
       Effect.gen(function* () {
         const svc = yield* CoursePublishService;
         return yield* svc
-          .publish(course.id, "v1.0", "First release", true)
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+          })
           .pipe(
             Effect.catchTag("PublishValidationError", (e) =>
               Effect.succeed({
@@ -430,6 +446,96 @@ describe("CoursePublishService — publish", () => {
       })
     );
 
+    expect(result).toHaveProperty("error", true);
+    expect((result as any).failedExportVideoIds).toContain(video.id);
+  });
+
+  it("emits per-video export events and upload progress during publish", async () => {
+    const { course, video, run } = await setup();
+
+    const events: Array<{ event: string; data: any }> = [];
+    await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        yield* svc.publish({
+          courseId: course.id,
+          versionName: "v1.0",
+          versionDescription: "First release",
+          includeTodoLessons: true,
+          onDetailEvent: (e) => {
+            events.push({ event: e.event, data: e.data });
+          },
+        });
+      })
+    );
+
+    // The videos list (id + section/lesson/title) arrives before exporting —
+    // the same payload the standalone batchExport emits.
+    const videosEvent = events.find((e) => e.event === "videos");
+    expect(videosEvent?.data.videos).toEqual([
+      {
+        id: video.id,
+        title: expect.stringMatching(/\/Problem$/),
+      },
+    ]);
+
+    // Per-video stages: queued, then the ffmpeg stages.
+    const stages = events
+      .filter((e) => e.event === "stage" && e.data.videoId === video.id)
+      .map((e) => e.data.stage);
+    expect(stages).toEqual([
+      "queued",
+      "concatenating-clips",
+      "normalizing-audio",
+    ]);
+
+    expect(
+      events.some((e) => e.event === "complete" && e.data.videoId === video.id)
+    ).toBe(true);
+
+    // The Dropbox commit's per-lesson upload percentage flows through too.
+    const progressEvents = events.filter((e) => e.event === "progress");
+    expect(progressEvents.length).toBeGreaterThan(0);
+    expect(progressEvents.at(-1)?.data.percentage).toBe(100);
+  });
+
+  it("emits a per-video error event and still fails with PublishValidationError", async () => {
+    const failingMock = Layer.succeed(VideoProcessingService, {
+      exportVideoClips: () => Effect.fail(new Error("ffmpeg crashed")),
+    } as any);
+    const { course, video, run } = await setup({
+      mockVideoProcessing: failingMock,
+    });
+
+    const events: Array<{ event: string; data: any }> = [];
+    const result = await run(
+      Effect.gen(function* () {
+        const svc = yield* CoursePublishService;
+        return yield* svc
+          .publish({
+            courseId: course.id,
+            versionName: "v1.0",
+            versionDescription: "First release",
+            includeTodoLessons: true,
+            onDetailEvent: (e) => {
+              events.push({ event: e.event, data: e.data });
+            },
+          })
+          .pipe(
+            Effect.catchTag("PublishValidationError", (e) =>
+              Effect.succeed({
+                error: true as const,
+                failedExportVideoIds: e.failedExportVideoIds,
+              })
+            )
+          );
+      })
+    );
+
+    const errorEvent = events.find((e) => e.event === "error");
+    expect(errorEvent?.data.videoId).toBe(video.id);
+    expect(typeof errorEvent?.data.message).toBe("string");
+    // The per-video error event does not change the terminal behavior.
     expect(result).toHaveProperty("error", true);
     expect((result as any).failedExportVideoIds).toContain(video.id);
   });

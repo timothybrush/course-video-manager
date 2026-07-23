@@ -2,7 +2,21 @@ import { Effect, Schema } from "effect";
 import { runtimeLive } from "@/services/layer.server";
 import type { Route } from "./+types/api.courses.$courseId.publish-sse";
 import { CoursePublishService } from "@/services/course-publish-service";
+import type { PublishDetailEvent } from "@/services/course-publish-export-events";
 import { createSSEResponse } from "@/lib/create-sse-response.server";
+
+// The per-video export events (batchExport's `videos`/`stage`/`complete`/
+// `error` payloads, unchanged) and the Dropbox commit's `progress` percentage
+// ride on their own wire names so the publish-level `progress` ({stage}),
+// `complete`, and `error` events stay exactly as before. `satisfies` keeps the
+// map exhaustive: a new detail event without a wire name is a compile error.
+const DETAIL_EVENT_WIRE_NAMES = {
+  videos: "export-videos",
+  stage: "export-stage",
+  complete: "export-complete",
+  error: "export-error",
+  progress: "upload-progress",
+} satisfies Record<PublishDetailEvent["event"], string>;
 
 const publishSchema = Schema.Struct({
   name: Schema.String,
@@ -24,15 +38,18 @@ export const action = async (args: Route.ActionArgs) => {
       Effect.gen(function* () {
         const publishService = yield* CoursePublishService;
 
-        const result = yield* publishService.publish(
+        const result = yield* publishService.publish({
           courseId,
-          parsed.name,
-          parsed.description,
-          parsed.includeTodoLessons ?? true,
-          (stage) => {
+          versionName: parsed.name,
+          versionDescription: parsed.description,
+          includeTodoLessons: parsed.includeTodoLessons ?? true,
+          onStageChange: (stage) => {
             sendEvent("progress", { stage });
-          }
-        );
+          },
+          onDetailEvent: (e) => {
+            sendEvent(DETAIL_EVENT_WIRE_NAMES[e.event], e.data);
+          },
+        });
 
         sendEvent("complete", {
           publishedVersionId: result.publishedVersionId,

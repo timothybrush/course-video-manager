@@ -249,10 +249,13 @@ export const uploadReducer = (
       const upload = state.uploads[action.uploadId];
       if (!upload || upload.uploadType !== "publish") return state;
 
+      // "uploading" starts at 0: the Dropbox commit streams a real per-lesson
+      // percentage into `progress` via UPDATE_PROGRESS, so the bar begins
+      // empty and fills with actual upload progress.
       const publishStageProgress: Record<uploadReducer.PublishStage, number> = {
         validating: 5,
         exporting: 20,
-        uploading: 50,
+        uploading: 0,
         freezing: 75,
         cloning: 90,
       };

@@ -394,8 +394,8 @@ describe("CoursePublishService", () => {
       await run(
         Effect.gen(function* () {
           const svc = yield* CoursePublishService;
-          yield* svc.batchExport(version.id, true, (event, data) => {
-            events.push({ event, data });
+          yield* svc.batchExport(version.id, true, (e) => {
+            events.push({ event: e.event, data: e.data });
           });
         })
       );
@@ -427,8 +427,8 @@ describe("CoursePublishService", () => {
       await run(
         Effect.gen(function* () {
           const svc = yield* CoursePublishService;
-          yield* svc.batchExport(version.id, true, (event, data) => {
-            events.push({ event, data });
+          yield* svc.batchExport(version.id, true, (e) => {
+            events.push({ event: e.event, data: e.data });
           });
         })
       );

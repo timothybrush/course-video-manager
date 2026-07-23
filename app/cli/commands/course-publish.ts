@@ -203,12 +203,12 @@ export const publishCmd = Command.make(
       // (unexportedVideoIds, courseViewLintCount) reach the agent verbatim,
       // whereas a flattened ParseError message would be dropped by the renderer.
       const publishSvc = yield* CoursePublishService;
-      const result = yield* publishSvc.publish(
+      const result = yield* publishSvc.publish({
         courseId,
-        name,
-        description,
-        includeTodoLessons
-      );
+        versionName: name,
+        versionDescription: description,
+        includeTodoLessons,
+      });
 
       yield* emitObject({
         publishedVersionId: result.publishedVersionId,
