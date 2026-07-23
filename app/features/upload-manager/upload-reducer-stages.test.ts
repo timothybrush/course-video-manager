@@ -297,7 +297,9 @@ describe("UPDATE_PUBLISH_STAGE", () => {
       uploadId: "upload-1",
       stage: "uploading",
     });
-    expect(state.uploads["upload-1"]!.progress).toBe(50);
+    // Starts at 0 — the Dropbox sync then streams a real percentage into
+    // `progress` via UPDATE_PROGRESS.
+    expect(state.uploads["upload-1"]!.progress).toBe(0);
 
     state = reduce(state, {
       type: "UPDATE_PUBLISH_STAGE",

@@ -306,6 +306,25 @@ function UploadStatusDetail({ upload }: { upload: uploadReducer.UploadEntry }) {
       }
       if (upload.uploadType === "publish" && upload.publishStage) {
         const stageLabel = PUBLISH_STAGE_LABELS[upload.publishStage];
+        if (upload.publishStage === "uploading") {
+          // The Dropbox sync reports a per-lesson percentage — show it.
+          return (
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-muted-foreground shrink-0">
+                {stageLabel}
+              </p>
+              <div className="flex-1 bg-secondary rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${upload.progress}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground w-8 text-right">
+                {upload.progress}%
+              </span>
+            </div>
+          );
+        }
         return (
           <p className="text-xs text-muted-foreground mt-0.5">
             {stageLabel}...

@@ -4,6 +4,18 @@ import type { Route } from "./+types/api.courses.$courseId.publish-sse";
 import { CoursePublishService } from "@/services/course-publish-service";
 import { createSSEResponse } from "@/lib/create-sse-response.server";
 
+// The per-video export events (batchExport's `videos`/`stage`/`complete`/
+// `error` payloads, unchanged) and the Dropbox sync's `progress` percentage
+// ride on their own wire names so the publish-level `progress` ({stage}),
+// `complete`, and `error` events stay exactly as before.
+const DETAIL_EVENT_WIRE_NAMES: Record<string, string> = {
+  videos: "export-videos",
+  stage: "export-stage",
+  complete: "export-complete",
+  error: "export-error",
+  progress: "upload-progress",
+};
+
 const publishSchema = Schema.Struct({
   name: Schema.String,
   // Required, like name: a Published Version always carries a description (it
@@ -31,6 +43,10 @@ export const action = async (args: Route.ActionArgs) => {
           parsed.includeTodoLessons ?? true,
           (stage) => {
             sendEvent("progress", { stage });
+          },
+          (event, data) => {
+            const wireName = DETAIL_EVENT_WIRE_NAMES[event];
+            if (wireName) sendEvent(wireName, data);
           }
         );
 

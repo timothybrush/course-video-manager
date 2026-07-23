@@ -179,22 +179,21 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         return targetPath;
       });
 
-      const batchExport = Effect.fn("batchExport")(function* (
+      // The shared walk behind batchExport and publish: which Videos this
+      // publish/export will ship (the effective Sections for the toggle) that
+      // have no export file yet, titled `section/lesson/videoTitle`. Withheld
+      // to-do Lessons' Videos are not included.
+      const findUnexportedVideos = Effect.fn("findUnexportedVideos")(function* (
         versionId: string,
-        includeTodoLessons: boolean,
-        sendEvent?: (event: string, data: unknown) => void
+        includeTodoLessons: boolean
       ) {
         const version = yield* versionOps.getVersionWithSections(versionId);
         const courseId = version.repo.id;
-
-        // Export only what this publish will ship — the effective Sections for
-        // the current toggle. Withheld to-do Lessons' Videos are not exported.
         const effectiveSections = computeEffectiveSections(
           version.sections,
           includeTodoLessons
         );
 
-        // Find unexported videos
         const unexportedVideos: Array<{
           id: string;
           title: string;
@@ -223,6 +222,19 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             }
           }
         }
+
+        return { courseId, unexportedVideos };
+      });
+
+      const batchExport = Effect.fn("batchExport")(function* (
+        versionId: string,
+        includeTodoLessons: boolean,
+        sendEvent?: (event: string, data: unknown) => void
+      ) {
+        const { courseId, unexportedVideos } = yield* findUnexportedVideos(
+          versionId,
+          includeTodoLessons
+        );
 
         sendEvent?.("videos", {
           videos: unexportedVideos.map((v) => ({
@@ -398,7 +410,11 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             | "freezing"
             | "cloning"
             | "complete"
-        ) => void
+        ) => void,
+        // Per-video export events (same names/payloads as batchExport: `videos`,
+        // `stage`, `complete`, `error` keyed by videoId) plus the Dropbox
+        // `progress` percentage from the Commit sync — pure observability.
+        sendEvent?: (event: string, data: unknown) => void
       ) {
         onProgress?.("validating");
 
@@ -420,15 +436,42 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
 
         if (unexportedVideoIds.length > 0) {
           onProgress?.("exporting");
+          // Re-walk with titles so the export step is observable per Video —
+          // the same walk (and events) the standalone batchExport emits.
+          const { unexportedVideos } = yield* findUnexportedVideos(
+            latestVersion.id,
+            includeTodoLessons
+          );
+          sendEvent?.("videos", {
+            videos: unexportedVideos.map((v) => ({
+              id: v.id,
+              title: v.title,
+            })),
+          });
+          for (const video of unexportedVideos) {
+            sendEvent?.("stage", { videoId: video.id, stage: "queued" });
+          }
           const failedVideoIds: string[] = [];
           yield* Effect.forEach(
-            unexportedVideoIds,
-            (videoId) =>
-              exportVideoCore(videoId).pipe(
+            unexportedVideos,
+            (video) =>
+              exportVideoCore(video.id, (stage) => {
+                sendEvent?.("stage", { videoId: video.id, stage });
+              }).pipe(
                 Effect.retry(Schedule.recurs(2)),
-                Effect.catchAll(() =>
+                Effect.tap(() => {
+                  sendEvent?.("complete", { videoId: video.id });
+                }),
+                Effect.catchAll((e) =>
                   Effect.sync(() => {
-                    failedVideoIds.push(videoId);
+                    sendEvent?.("error", {
+                      videoId: video.id,
+                      message:
+                        "message" in e && typeof e.message === "string"
+                          ? e.message
+                          : "Export failed unexpectedly",
+                    });
+                    failedVideoIds.push(video.id);
                   })
                 )
               ),
@@ -463,7 +506,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
           syncFrozenVersionToDropboxUnlocked(
             courseId,
             latestVersion.id,
-            includeTodoLessons
+            includeTodoLessons,
+            sendEvent
           ).pipe(Effect.retry(Schedule.recurs(1)))
         );
         if (Exit.isFailure(commitExit)) {
@@ -540,7 +584,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             | "freezing"
             | "cloning"
             | "complete"
-        ) => void
+        ) => void,
+        sendEvent?: (event: string, data: unknown) => void
       ) {
         return yield* courseVersionMutationSemaphore.withPermits(1)(
           publishUnlocked(
@@ -548,7 +593,8 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
             versionName,
             versionDescription,
             includeTodoLessons,
-            onProgress
+            onProgress,
+            sendEvent
           )
         );
       });

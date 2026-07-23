@@ -10,6 +10,17 @@ export interface SSEPublishParams {
 
 export interface SSEPublishCallbacks {
   onStageChange: (stage: uploadReducer.PublishStage) => void;
+  // Per-video export progress during the "exporting" stage — the same
+  // payloads the standalone batch export emits, on `export-*` wire names.
+  onExportVideos: (videos: Array<{ id: string; title: string }>) => void;
+  onExportStageChange: (
+    videoId: string,
+    stage: uploadReducer.ExportStage
+  ) => void;
+  onExportComplete: (videoId: string) => void;
+  onExportError: (videoId: string, message: string) => void;
+  // Per-lesson Dropbox upload percentage during the "uploading" stage.
+  onUploadProgress: (percentage: number) => void;
   onComplete: (result: {
     publishedVersionId: string;
     newDraftVersionId: string;
@@ -31,6 +42,19 @@ export const startSSEPublish = (
     events: {
       progress: (data: { stage: uploadReducer.PublishStage }) =>
         callbacks.onStageChange(data.stage),
+      "export-videos": (data: {
+        videos: Array<{ id: string; title: string }>;
+      }) => callbacks.onExportVideos(data.videos),
+      "export-stage": (data: {
+        videoId: string;
+        stage: uploadReducer.ExportStage;
+      }) => callbacks.onExportStageChange(data.videoId, data.stage),
+      "export-complete": (data: { videoId: string }) =>
+        callbacks.onExportComplete(data.videoId),
+      "export-error": (data: { videoId: string; message: string }) =>
+        callbacks.onExportError(data.videoId, data.message),
+      "upload-progress": (data: { percentage: number }) =>
+        callbacks.onUploadProgress(data.percentage),
       complete: (data: {
         publishedVersionId: string;
         newDraftVersionId: string;
