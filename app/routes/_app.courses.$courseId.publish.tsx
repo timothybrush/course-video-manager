@@ -16,11 +16,22 @@ import { VIDEO_WARNING_LABELS } from "@/features/course-view/video-warning-label
 import { CoursePublishService } from "@/services/course-publish-service";
 import { CourseOperationsService } from "@/services/db-course-operations.server";
 import { VersionOperationsService } from "@/services/db-version-operations.server";
-import { makeLoader } from "@/services/route-action.server";
+import {
+  classifyPendingRecovery,
+  type PendingRecovery,
+} from "@/services/pending-recovery.server";
+import { makeAction, makeLoader } from "@/services/route-action.server";
 import { Effect } from "effect";
 import { ArrowLeft, AlertTriangle, ChevronRight } from "lucide-react";
-import { useCallback, useContext, useMemo, useState } from "react";
-import { data, Link, useNavigate } from "react-router";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { data, Link, useFetcher, useNavigate } from "react-router";
 import type { Route } from "./+types/_app.courses.$courseId.publish";
 
 export const loader = makeLoader({
@@ -53,9 +64,18 @@ export const loader = makeLoader({
       const { withTodo, withoutTodo } =
         yield* publishService.validatePublishability(latestVersion.id);
 
+      // Reconcile-on-load (#1404): detect a crash-stranded Pending Version and
+      // classify it against the Dropbox course.json receipt. Read-only — the
+      // Promote / Discard transitions run in this route's action.
+      const pendingRecovery = yield* classifyPendingRecovery({
+        courseId: params.courseId!,
+        courseName: course.name,
+      });
+
       const { sections: _, ...latestVersionMeta } = latestVersion;
       return {
         course,
+        pendingRecovery,
         latestVersion: latestVersionMeta,
         previousVersionName: previousVersion?.name ?? null,
         withTodo: {
@@ -74,9 +94,45 @@ export const loader = makeLoader({
     }),
 });
 
+/**
+ * The Promote / Discard transitions for a crash-stranded Pending Version
+ * (#1404). Both lifecycle verbs act only on a `pending` row (compare-and-set
+ * in the DB), so a stale banner or double-click cannot touch a Draft or
+ * Published Version — it just gets a 409.
+ */
+export const action = makeAction({
+  input: "formData",
+  errors: { VersionNotPendingError: 409 },
+  effect: ({ payload }) =>
+    Effect.gen(function* () {
+      const { intent, versionId } = payload as {
+        intent?: unknown;
+        versionId?: unknown;
+      };
+      if (typeof versionId !== "string" || versionId === "") {
+        return yield* Effect.die(data("Missing versionId", { status: 400 }));
+      }
+      const versionOps = yield* VersionOperationsService;
+      if (intent === "promote-pending") {
+        const promoted = yield* versionOps.promotePendingVersion(versionId);
+        return { promotedVersionId: promoted.id };
+      }
+      if (intent === "discard-pending") {
+        const discarded = yield* versionOps.discardPendingVersion(versionId);
+        return { discardedVersionId: discarded.id };
+      }
+      return yield* Effect.die(data("Unknown intent", { status: 400 }));
+    }),
+});
+
 export default function Component(props: Route.ComponentProps) {
-  const { course, previousVersionName, withTodo, withoutTodo } =
-    props.loaderData;
+  const {
+    course,
+    pendingRecovery,
+    previousVersionName,
+    withTodo,
+    withoutTodo,
+  } = props.loaderData;
   const navigate = useNavigate();
   const { uploads, startPublish } = useContext(UploadContext);
 
@@ -129,7 +185,10 @@ export default function Component(props: Route.ComponentProps) {
     !hasInvalidLessonCombos &&
     !hasIncompleteVideos &&
     !publishStarted &&
-    !isOperationInProgress;
+    !isOperationInProgress &&
+    // A stranded Pending Version blocks publishing until reconciled — a second
+    // Submit would collide with the at-most-one-pending invariant anyway.
+    pendingRecovery === null;
 
   const handlePublish = useCallback(() => {
     setPublishStarted(true);
@@ -165,6 +224,14 @@ export default function Component(props: Route.ComponentProps) {
         </div>
 
         <h1 className="text-2xl font-bold mb-2">Publish {course.name}</h1>
+
+        {/* Reconcile-on-load banner (#1404). Suppressed while a publish from
+            this client is live — its Pending Version is in flight, not
+            stranded, and the publish process will Promote or Discard itself. */}
+        {!hasActivePublish && (
+          <PendingRecoveryBanner recovery={pendingRecovery} />
+        )}
+
         {previousVersionName && (
           <p className="text-sm text-muted-foreground mb-6">
             {previousVersionName} <ChevronRight className="inline w-3 h-3" />{" "}
@@ -364,6 +431,86 @@ export default function Component(props: Route.ComponentProps) {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The durable recovery surface for a crash-stranded Pending Version (#1404).
+ * Receipt committed → the publish is already live externally, so Promote is
+ * auto-submitted on render (never discard a committed version) and the banner
+ * confirms recovery. Receipt absent → one-click Discard; the operator's edits
+ * are safe in the current Draft and they republish normally.
+ */
+function PendingRecoveryBanner({
+  recovery,
+}: {
+  recovery: PendingRecovery | null;
+}) {
+  const fetcher = useFetcher();
+  const promoteSubmitted = useRef(false);
+  // Held locally so the "recovered ✓" confirmation survives the revalidation
+  // that clears `recovery` after the Promote lands.
+  const [recoveredName, setRecoveredName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (recovery?.receiptCommitted && !promoteSubmitted.current) {
+      promoteSubmitted.current = true;
+      setRecoveredName(recovery.versionName);
+      fetcher.submit(
+        { intent: "promote-pending", versionId: recovery.versionId },
+        { method: "post" }
+      );
+    }
+  }, [recovery, fetcher]);
+
+  if (recoveredName !== null) {
+    const done = fetcher.state === "idle" && fetcher.data !== undefined;
+    return (
+      <div className="mb-8 rounded-lg border border-green-500/30 bg-green-500/5 p-4 text-sm">
+        <span className="font-medium text-green-500">
+          {done
+            ? `Publish finished — recovered ✓ ${recoveredName} is live.`
+            : `Finalizing your interrupted publish of ${recoveredName}…`}
+        </span>
+        <p className="text-muted-foreground mt-1">
+          The last publish committed to Dropbox but was interrupted before it
+          was recorded here.{" "}
+          {done ? "It is now marked Published." : "Marking it Published…"}
+        </p>
+      </div>
+    );
+  }
+
+  if (!recovery) return null;
+
+  return (
+    <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <AlertTriangle className="w-5 h-5 text-amber-500" />
+        <span className="text-sm font-medium text-amber-500">
+          Your last publish ({recovery.versionName}) didn&apos;t finish
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        It was interrupted before anything reached Dropbox. Nothing is lost —
+        your edits are safe in the current draft. Discard the unfinished
+        version, then publish again normally.
+      </p>
+      <fetcher.Form method="post">
+        <input type="hidden" name="intent" value="discard-pending" />
+        <input type="hidden" name="versionId" value={recovery.versionId} />
+        <Button
+          type="submit"
+          variant="outline"
+          size="sm"
+          disabled={fetcher.state !== "idle"}
+        >
+          {fetcher.state !== "idle"
+            ? "Discarding…"
+            : "Discard unfinished publish"}
+        </Button>
+      </fetcher.Form>
     </div>
   );
 }

@@ -29,7 +29,7 @@ The single mutable CourseVersion being edited — the only state accepting secti
 _Avoid_: Current version, Working version
 
 **Pending Version**:
-A Submitted CourseVersion whose Dropbox commit receipt has not yet landed. Immutable, named, short-lived: either Promoted (receipt landed) or Discarded (commit failed). At most one per course; one found at rest means a crash between receipt and Promote.
+A Submitted CourseVersion whose Dropbox commit receipt has not yet landed. Immutable, named, short-lived: either Promoted (receipt landed) or Discarded (commit failed). At most one per course; one at rest means a crash between receipt and Promote — the publish page reconciles it on load: Promote if the receipt committed, else one-click Discard.
 _Avoid_: Frozen version (ambiguous with Published), In-flight version
 
 **Published Version**:
@@ -37,7 +37,7 @@ An immutable CourseVersion with a name and description, created by Promoting a P
 _Avoid_: Released version, Committed version
 
 **Submit**:
-The Draft → Pending transition: stamps the publish name/description, marks the Draft Pending, and clones a fresh Draft. Refused while a Pending Version exists. In-flight writes serialize with it: each lands before the clone or is refused terminally — never stranded on the frozen version.
+The Draft → Pending transition: stamps the publish name/description, marks the Draft Pending, and clones a fresh Draft. Refused while a Pending Version exists. In-flight writes serialize with it: each lands before the clone or is refused terminally.
 _Avoid_: Freeze (only half the story), Snapshot
 
 **Promote**:
@@ -45,7 +45,7 @@ The Pending → Published transition, recorded once the Dropbox commit receipt (
 _Avoid_: Finalize, Confirm
 
 **Discard**:
-Deletes a Pending Version whose commit did not land — never a Draft or Published one. Loses nothing: the Submitted content lives on in the Draft that Submit cloned. A caught commit failure auto-Discards (sync failures get one in-flight retry first; missing assets Discard immediately).
+Deletes a Pending Version whose commit did not land — never a Draft or Published one. Loses nothing: the content lives on in the cloned Draft. A caught commit failure auto-Discards (sync failures get one in-flight retry first; missing assets Discard immediately).
 _Avoid_: Rollback, Delete version
 
 **Publish**:
