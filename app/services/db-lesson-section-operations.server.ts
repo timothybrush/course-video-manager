@@ -17,7 +17,9 @@ import { parseSectionPath } from "./section-path-service";
 import {
   requireDraftVersion,
   requireDraftVersionForLesson,
+  requireDraftVersionForLessons,
   requireDraftVersionForSection,
+  requireDraftVersionForSections,
 } from "./draft-guard.server";
 import { transactionalizeWrites } from "./with-db-transaction.server";
 
@@ -397,8 +399,9 @@ const createLessonSectionOperationsUnwrapped = (db: Database) => {
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
-      // All rows in one batch belong to the same version; guard via the first.
-      yield* requireDraftVersionForLesson(db, ids[0]!);
+      // Guard every distinct owning version — a mixed-version batch must not
+      // slip past a first-element check.
+      yield* requireDraftVersionForLessons(db, ids);
 
       yield* makeDbCall(() =>
         db
@@ -437,8 +440,9 @@ const createLessonSectionOperationsUnwrapped = (db: Database) => {
     function* (updates: { id: string; order: number }[]) {
       if (updates.length === 0) return;
       const ids = updates.map((u) => u.id);
-      // All rows in one batch belong to the same version; guard via the first.
-      yield* requireDraftVersionForSection(db, ids[0]!);
+      // Guard every distinct owning version — a mixed-version batch must not
+      // slip past a first-element check.
+      yield* requireDraftVersionForSections(db, ids);
 
       yield* makeDbCall(() =>
         db

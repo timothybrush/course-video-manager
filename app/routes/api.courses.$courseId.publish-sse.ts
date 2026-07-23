@@ -68,15 +68,16 @@ export const action = async (args: Route.ActionArgs) => {
         // The Submitted content lives on unchanged in the new Draft.
         tag: "PublishCommitFailedError",
         handler: (e, sendEvent) => {
+          // #1401: name the missing Videos — the client surfaces only
+          // `message`, so the ids must ride in the text itself.
+          const missing = e.missingVideoIds ?? [];
           const message =
             e.reason === "missing_assets"
-              ? `Publish discarded: ${
-                  e.missingVideoIds?.length ?? 0
-                } video file(s) were missing from the export directory. Nothing was lost — your edits are safe in the Draft. Re-export and publish again`
+              ? `Publish discarded: ${missing.length} video file(s) were missing from the export directory (${missing.join(", ")}). Nothing was lost — your edits are safe in the Draft. Re-export and publish again`
               : "Publish discarded: the Dropbox commit failed (after one retry). Nothing was lost — your edits are safe in the Draft. Publish again when Dropbox is reachable";
           sendEvent("error", {
             message,
-            missingVideoIds: e.missingVideoIds ?? [],
+            missingVideoIds: missing,
           });
         },
       },

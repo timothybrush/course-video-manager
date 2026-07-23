@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "course_version_one_pending_uniq" ON "course-video-manager_course_version" USING btree ("course_id") WHERE "course-video-manager_course_version"."commit_state" = 'pending';
