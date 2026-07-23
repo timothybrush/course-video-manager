@@ -19,8 +19,14 @@ import { VersionOperationsService } from "./db-version-operations.server";
 export type PendingRecovery = {
   versionId: string;
   versionName: string;
-  /** Whether the root `course.json` receipt names this Pending Version. */
-  receiptCommitted: boolean;
+  /**
+   * How the root `course.json` receipt classifies this Pending Version.
+   * `committed` — the receipt names it: Promote. `absent` — provably no
+   * receipt for it (none exists, or an older publish's): offer Discard.
+   * `unreadable` — the mount or receipt could not be read: refuse to
+   * classify, offer nothing destructive.
+   */
+  receiptState: "committed" | "absent" | "unreadable";
 };
 
 export const classifyPendingRecovery = Effect.fn("classifyPendingRecovery")(
@@ -37,30 +43,46 @@ export const classifyPendingRecovery = Effect.fn("classifyPendingRecovery")(
       "course.json"
     );
 
-    // The receipt committed iff the root course.json exists, parses, and names
-    // this Pending Version (its `courseVersionId` field — the same id the sync
-    // stamped into the manifest). Missing, unreadable, or naming another
-    // version all mean the crash happened before the rename: nothing landed.
-    const receiptVersionId = yield* effectFs
-      .readFileString(courseJsonPath)
-      .pipe(
-        Effect.map((raw): string | null => {
-          try {
-            const doc = JSON.parse(raw) as { courseVersionId?: unknown };
-            return typeof doc.courseVersionId === "string"
-              ? doc.courseVersionId
-              : null;
-          } catch {
-            return null;
-          }
-        }),
-        Effect.catchAll(() => Effect.succeed<string | null>(null))
-      );
+    // Discard may only be offered on a PROVABLY absent receipt — a mount that
+    // cannot be read proves nothing, and discarding a committed version is the
+    // one unforgivable outcome. So an unreachable Dropbox root refuses to
+    // classify rather than reading a missing file as "nothing landed".
+    const rootExists = yield* effectFs
+      .exists(dropboxPath)
+      .pipe(Effect.catchAll(() => Effect.succeed(false)));
+
+    // The receipt committed iff the root course.json parses and names this
+    // Pending Version (its `courseVersionId` field — the same id the sync
+    // stamped into the manifest). A missing file or one naming an earlier
+    // publish is a provably absent receipt: the crash preceded the rename.
+    // Any other read failure — and garbage bytes, which the atomic rename
+    // makes impossible for a real receipt — classifies as unreadable.
+    const receiptState = !rootExists
+      ? ("unreadable" as const)
+      : yield* effectFs.readFileString(courseJsonPath).pipe(
+          Effect.map((raw): PendingRecovery["receiptState"] => {
+            try {
+              const doc = JSON.parse(raw) as { courseVersionId?: unknown };
+              return doc.courseVersionId === pending.id
+                ? "committed"
+                : "absent";
+            } catch {
+              return "unreadable";
+            }
+          }),
+          Effect.catchAll((error) =>
+            Effect.succeed<PendingRecovery["receiptState"]>(
+              error._tag === "SystemError" && error.reason === "NotFound"
+                ? "absent"
+                : "unreadable"
+            )
+          )
+        );
 
     return {
       versionId: pending.id,
       versionName: pending.name,
-      receiptCommitted: receiptVersionId === pending.id,
+      receiptState,
     } satisfies PendingRecovery;
   }
 );

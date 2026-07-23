@@ -100,7 +100,7 @@ const setup = async () => {
   const writeReceipt = (contents: string) =>
     fs.writeFile(path.join(dropboxDir, COURSE_NAME, "course.json"), contents);
 
-  return { ...seeded, submit, classify, writeReceipt };
+  return { ...seeded, run, submit, classify, writeReceipt };
 };
 
 describe("classifyPendingRecovery (#1404)", () => {
@@ -109,13 +109,13 @@ describe("classifyPendingRecovery (#1404)", () => {
     expect(await classify()).toBeNull();
   });
 
-  it("classifies a Pending with no receipt as not committed", async () => {
+  it("classifies a Pending with no receipt as provably absent", async () => {
     const { submit, classify, version } = await setup();
     await submit();
     expect(await classify()).toEqual({
       versionId: version.id,
       versionName: "v1.0.0",
-      receiptCommitted: false,
+      receiptState: "absent",
     });
   });
 
@@ -126,21 +126,43 @@ describe("classifyPendingRecovery (#1404)", () => {
     expect(await classify()).toEqual({
       versionId: version.id,
       versionName: "v1.0.0",
-      receiptCommitted: true,
+      receiptState: "committed",
     });
   });
 
-  it("a receipt naming an earlier version does not commit this Pending", async () => {
+  it("a receipt naming an earlier version is absent for this Pending", async () => {
     const { submit, classify, writeReceipt } = await setup();
     await submit();
     await writeReceipt(JSON.stringify({ courseVersionId: "some-older-id" }));
-    expect((await classify())?.receiptCommitted).toBe(false);
+    expect((await classify())?.receiptState).toBe("absent");
   });
 
-  it("an unparseable receipt reads as not committed", async () => {
+  // Discard may only be offered on a PROVABLY absent receipt: anything we
+  // could not actually read refuses to classify, so a down mount can never
+  // lead to discarding a version whose receipt in fact committed.
+  it("an unparseable receipt refuses to classify (unreadable)", async () => {
     const { submit, classify, writeReceipt } = await setup();
     await submit();
     await writeReceipt("{ not json");
-    expect((await classify())?.receiptCommitted).toBe(false);
+    expect((await classify())?.receiptState).toBe("unreadable");
+  });
+
+  it("a missing Dropbox root refuses to classify (unreadable)", async () => {
+    const { submit, run, course } = await setup();
+    await submit();
+    const result = await run(
+      classifyPendingRecovery({
+        courseId: course.id,
+        courseName: COURSE_NAME,
+      }).pipe(
+        // Innermost provider wins: simulate the whole mount being absent.
+        Effect.withConfigProvider(
+          ConfigProvider.fromMap(
+            new Map([["DROPBOX_PATH", path.join(dropboxDir, "no-such-mount")]])
+          )
+        )
+      )
+    );
+    expect(result?.receiptState).toBe("unreadable");
   });
 });

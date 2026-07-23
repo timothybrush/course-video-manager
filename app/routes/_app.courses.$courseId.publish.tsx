@@ -454,7 +454,7 @@ function PendingRecoveryBanner({
   const [recoveredName, setRecoveredName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (recovery?.receiptCommitted && !promoteSubmitted.current) {
+    if (recovery?.receiptState === "committed" && !promoteSubmitted.current) {
       promoteSubmitted.current = true;
       setRecoveredName(recovery.versionName);
       fetcher.submit(
@@ -465,7 +465,12 @@ function PendingRecoveryBanner({
   }, [recovery, fetcher]);
 
   if (recoveredName !== null) {
-    const done = fetcher.state === "idle" && fetcher.data !== undefined;
+    // Recovered only once the Promote actually landed — an errored action
+    // must not read as success.
+    const done =
+      fetcher.state === "idle" &&
+      (fetcher.data as { promotedVersionId?: string } | undefined)
+        ?.promotedVersionId !== undefined;
     return (
       <div className="mb-8 rounded-lg border border-green-500/30 bg-green-500/5 p-4 text-sm">
         <span className="font-medium text-green-500">
@@ -484,6 +489,26 @@ function PendingRecoveryBanner({
 
   if (!recovery) return null;
 
+  if (recovery.receiptState === "unreadable") {
+    // Never offer Discard on a receipt we could not read — the mount may be
+    // down while the receipt (and a committed publish) actually exists.
+    return (
+      <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="w-5 h-5 text-amber-500" />
+          <span className="text-sm font-medium text-amber-500">
+            An interrupted publish ({recovery.versionName}) needs recovery
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          The Dropbox commit receipt (course.json) couldn&apos;t be read, so it
+          is unknown whether that publish committed. Check the Dropbox mount and
+          reload this page.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-8 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -493,9 +518,10 @@ function PendingRecoveryBanner({
         </span>
       </div>
       <p className="text-sm text-muted-foreground mb-3">
-        It was interrupted before anything reached Dropbox. Nothing is lost —
-        your edits are safe in the current draft. Discard the unfinished
-        version, then publish again normally.
+        It never committed — the course.json receipt was never written, so
+        consumers still see the previous release. Your edits are safe in the
+        current draft. Discard the unfinished version, then publish again
+        normally.
       </p>
       <fetcher.Form method="post">
         <input type="hidden" name="intent" value="discard-pending" />
