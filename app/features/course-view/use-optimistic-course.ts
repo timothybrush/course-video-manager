@@ -3,7 +3,10 @@ import { useFetchers } from "react-router";
 import { toast } from "sonner";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { LoaderData } from "./course-view-types";
-import { VERSION_NOT_DRAFT_MESSAGE } from "@/services/version-not-draft-message";
+import {
+  parse409Message,
+  VERSION_NOT_DRAFT_MESSAGE,
+} from "@/services/version-not-draft-message";
 import {
   applyOptimisticEvent,
   applyOptimisticDeleteVideo,
@@ -72,13 +75,7 @@ export function useCourseEditorFailureToast() {
             .clone()
             .text()
             .then((body) => {
-              let message = body;
-              try {
-                const parsed = JSON.parse(body);
-                if (typeof parsed === "string") message = parsed;
-              } catch {
-                // keep raw body
-              }
+              const message = parse409Message(body);
               // Terminal (#1403): the Draft was Submitted while this change
               // was in flight. Surface it and force a reload into the new
               // Draft — the write can never succeed against this version.

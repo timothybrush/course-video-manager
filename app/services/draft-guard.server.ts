@@ -13,7 +13,7 @@ import {
   VersionNotDraftError,
 } from "@/services/db-service-errors";
 import { withDbTransaction } from "@/services/with-db-transaction.server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Effect } from "effect";
 import type { ClipServiceEvent } from "@/services/clip-service";
 
@@ -90,6 +90,26 @@ export const requireDraftVersionForSection = Effect.fn(
   yield* lockAndAssertDraft(db, section.repoVersionId);
 });
 
+/**
+ * Guard a batch write scoped to Sections: every DISTINCT owning version is
+ * locked and asserted, so a mixed-version batch cannot slip a non-Draft
+ * write past a first-element-only check.
+ */
+export const requireDraftVersionForSections = Effect.fn(
+  "requireDraftVersionForSections"
+)(function* (db: Database, sectionIds: readonly string[]) {
+  if (sectionIds.length === 0) return;
+  const rows = yield* makeDbCall(() =>
+    db.query.sections.findMany({
+      where: inArray(sections.id, sectionIds),
+      columns: { repoVersionId: true },
+    })
+  );
+  for (const versionId of new Set(rows.map((r) => r.repoVersionId))) {
+    yield* lockAndAssertDraft(db, versionId);
+  }
+});
+
 /** Guard a write scoped to a Lesson. */
 export const requireDraftVersionForLesson = Effect.fn(
   "requireDraftVersionForLesson"
@@ -103,6 +123,26 @@ export const requireDraftVersionForLesson = Effect.fn(
   );
   if (!lesson?.section) return;
   yield* lockAndAssertDraft(db, lesson.section.repoVersionId);
+});
+
+/** Guard a batch write scoped to Lessons: every distinct owning version. */
+export const requireDraftVersionForLessons = Effect.fn(
+  "requireDraftVersionForLessons"
+)(function* (db: Database, lessonIds: readonly string[]) {
+  if (lessonIds.length === 0) return;
+  const rows = yield* makeDbCall(() =>
+    db.query.lessons.findMany({
+      where: inArray(lessons.id, lessonIds),
+      columns: { id: true },
+      with: { section: { columns: { repoVersionId: true } } },
+    })
+  );
+  const versionIds = new Set(
+    rows.flatMap((r) => (r.section ? [r.section.repoVersionId] : []))
+  );
+  for (const versionId of versionIds) {
+    yield* lockAndAssertDraft(db, versionId);
+  }
 });
 
 /** Guard a write scoped to a Video (passes for standalone/pitch videos). */
@@ -139,6 +179,22 @@ export const requireDraftVersionForClip = Effect.fn(
   yield* requireDraftVersionForVideo(db, clip.videoId);
 });
 
+/** Guard a batch write scoped to Clips: every distinct owning video. */
+export const requireDraftVersionForClips = Effect.fn(
+  "requireDraftVersionForClips"
+)(function* (db: Database, clipIds: readonly string[]) {
+  if (clipIds.length === 0) return;
+  const rows = yield* makeDbCall(() =>
+    db.query.clips.findMany({
+      where: inArray(clips.id, clipIds),
+      columns: { videoId: true },
+    })
+  );
+  for (const videoId of new Set(rows.map((r) => r.videoId))) {
+    yield* requireDraftVersionForVideo(db, videoId);
+  }
+});
+
 /** Guard a write scoped to a Chapter. */
 export const requireDraftVersionForChapter = Effect.fn(
   "requireDraftVersionForChapter"
@@ -151,6 +207,22 @@ export const requireDraftVersionForChapter = Effect.fn(
   );
   if (!chapter) return;
   yield* requireDraftVersionForVideo(db, chapter.videoId);
+});
+
+/** Guard a batch write scoped to Chapters: every distinct owning video. */
+export const requireDraftVersionForChapters = Effect.fn(
+  "requireDraftVersionForChapters"
+)(function* (db: Database, chapterIds: readonly string[]) {
+  if (chapterIds.length === 0) return;
+  const rows = yield* makeDbCall(() =>
+    db.query.chapters.findMany({
+      where: inArray(chapters.id, chapterIds),
+      columns: { videoId: true },
+    })
+  );
+  for (const videoId of new Set(rows.map((r) => r.videoId))) {
+    yield* requireDraftVersionForVideo(db, videoId);
+  }
 });
 
 /** Guard a write scoped to a Clip web link. */
@@ -190,16 +262,14 @@ export const requireDraftForClipServiceEvent = Effect.fn(
       return yield* requireDraftVersionForVideo(db, event.input.sourceVideoId);
     case "archive-clips":
     case "unarchive-clips":
-      // A batch always targets one video; resolve via the first clip.
-      if (event.clipIds[0]) {
-        return yield* requireDraftVersionForClip(db, event.clipIds[0]);
-      }
-      return;
+      // Guard every distinct owning video — a mixed-version batch must not
+      // slip past a first-element check (in practice a batch targets one).
+      return yield* requireDraftVersionForClips(db, event.clipIds);
     case "update-clips":
-      if (event.clips[0]) {
-        return yield* requireDraftVersionForClip(db, event.clips[0].id);
-      }
-      return;
+      return yield* requireDraftVersionForClips(
+        db,
+        event.clips.map((c) => c.id)
+      );
     case "update-pause":
     case "reorder-clip":
       return yield* requireDraftVersionForClip(db, event.clipId);
@@ -207,10 +277,7 @@ export const requireDraftForClipServiceEvent = Effect.fn(
     case "reorder-chapter":
       return yield* requireDraftVersionForChapter(db, event.chapterId);
     case "archive-chapters":
-      if (event.chapterIds[0]) {
-        return yield* requireDraftVersionForChapter(db, event.chapterIds[0]);
-      }
-      return;
+      return yield* requireDraftVersionForChapters(db, event.chapterIds);
     default:
       return;
   }

@@ -133,6 +133,10 @@ FAILURE HANDLING
   lands before the freeze (carried into the new Draft) or is refused with
   VersionNotDraftError (exit 3) — retry it against the new Draft.
 
+  A crash between the course.json rename and Promote strands the Pending
+  Version at rest; the web publish page reconciles it on load (Promote if the
+  receipt committed, else one-click Discard). No CLI recovery verb exists.
+
 FLAGS
   --name <vX.Y.Z>     (required) the Published Version name.
   --description <text> (required) description for the Published Version.

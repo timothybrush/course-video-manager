@@ -12,6 +12,7 @@
 
 import type { InferSelectModel } from "drizzle-orm";
 import type { clips, chapters, videos } from "@/db/schema";
+import { parse409Message } from "@/services/version-not-draft-message";
 import type { SilenceLength } from "@/silence-detection-constants";
 // ============================================================================
 // Database Types
@@ -575,14 +576,7 @@ export function createHttpClipService(): ClipService {
       // terminal "reload into the new Draft" message, #1403) — surface it
       // verbatim so the error overlay reads as guidance, not a status dump.
       if (response.status === 409) {
-        let message = text;
-        try {
-          const parsed = JSON.parse(text);
-          if (typeof parsed === "string") message = parsed;
-        } catch {
-          // keep raw text
-        }
-        throw new Error(message);
+        throw new Error(parse409Message(text));
       }
       throw new Error(`ClipService request failed: ${response.status} ${text}`);
     }

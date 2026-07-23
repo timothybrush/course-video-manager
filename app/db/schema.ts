@@ -74,27 +74,37 @@ export const courses = createTable(
  */
 export type CourseVersionCommitState = "draft" | "pending" | "published";
 
-export const courseVersions = createTable("course_version", {
-  id: varchar("id", { length: 255 })
-    .notNull()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  repoId: varchar("course_id", { length: 255 })
-    .references(() => courses.id, { onDelete: "cascade" })
-    .notNull(),
-  name: text("name").notNull(),
-  description: text("description").notNull().default(""),
-  commitState: text("commit_state")
-    .$type<CourseVersionCommitState>()
-    .notNull()
-    .default("draft"),
-  createdAt: timestamp("created_at", {
-    mode: "date",
-    withTimezone: true,
-  })
-    .notNull()
-    .default(sql`CURRENT_TIMESTAMP`),
-});
+export const courseVersions = createTable(
+  "course_version",
+  {
+    id: varchar("id", { length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    repoId: varchar("course_id", { length: 255 })
+      .references(() => courses.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    commitState: text("commit_state")
+      .$type<CourseVersionCommitState>()
+      .notNull()
+      .default("draft"),
+    createdAt: timestamp("created_at", {
+      mode: "date",
+      withTimezone: true,
+    })
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    // At most one Pending Version per course (issue #1348) — Submit checks
+    // this in-transaction; the partial index makes the DB authoritative.
+    uniqueIndex("course_version_one_pending_uniq")
+      .on(table.repoId)
+      .where(sql`${table.commitState} = 'pending'`),
+  ]
+);
 
 export const sections = createTable(
   "section",
