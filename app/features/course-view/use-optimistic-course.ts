@@ -3,6 +3,7 @@ import { useFetchers } from "react-router";
 import { toast } from "sonner";
 import type { CourseEditorEvent } from "@/services/course-editor-service";
 import type { LoaderData } from "./course-view-types";
+import { VERSION_NOT_DRAFT_MESSAGE } from "@/services/version-not-draft-message";
 import {
   applyOptimisticEvent,
   applyOptimisticDeleteVideo,
@@ -71,12 +72,22 @@ export function useCourseEditorFailureToast() {
             .clone()
             .text()
             .then((body) => {
+              let message = body;
               try {
                 const parsed = JSON.parse(body);
-                setDivergenceReport(typeof parsed === "string" ? parsed : body);
+                if (typeof parsed === "string") message = parsed;
               } catch {
-                setDivergenceReport(body);
+                // keep raw body
               }
+              // Terminal (#1403): the Draft was Submitted while this change
+              // was in flight. Surface it and force a reload into the new
+              // Draft — the write can never succeed against this version.
+              if (message === VERSION_NOT_DRAFT_MESSAGE) {
+                toast.error(message);
+                setTimeout(() => window.location.reload(), 1500);
+                return;
+              }
+              setDivergenceReport(message);
             });
         } else {
           toast.error("Action failed — your change was reverted.");

@@ -27,10 +27,11 @@ import {
   appendClipsAtInsertionPoint,
   withVideoMutex,
   appendFromObsImpl,
+  createEffectClipAtPositionImpl,
   handleCreateVideoFromSelection,
 } from "./clip-service-handler.helpers";
-import type { DrizzleService } from "./drizzle-service.server";
-import { requireDraftForClipServiceEvent } from "./draft-guard.server";
+import type { Database } from "./drizzle-service.server";
+import { withClipServiceWriteClosure } from "./draft-guard.server";
 
 export type { VideoProcessingAdapter, LoggerAdapter };
 
@@ -42,21 +43,31 @@ export type { VideoProcessingAdapter, LoggerAdapter };
  * Handles a ClipServiceEvent by dispatching to the appropriate database operation.
  * This is the core business logic that both HTTP and direct transports use.
  *
+ * Write-closure (issues #1348/#1403): guarded write events dispatch inside one
+ * transaction holding the owning version row FOR UPDATE, so the draft check
+ * and the write commit atomically (see draft-guard.server.ts).
+ *
  * @param db - Drizzle database instance
  * @param event - The event to handle
  * @param videoProcessing - VideoProcessingService adapter (required for append-from-obs)
  */
-export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
+export const handleClipServiceEvent = (
+  db: Database,
+  event: ClipServiceEvent,
+  videoProcessing: VideoProcessingAdapter,
+  logger: LoggerAdapter = noopLogger
+) =>
+  withClipServiceWriteClosure(db, event, (tx) =>
+    dispatchClipServiceEvent(tx, event, videoProcessing, logger)
+  );
+
+const dispatchClipServiceEvent = Effect.fn("dispatchClipServiceEvent")(
   function* (
-    db: DrizzleService,
+    db: Database,
     event: ClipServiceEvent,
     videoProcessing: VideoProcessingAdapter,
-    logger: LoggerAdapter = noopLogger
+    logger: LoggerAdapter
   ) {
-    // Write-closure (issue #1348): refuse write events whose target lives in
-    // a non-Draft version before dispatching (see draft-guard.server.ts).
-    yield* requireDraftForClipServiceEvent(db, event);
-
     switch (event.type) {
       case "create-video": {
         const [video] = yield* Effect.promise(() =>
@@ -121,14 +132,17 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
         }
 
         // Serialize concurrent append-from-obs calls for the same video
-        // via an in-memory mutex to prevent duplicate clip inserts
-        return yield* Effect.promise(() =>
+        // via an in-memory mutex to prevent duplicate clip inserts.
+        // runPromiseExit + re-yield keeps typed failures (VersionNotDraftError
+        // from the post-detection guard, #1403) in the error channel.
+        const exit = yield* Effect.promise(() =>
           withVideoMutex(event.input.videoId, () =>
-            Effect.runPromise(
+            Effect.runPromiseExit(
               appendFromObsImpl(db, event, videoProcessing, logger)
             )
           )
         );
+        return yield* exit;
       }
 
       case "archive-clips": {
@@ -543,80 +557,7 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
       }
 
       case "create-effect-clip-at-position": {
-        const {
-          videoId,
-          position,
-          targetItemId,
-          targetItemType,
-          videoFilename,
-          sourceStartTime,
-          sourceEndTime,
-          text,
-          scene,
-          profile,
-          pauseType,
-        } = event.input;
-        const allItems = yield* getOrderedItems(db, videoId);
-
-        const targetIndex = allItems.findIndex(
-          (item) => item.type === targetItemType && item.id === targetItemId
-        );
-
-        if (targetIndex === -1) {
-          throw new Error(
-            `Could not find target ${targetItemType}: ${targetItemId}`
-          );
-        }
-
-        let prevOrder: string | null = null;
-        let nextOrder: string | null = null;
-
-        if (position === "before") {
-          nextOrder = allItems[targetIndex]?.order ?? null;
-          const prevItem = allItems[targetIndex - 1];
-          prevOrder = prevItem?.order ?? null;
-        } else {
-          prevOrder = allItems[targetIndex]?.order ?? null;
-          const nextItem = allItems[targetIndex + 1];
-          nextOrder = nextItem?.order ?? null;
-        }
-
-        const [order] = generateNKeysBetween(prevOrder, nextOrder, 1);
-
-        const [clip] = yield* Effect.promise(() =>
-          db
-            .insert(clips)
-            .values({
-              videoId,
-              videoFilename,
-              sourceStartTime,
-              sourceEndTime,
-              text,
-              scene,
-              profile,
-              pauseType,
-              order: order!,
-              archived: false,
-              transcribedAt: new Date(),
-            })
-            .returning()
-        );
-
-        if (!clip) {
-          throw new Error("Failed to create effect clip");
-        }
-
-        yield* touchVideoUpdatedAt(db, videoId);
-
-        logger.log(videoId, {
-          type: "effect-clip-created",
-          clipId: clip.id,
-          text,
-          scene,
-          order: order!,
-        });
-
-        return clip;
+        return yield* createEffectClipAtPositionImpl(db, event.input, logger);
       }
 
       case "create-video-from-selection": {
@@ -715,7 +656,7 @@ export const handleClipServiceEvent = Effect.fn("handleClipServiceEvent")(
  * @param videoProcessing - VideoProcessingService adapter for OBS functionality
  */
 export function createDirectClipService(
-  db: DrizzleService,
+  db: Database,
   videoProcessing: VideoProcessingAdapter,
   logger?: LoggerAdapter
 ): ClipService {

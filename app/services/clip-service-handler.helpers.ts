@@ -11,7 +11,9 @@ import type {
   ClipServiceEvent,
   CreateVideoFromSelectionInput,
 } from "./clip-service";
-import type { DrizzleService } from "./drizzle-service.server";
+import type { Database } from "./drizzle-service.server";
+import { requireDraftVersionForVideo } from "./draft-guard.server";
+import { withDbTransaction } from "./with-db-transaction.server";
 import type { LogEvent } from "./video-editor-logger-service";
 import type { SilenceLength } from "@/silence-detection-constants";
 
@@ -69,7 +71,7 @@ export function windowsToWSL(windowsPath: string): string {
 // ============================================================================
 
 export const getOrderedItems = Effect.fn("getOrderedItems")(function* (
-  db: DrizzleService,
+  db: Database,
   videoId: string
 ) {
   const allClips = yield* Effect.promise(() =>
@@ -101,7 +103,7 @@ export const getOrderedItems = Effect.fn("getOrderedItems")(function* (
 // Helper: Touch video updatedAt timestamp
 // ============================================================================
 
-export const touchVideoUpdatedAt = (db: DrizzleService, videoId: string) =>
+export const touchVideoUpdatedAt = (db: Database, videoId: string) =>
   Effect.promise(() =>
     db
       .update(videos)
@@ -116,7 +118,7 @@ export const touchVideoUpdatedAt = (db: DrizzleService, videoId: string) =>
 export const appendClipsAtInsertionPoint = Effect.fn(
   "appendClipsAtInsertionPoint"
 )(function* (
-  db: DrizzleService,
+  db: Database,
   input: Extract<ClipServiceEvent, { type: "append-clips" }>["input"]
 ) {
   const { videoId, insertionPoint, clips: inputClips } = input;
@@ -216,7 +218,7 @@ export async function withVideoMutex<T>(
 // ============================================================================
 
 export const appendFromObsImpl = (
-  db: DrizzleService,
+  db: Database,
   event: Extract<ClipServiceEvent, { type: "append-from-obs" }>,
   videoProcessing: VideoProcessingAdapter,
   logger: LoggerAdapter
@@ -304,13 +306,21 @@ export const appendFromObsImpl = (
       return [];
     }
 
-    const result = yield* appendClipsAtInsertionPoint(db, {
-      videoId,
-      insertionPoint,
-      clips: clipsToAdd,
-    });
-
-    yield* touchVideoUpdatedAt(db, videoId);
+    // #1403: the Draft may have been Submitted while OBS detection ran above.
+    // Re-check under the version-row lock, in the same transaction as the
+    // insert, so a clip can never land on a version that is no longer a Draft.
+    const result = yield* withDbTransaction(db, (tx) =>
+      Effect.gen(function* () {
+        yield* requireDraftVersionForVideo(tx, videoId);
+        const inserted = yield* appendClipsAtInsertionPoint(tx, {
+          videoId,
+          insertionPoint,
+          clips: clipsToAdd,
+        });
+        yield* touchVideoUpdatedAt(tx, videoId);
+        return inserted;
+      })
+    );
 
     const totalDuplicatesSkipped =
       latestOBSVideoClips.clips.length - result.length;
@@ -332,13 +342,101 @@ export const appendFromObsImpl = (
   });
 
 // ============================================================================
+// Handler: create-effect-clip-at-position
+// ============================================================================
+
+export const createEffectClipAtPositionImpl = Effect.fn(
+  "createEffectClipAtPositionImpl"
+)(function* (
+  db: Database,
+  input: Extract<
+    ClipServiceEvent,
+    { type: "create-effect-clip-at-position" }
+  >["input"],
+  logger: LoggerAdapter
+) {
+  const {
+    videoId,
+    position,
+    targetItemId,
+    targetItemType,
+    videoFilename,
+    sourceStartTime,
+    sourceEndTime,
+    text,
+    scene,
+    profile,
+    pauseType,
+  } = input;
+  const allItems = yield* getOrderedItems(db, videoId);
+
+  const targetIndex = allItems.findIndex(
+    (item) => item.type === targetItemType && item.id === targetItemId
+  );
+
+  if (targetIndex === -1) {
+    throw new Error(`Could not find target ${targetItemType}: ${targetItemId}`);
+  }
+
+  let prevOrder: string | null = null;
+  let nextOrder: string | null = null;
+
+  if (position === "before") {
+    nextOrder = allItems[targetIndex]?.order ?? null;
+    const prevItem = allItems[targetIndex - 1];
+    prevOrder = prevItem?.order ?? null;
+  } else {
+    prevOrder = allItems[targetIndex]?.order ?? null;
+    const nextItem = allItems[targetIndex + 1];
+    nextOrder = nextItem?.order ?? null;
+  }
+
+  const [order] = generateNKeysBetween(prevOrder, nextOrder, 1);
+
+  const [clip] = yield* Effect.promise(() =>
+    db
+      .insert(clips)
+      .values({
+        videoId,
+        videoFilename,
+        sourceStartTime,
+        sourceEndTime,
+        text,
+        scene,
+        profile,
+        pauseType,
+        order: order!,
+        archived: false,
+        transcribedAt: new Date(),
+      })
+      .returning()
+  );
+
+  if (!clip) {
+    throw new Error("Failed to create effect clip");
+  }
+
+  yield* touchVideoUpdatedAt(db, videoId);
+
+  logger.log(videoId, {
+    type: "effect-clip-created",
+    clipId: clip.id,
+    text,
+    scene,
+    order: order!,
+  });
+
+  return clip;
+});
+
+// ============================================================================
 // Handler: create-video-from-selection
 // ============================================================================
 
 export const handleCreateVideoFromSelection = Effect.fn(
   "handleCreateVideoFromSelection"
 )(function* (
-  db: DrizzleService,
+  db: Database,
   input: CreateVideoFromSelectionInput,
   logger: LoggerAdapter
 ) {

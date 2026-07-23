@@ -10,6 +10,7 @@ import {
   RECORDING_SESSION_PANELS_ID,
 } from "@/features/video-editor/constants";
 import type { ClipService } from "@/services/clip-service";
+import { VERSION_NOT_DRAFT_MESSAGE } from "@/services/version-not-draft-message";
 import type { EffectsMap } from "use-effect-reducer";
 import type React from "react";
 import { sendToChild, subscribeParent } from "@/lib/diagram-protocol";
@@ -276,7 +277,18 @@ export function createEditEffectHandlers(
               });
             }
           } catch (e) {
-            // Errors are swallowed; polling continues
+            // Terminal (#1403): the version was Submitted mid-session — stop
+            // polling and surface the reload overlay instead of silently
+            // retrying against a frozen version forever.
+            if (e instanceof Error && e.message === VERSION_NOT_DRAFT_MESSAGE) {
+              dispatch({
+                type: "effect-failed",
+                effectType: "start-session-polling",
+                message: e.message,
+              });
+              break;
+            }
+            // Other errors are swallowed; polling continues
           }
           await new Promise((resolve) => setTimeout(resolve, 500));
         }

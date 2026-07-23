@@ -27,6 +27,7 @@ import {
   projectVersionPaths,
   attachDerivedPaths,
 } from "@/services/path-projection";
+import { requireDraftVersion } from "@/services/draft-guard.server";
 import { withDbTransaction } from "@/services/with-db-transaction.server";
 import {
   freezeAndCloneVersion as freezeAndCloneVersionTransaction,
@@ -524,6 +525,9 @@ export const createVersionOperations = (db: Database) => {
   ) {
     return yield* withDbTransaction(db, (transaction) =>
       Effect.gen(function* () {
+        // #1403: hold the version-row lock guarded writes contend on while
+        // cloning, so no write can land on the source mid-freeze.
+        yield* requireDraftVersion(transaction, input.sourceVersionId);
         const result = yield* copyVersionStructureInDb(transaction, input);
         // Manual create-version freezes its source without a Dropbox commit:
         // the old Draft becomes an immutable `published` snapshot (that is what

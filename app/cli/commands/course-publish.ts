@@ -129,6 +129,10 @@ FAILURE HANDLING
   Draft, so fix the cause and publish again. The upload is content-addressed,
   so a re-publish re-uploads nothing that already landed.
 
+  Edits racing a publish are safe: a write serializes with Submit and either
+  lands before the freeze (carried into the new Draft) or is refused with
+  VersionNotDraftError (exit 3) — retry it against the new Draft.
+
 FLAGS
   --name <vX.Y.Z>     (required) the Published Version name.
   --description <text> (required) description for the Published Version.
