@@ -24,18 +24,21 @@ import {
  */
 const VERSION_HELP = `Read CourseVersions — the snapshots of a Course's section/lesson/video structure.
 
-A CourseVersion is a frozen (or in-progress) capture of a whole Course tree. Each
-Course has exactly one DRAFT VERSION (the latest by createdAt — mutable, empty
-name/description) plus zero or more PUBLISHED VERSIONS (immutable, named, created
-by Publish, never deletable). "Version-scoped" reads elsewhere in cvm default to
-the Draft; here you read the version rows themselves.
+A CourseVersion is a frozen (or in-progress) capture of a whole Course tree. Its
+commitState field is the authoritative lifecycle state: each Course has exactly
+one DRAFT VERSION (commitState "draft" — mutable, empty name/description), at
+most one PENDING VERSION ("pending" — Submitted for publish, mid-Commit), and
+zero or more PUBLISHED VERSIONS ("published" — immutable, named, never
+deletable). Only the Draft accepts writes. "Version-scoped" reads elsewhere in
+cvm default to the Draft; here you read the version rows themselves.
 
 OUTPUT FIELDS
   id           CourseVersion id (use this to pin --course-version on other nouns).
   repoId       id of the owning Course (the "course id").
   name         Empty "" for the Draft Version; the publish name otherwise.
   description  Empty "" for the Draft Version; the publish description otherwise.
-  createdAt    When the version was created (latest = Draft).
+  createdAt    When the version was created.
+  commitState  "draft" | "pending" | "published" — the authoritative state.
   isDraft      true for the single Draft Version of the course (list only).
 
 VERBS
@@ -56,11 +59,12 @@ EXAMPLES
   V=$(cvm version list --course course_123 | jq -r 'select(.isDraft).id')
   cvm version tree --depth 2 "$V"`;
 
-const LIST_HELP = `List every CourseVersion of a course, newest first (the first row is the Draft).
+const LIST_HELP = `List every CourseVersion of a course, newest first.
 
 Requires --course <courseId>. Output is NDJSON (one compact version object per
 line), identity-rich so you can map a publish name -> version id in one call.
-Each row carries an extra isDraft flag (true for the single latest version).
+Each row carries commitState plus an isDraft convenience flag
+(commitState === "draft").
 A course with no versions prints nothing and exits 0.
 
 EXAMPLES
@@ -113,14 +117,15 @@ const listCmd = Command.make("list", { course: courseOpt }, ({ course }) =>
       svc.getCourseVersions(course)
     );
     yield* emitNdjson(
-      versions.map((v, i) => ({
+      versions.map((v) => ({
         id: v.id,
         repoId: v.repoId,
         name: v.name,
         description: v.description,
+        commitState: v.commitState,
         createdAt: v.createdAt,
-        // versions are ordered newest-first; the latest is the Draft Version.
-        isDraft: i === 0,
+        // The commit state is authoritative — no positional inference.
+        isDraft: v.commitState === "draft",
       }))
     );
   })

@@ -42,7 +42,14 @@ function makeVersion(
   name: string,
   sections: VersionWithStructure["sections"]
 ): VersionWithStructure {
-  return { id, name, description: "", createdAt: new Date(), sections };
+  return {
+    id,
+    name,
+    description: "",
+    commitState: name === "" ? "draft" : "published",
+    createdAt: new Date(),
+    sections,
+  };
 }
 
 describe("empty sections excluded from changelog", () => {

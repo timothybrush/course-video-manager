@@ -14,6 +14,7 @@ function makeVersion(
     id,
     name,
     description: "",
+    commitState: name === "" ? "draft" : "published",
     createdAt: new Date(),
     sections,
   };

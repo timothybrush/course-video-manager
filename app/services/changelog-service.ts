@@ -163,8 +163,11 @@ function renderVideoChanges(
 }
 
 export function generateChangelog(versions: VersionWithStructure[]): string {
-  // Filter out draft versions (no name) — only published versions appear in changelog
-  versions = versions.filter((v) => v.name !== "");
+  // Only non-Draft versions appear in the changelog. The commit state is
+  // authoritative (no more "has a name = published" inference); a Pending
+  // Version is included so the publish-page preview covers the release it is
+  // about to commit.
+  versions = versions.filter((v) => v.commitState !== "draft");
 
   if (versions.length === 0) {
     return "# Changelog\n\nNo versions found.\n";

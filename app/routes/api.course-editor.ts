@@ -9,6 +9,8 @@ export const action = makeAction({
   errors: {
     NotFoundError: 404,
     SectionPathTakenError: 409,
+    // Write-closure: writes into a Pending/Published version are refused.
+    VersionNotDraftError: 409,
   },
   effect: ({ payload }) =>
     Effect.gen(function* () {

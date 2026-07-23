@@ -22,8 +22,8 @@ import {
   computeEffectiveSections,
 } from "@/packages/course-json";
 import {
-  DropboxCommitPendingError,
   ExportError,
+  PublishCommitFailedError,
   PublishValidationError,
 } from "./course-publish-errors";
 import { syncFrozenCourseVersionToDropbox } from "./course-publish-dropbox";
@@ -367,18 +367,18 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
               message: `No version found for repo ${courseId}`,
             });
           }
-          const versions = yield* versionOps.getCourseVersions(courseId);
-          const latestFrozenVersion = versions.find(
-            (version) => version.id !== latestVersion.id
-          );
-          if (!latestFrozenVersion) {
+          // The commit state is authoritative: re-sync the newest Published
+          // Version. (Previously inferred positionally as "first non-latest".)
+          const latestPublishedVersion =
+            yield* versionOps.getLatestPublishedVersion(courseId);
+          if (!latestPublishedVersion) {
             return yield* new PublishValidationError({
               unfrozenCourseVersionId: latestVersion.id,
             });
           }
           return yield* syncFrozenVersionToDropboxUnlocked(
             courseId,
-            latestFrozenVersion.id,
+            latestPublishedVersion.id,
             includeTodoLessons,
             onProgress
           );
@@ -453,32 +453,43 @@ export class CoursePublishService extends Effect.Service<CoursePublishService>()
         });
 
         onProgress?.("uploading");
+        // Commit: the Dropbox sync culminating in the atomic `course.json`
+        // rename — the external commit receipt. A caught failure is TERMINAL
+        // for this Pending Version (issue #1401): retry the Commit once
+        // in-flight (`sync_failed` only), then auto-Discard. The sync is
+        // content-addressed and idempotent, so a later re-publish re-uploads
+        // nothing that already landed.
         const commitExit = yield* Effect.exit(
           syncFrozenVersionToDropboxUnlocked(
             courseId,
             latestVersion.id,
             includeTodoLessons
-          )
+          ).pipe(Effect.retry(Schedule.recurs(1)))
         );
         if (Exit.isFailure(commitExit)) {
-          return yield* new DropboxCommitPendingError({
-            pendingVersionId: latestVersion.id,
+          yield* versionOps.discardPendingVersion(latestVersion.id);
+          return yield* new PublishCommitFailedError({
+            discardedVersionId: latestVersion.id,
             newDraftVersionId: newDraft.id,
             reason: "sync_failed",
-            includeTodoLessons,
           });
         }
         if (commitExit.value.missingVideos.length > 0) {
-          return yield* new DropboxCommitPendingError({
-            pendingVersionId: latestVersion.id,
+          // Missing assets are deterministic — retrying cannot conjure the
+          // files — so Discard immediately, naming the missing Videos.
+          yield* versionOps.discardPendingVersion(latestVersion.id);
+          return yield* new PublishCommitFailedError({
+            discardedVersionId: latestVersion.id,
             newDraftVersionId: newDraft.id,
             reason: "missing_assets",
-            includeTodoLessons,
             missingVideoIds: commitExit.value.missingVideos.map(
               (video) => video.videoId
             ),
           });
         }
+
+        // Promote: the receipt landed, so the Pending Version is Published.
+        yield* versionOps.promotePendingVersion(latestVersion.id);
 
         onProgress?.("complete");
 

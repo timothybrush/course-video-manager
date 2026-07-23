@@ -8,21 +8,12 @@ export interface SSEPublishParams {
   includeTodoLessons: boolean;
 }
 
-export interface DropboxCommitPendingResult {
-  pendingVersionId: string;
-  newDraftVersionId: string;
-  includeTodoLessons: boolean;
-  reason: "sync_failed" | "missing_assets";
-  missingVideoIds: string[];
-}
-
 export interface SSEPublishCallbacks {
   onStageChange: (stage: uploadReducer.PublishStage) => void;
   onComplete: (result: {
     publishedVersionId: string;
     newDraftVersionId: string;
   }) => void;
-  onDropboxCommitPending: (result: DropboxCommitPendingResult) => void;
   onError: (message: string) => void;
 }
 
@@ -48,25 +39,10 @@ export const startSSEPublish = (
           publishedVersionId: data.publishedVersionId,
           newDraftVersionId: data.newDraftVersionId,
         }),
-      error: (
-        data:
-          | ({ message: string; type?: undefined } & Record<string, unknown>)
-          | ({
-              message: string;
-              type: "dropbox_commit_pending";
-            } & DropboxCommitPendingResult)
-      ) => {
-        if (data.type === "dropbox_commit_pending") {
-          callbacks.onDropboxCommitPending({
-            pendingVersionId: data.pendingVersionId,
-            newDraftVersionId: data.newDraftVersionId,
-            includeTodoLessons: data.includeTodoLessons,
-            reason: data.reason,
-            missingVideoIds: data.missingVideoIds,
-          });
-        } else {
-          callbacks.onError(data.message);
-        }
+      // A failed Commit auto-Discards the Pending Version server-side (issue
+      // #1401), so every publish failure arrives as a plain, terminal error.
+      error: (data: { message: string } & Record<string, unknown>) => {
+        callbacks.onError(data.message);
       },
     },
     onError: callbacks.onError,

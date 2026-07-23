@@ -63,16 +63,19 @@ export const action = async (args: Route.ActionArgs) => {
         },
       },
       {
-        tag: "DropboxCommitPendingError",
+        // A caught Commit failure auto-Discards the Pending Version (issue
+        // #1401) — this is a plain, terminal error, not a recoverable state.
+        // The Submitted content lives on unchanged in the new Draft.
+        tag: "PublishCommitFailedError",
         handler: (e, sendEvent) => {
+          const message =
+            e.reason === "missing_assets"
+              ? `Publish discarded: ${
+                  e.missingVideoIds?.length ?? 0
+                } video file(s) were missing from the export directory. Nothing was lost — your edits are safe in the Draft. Re-export and publish again`
+              : "Publish discarded: the Dropbox commit failed (after one retry). Nothing was lost — your edits are safe in the Draft. Publish again when Dropbox is reachable";
           sendEvent("error", {
-            message:
-              "The Course Version is frozen and the new Draft is safe, but Dropbox still needs to be re-synced.",
-            type: "dropbox_commit_pending",
-            pendingVersionId: e.pendingVersionId,
-            newDraftVersionId: e.newDraftVersionId,
-            reason: e.reason,
-            includeTodoLessons: e.includeTodoLessons,
+            message,
             missingVideoIds: e.missingVideoIds ?? [],
           });
         },

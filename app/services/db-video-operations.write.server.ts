@@ -8,6 +8,10 @@ import {
 import { and, eq, ne } from "drizzle-orm";
 import { Effect } from "effect";
 import type { VideoFormat } from "@/features/videos/video-format";
+import {
+  requireDraftVersionForLesson,
+  requireDraftVersionForVideo,
+} from "@/services/draft-guard.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) =>
   Effect.tryPromise({
@@ -52,6 +56,7 @@ export const createVideoWriteOps = (db: Database) => {
     videoId: string;
     pitchId: string;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
     const [updated] = yield* makeDbCall(() =>
       db
         .update(videos)
@@ -81,6 +86,8 @@ export const createVideoWriteOps = (db: Database) => {
     videoId: string;
     lessonId: string;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
+    yield* requireDraftVersionForLesson(db, opts.lessonId);
     const current = yield* makeDbCall(() =>
       db.query.videos.findFirst({
         where: eq(videos.id, opts.videoId),
@@ -137,6 +144,7 @@ export const createVideoWriteOps = (db: Database) => {
     videoId: string;
     body: string | null;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
     const [updated] = yield* makeDbCall(() =>
       db
         .update(videos)
@@ -157,6 +165,7 @@ export const createVideoWriteOps = (db: Database) => {
 
   const updateVideoDescription = Effect.fn("updateVideoDescription")(
     function* (opts: { videoId: string; description: string | null }) {
+      yield* requireDraftVersionForVideo(db, opts.videoId);
       const [updated] = yield* makeDbCall(() =>
         db
           .update(videos)
@@ -201,6 +210,7 @@ export const createVideoWriteOps = (db: Database) => {
     videoId: string;
     format: VideoFormat;
   }) {
+    yield* requireDraftVersionForVideo(db, opts.videoId);
     const [updated] = yield* makeDbCall(() =>
       db
         .update(videos)

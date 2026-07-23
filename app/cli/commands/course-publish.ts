@@ -15,12 +15,14 @@ import { detail, emitObject, notFound, parseError } from "@/cli/helpers";
  * `cvm course publish <courseId> --name vX.Y.Z` — the ONE write verb that
  * leaves the database.
  *
- * Publish is the atomic operation (see CONTEXT.md): it mirrors the Draft
- * Version's shippable output to Dropbox (`.mp4`s + `course.json` +
- * `course.schema.json`), freezes the Draft as a Published Version carrying the
- * given name + description, and clones a fresh Draft. This just wraps
- * CoursePublishService.publish for the CLI; the heavy lifting (validation gate,
- * Dropbox sync, version freeze/clone) lives there.
+ * Publish (see CONTEXT.md) runs the Version lifecycle: Submit freezes the
+ * Draft as a Pending Version (stamping name + description) and clones a fresh
+ * Draft; Commit mirrors the Pending Version's shippable output to Dropbox
+ * (`.mp4`s + `course.json` + `course.schema.json`), ending in the atomic
+ * `course.json` rename (the commit receipt); Promote then marks it Published.
+ * A caught Commit failure auto-Discards the Pending Version. This just wraps
+ * CoursePublishService.publish for the CLI; the heavy lifting (validation
+ * gate, Dropbox sync, lifecycle transitions) lives there.
  *
  * NAME CONTRACT
  *   The version name MUST be a lowercase-'v' prefixed semver — `v1.2.3`,
@@ -90,12 +92,14 @@ const excludeTodoOpt = Options.boolean("exclude-todo").pipe(
 const PUBLISH_HELP = `Publish a Course: mirror its Draft Version to Dropbox, then freeze it as a
 named Published Version.
 
-Publish is the atomic release operation (see CONTEXT.md). It (1) validates the
-shippable output, (2) copies every shipping Video's .mp4 plus a course.json and
-a content-addressed asset bundle plus root course.json into Dropbox, (3) freezes
-the Draft Version by stamping it with --name and --description, and (4) clones a
-fresh empty Draft to carry on editing. The published snapshot is immutable and
-can never be deleted.
+Publish is the release operation (see CONTEXT.md). It (1) validates the
+shippable output, (2) SUBMITS the Draft — freezing it as a Pending Version
+stamped with --name and --description, and cloning a fresh Draft to carry on
+editing, (3) COMMITS — copies every shipping Video's .mp4 plus a
+content-addressed asset bundle into Dropbox, ending in the atomic course.json
+rename that is the commit receipt, and (4) PROMOTES the Pending Version to
+Published. The published snapshot is immutable and can never be deleted; a
+failed Commit auto-Discards the Pending Version (see FAILURE HANDLING).
 
 ADDRESSING
   The positional argument is the COURSE id (find it via 'cvm course list'). The
@@ -113,10 +117,17 @@ VALIDATION
   view must be lint-clean for the effective output. If not, the publish is
   refused with a PublishValidationError listing the offending video ids — nothing
   is uploaded and no version is frozen. Export the missing videos first, then
-  re-run. If Dropbox fails after the database freeze, the command returns
-  DropboxCommitPendingError with both version ids and the original to-do policy.
-  The Published Version and new Draft remain safe, and the frozen-version Dropbox
-  sync can retry that exact version without deleting either one.
+  re-run.
+
+FAILURE HANDLING
+  Submit freezes the Draft as a Pending Version and clones a fresh Draft; the
+  Dropbox Commit then uploads it, ending in the atomic course.json rename (the
+  commit receipt). A caught Commit failure auto-Discards the Pending Version:
+  a sync failure is retried once in-flight first; missing asset files Discard
+  immediately, naming the missing videos. Either way the command exits 4 with
+  PublishCommitFailedError — nothing is lost, your edits are safe in the new
+  Draft, so fix the cause and publish again. The upload is content-addressed,
+  so a re-publish re-uploads nothing that already landed.
 
 FLAGS
   --name <vX.Y.Z>     (required) the Published Version name.

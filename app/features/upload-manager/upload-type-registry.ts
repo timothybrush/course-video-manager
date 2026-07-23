@@ -1,6 +1,5 @@
 import type { uploadReducer } from "./upload-reducer";
 import { startSSEAiHeroPost } from "./sse-ai-hero-client";
-import { startSSEDropboxPublish } from "./sse-dropbox-publish-client";
 import { startSSEExport } from "./sse-export-client";
 import { startSSEPublish } from "./sse-publish-client";
 import { startSSERenderVertical } from "./sse-render-vertical-client";
@@ -510,55 +509,9 @@ const publishConfig: UploadTypeConfig<
             dispatch({ type: "UPLOAD_SUCCESS", uploadId });
             abortControllers.delete(uploadId);
           },
-          onDropboxCommitPending: (pending) => {
-            dispatch({
-              type: "UPDATE_PUBLISH_STAGE",
-              uploadId,
-              stage: "uploading",
-            });
-            const retryController = startSSEDropboxPublish(
-              {
-                repoId: params.courseId,
-                courseVersionId: pending.pendingVersionId,
-                includeTodoLessons: pending.includeTodoLessons,
-              },
-              {
-                onProgress: (percentage) => {
-                  dispatch({
-                    type: "UPDATE_PROGRESS",
-                    uploadId,
-                    progress: percentage,
-                  });
-                },
-                onComplete: (missingVideoCount) => {
-                  if (missingVideoCount > 0) {
-                    dispatch({
-                      type: "UPLOAD_FATAL_ERROR",
-                      uploadId,
-                      errorMessage: `Dropbox commit still needs ${missingVideoCount} video(s). Retry the exact frozen version from the pending publish details.`,
-                    });
-                  } else {
-                    dispatch({
-                      type: "PUBLISH_COMPLETE",
-                      uploadId,
-                      newDraftVersionId: pending.newDraftVersionId,
-                    });
-                    dispatch({ type: "UPLOAD_SUCCESS", uploadId });
-                  }
-                  abortControllers.delete(uploadId);
-                },
-                onError: (message) => {
-                  dispatch({
-                    type: "UPLOAD_FATAL_ERROR",
-                    uploadId,
-                    errorMessage: `${message}. Retry the exact frozen version from the pending publish details.`,
-                  });
-                  abortControllers.delete(uploadId);
-                },
-              }
-            );
-            abortControllers.set(uploadId, retryController);
-          },
+          // A failed Commit auto-Discards the Pending Version server-side
+          // (issue #1401), so there is no recoverable "pending" state to
+          // retry from here — every failure is terminal for this attempt.
           onError: (message) => {
             dispatch({
               type: "UPLOAD_FATAL_ERROR",
