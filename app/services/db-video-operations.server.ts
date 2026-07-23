@@ -13,7 +13,11 @@ import {
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { Effect } from "effect";
 import { copyVideoImpl } from "@/services/db-video-operations.copy.server";
-import { createVideoWriteOps } from "@/services/db-video-operations.write.server";
+import {
+  createVideoWriteOps,
+  videoWriteMethods,
+} from "@/services/db-video-operations.write.server";
+import { transactionalizeWrites } from "@/services/with-db-transaction.server";
 import type { VideoFormat } from "@/features/videos/video-format";
 import {
   requireDraftVersionForLesson,
@@ -27,12 +31,11 @@ const makeDbCall = <T>(fn: () => Promise<T>) => {
   });
 };
 
-export const createVideoOperations = (
-  db: Database,
-  deps: {
-    getCourseNavigationData: (id: string) => Effect.Effect<any, any>;
-  }
-) => {
+type VideoOpsDeps = {
+  getCourseNavigationData: (id: string) => Effect.Effect<any, any>;
+};
+
+const createVideoOperationsUnwrapped = (db: Database, deps: VideoOpsDeps) => {
   const { getCourseNavigationData } = deps;
 
   const assertVideoTitleAvailable = Effect.fn("assertVideoTitleAvailable")(
@@ -487,7 +490,6 @@ export const createVideoOperations = (
     if (!currentLesson) return null; // Standalone videos have no next/prev
     const repo = currentLesson.section.repoVersion.repo;
 
-    // Get all videos in current lesson sorted by title
     const videosInLesson = [...currentLesson.videos].sort((a, b) =>
       a.title.localeCompare(b.title)
     );
@@ -495,16 +497,13 @@ export const createVideoOperations = (
       (v) => v.id === currentVideo.id
     );
 
-    // Try next video in current lesson
     if (currentVideoIndex < videosInLesson.length - 1) {
       return videosInLesson[currentVideoIndex + 1]?.id ?? null;
     }
 
-    // Need to get all sections and lessons to find next
     const courseNav = yield* getCourseNavigationData(repo.id);
     const latestVersionSections = courseNav.versions[0]?.sections ?? [];
 
-    // Build a flat list of real lessons in order
     const allRealLessons = latestVersionSections.flatMap(
       (s: (typeof latestVersionSections)[number]) => s.lessons
     );
@@ -538,7 +537,6 @@ export const createVideoOperations = (
       if (!currentLesson) return null; // Standalone videos have no next/prev
       const repo = currentLesson.section.repoVersion.repo;
 
-      // Get all videos in current lesson sorted by title
       const videosInLesson = [...currentLesson.videos].sort((a, b) =>
         a.title.localeCompare(b.title)
       );
@@ -546,12 +544,10 @@ export const createVideoOperations = (
         (v) => v.id === currentVideo.id
       );
 
-      // Try previous video in current lesson
       if (currentVideoIndex > 0) {
         return videosInLesson[currentVideoIndex - 1]?.id ?? null;
       }
 
-      // Need to get all sections and lessons to find previous
       const courseNav = yield* getCourseNavigationData(repo.id);
       const latestVersionSections = courseNav.versions[0]?.sections ?? [];
 
@@ -563,7 +559,6 @@ export const createVideoOperations = (
         (l: (typeof allRealLessons)[number]) => l.id === currentLesson.id
       );
 
-      // Find previous real lesson with videos
       for (let i = currentIndex - 1; i >= 0; i--) {
         const prevLesson = allRealLessons[i]!;
         const videos = prevLesson.videos.sort(
@@ -749,6 +744,14 @@ export const createVideoOperations = (
     getVideosForFewShotExamples,
   };
 };
+
+/** Each write runs in one txn with its draft-guard's version-row lock (#1403). */
+export const createVideoOperations = (db: Database, deps: VideoOpsDeps) =>
+  transactionalizeWrites(
+    db,
+    (d) => createVideoOperationsUnwrapped(d, deps),
+    videoWriteMethods
+  );
 
 export class VideoOperationsService extends Effect.Service<VideoOperationsService>()(
   "VideoOperationsService",

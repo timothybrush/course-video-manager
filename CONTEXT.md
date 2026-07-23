@@ -7,7 +7,7 @@ A tool for authoring courses as structured collections of sections, lessons, and
 ### Course structure
 
 **Course**:
-The primary domain entity: a structured collection of versions, sections, lessons, and videos, held entirely in the database. Not backed by any on-disk repository — courses were once backed by a local git repo, but that backing was retired (see ADR 0018).
+The primary domain entity: a structured collection of versions, sections, lessons, and videos, held entirely in the database. Not backed by any on-disk repository — the former git-repo backing was retired (ADR 0018).
 _Avoid_: Repo, Project
 
 **Section**:
@@ -29,7 +29,7 @@ The single mutable CourseVersion being edited — the only state accepting secti
 _Avoid_: Current version, Working version
 
 **Pending Version**:
-A Submitted CourseVersion whose Dropbox commit receipt has not yet landed. Immutable, named, short-lived: either Promoted (receipt landed) or Discarded (commit failed). At most one per course; one found at rest means exactly one thing — a crash between receipt and Promote.
+A Submitted CourseVersion whose Dropbox commit receipt has not yet landed. Immutable, named, short-lived: either Promoted (receipt landed) or Discarded (commit failed). At most one per course; one found at rest means a crash between receipt and Promote.
 _Avoid_: Frozen version (ambiguous with Published), In-flight version
 
 **Published Version**:
@@ -37,7 +37,7 @@ An immutable CourseVersion with a name and description, created by Promoting a P
 _Avoid_: Released version, Committed version
 
 **Submit**:
-The Draft → Pending transition: stamps the publish name/description, marks the Draft Pending, and clones a fresh Draft. Refused while a Pending Version exists.
+The Draft → Pending transition: stamps the publish name/description, marks the Draft Pending, and clones a fresh Draft. Refused while a Pending Version exists. In-flight writes serialize with it: each lands before the clone or is refused terminally — never stranded on the frozen version.
 _Avoid_: Freeze (only half the story), Snapshot
 
 **Promote**:
@@ -49,7 +49,7 @@ Deletes a Pending Version whose commit did not land — never a Draft or Publish
 _Avoid_: Rollback, Delete version
 
 **Publish**:
-The release flow: Submit, then the Dropbox commit (upload culminating in the atomic `course.json` rename — the sole commit receipt), then Promote. Structure is derived from the database (never parsed from disk); the Dropbox output is exclusively `.mp4` files plus one `course.json` and its companion `course.schema.json` (its JSON Schema, referenced via `$schema`) — no authoring sidecars (`.transcript.md`, `.body.md`, `.meta.json`, `TODO.md`), no `changelog.md`. Every shipping **Video** must be complete — exportable **Clips** (hence an `.mp4` and an **Export Hash**), a `body`, and a `description` — so no `course.json` field is ever null; an incomplete Video fails the Publish (ADR 0019).
+The release flow: Submit, then the Dropbox commit (upload culminating in the atomic `course.json` rename — the sole commit receipt), then Promote. Structure is derived from the database (never parsed from disk); the Dropbox output is exclusively `.mp4` files plus one `course.json` and its companion `course.schema.json` (referenced via `$schema`) — no authoring sidecars, no `changelog.md`. Every shipping **Video** must be complete — exportable **Clips** (hence an `.mp4` and an **Export Hash**), a `body`, and a `description` — so no `course.json` field is ever null; an incomplete Video fails the Publish (ADR 0019).
 _Avoid_: Commit (that is one phase of it), Deploy, Push
 
 **Export Version Key**:

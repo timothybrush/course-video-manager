@@ -19,6 +19,7 @@ import {
   requireDraftVersionForLesson,
   requireDraftVersionForSection,
 } from "./draft-guard.server";
+import { transactionalizeWrites } from "./with-db-transaction.server";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
   return Effect.tryPromise({
@@ -40,7 +41,7 @@ const titleFromSectionPathWithNumber = (pathWithNumber: string): string =>
 const titleFromLessonPathWithNumber = (pathWithNumber: string): string =>
   parseLessonPath(pathWithNumber)?.slug ?? pathWithNumber;
 
-export const createLessonSectionOperations = (db: Database) => {
+const createLessonSectionOperationsUnwrapped = (db: Database) => {
   const getLessonById = Effect.fn("getLessonById")(function* (id: string) {
     const lesson = yield* makeDbCall(() =>
       db.query.lessons.findFirst({
@@ -485,6 +486,24 @@ export const createLessonSectionOperations = (db: Database) => {
     batchUpdateSectionOrders,
   };
 };
+
+/** Each write runs in one txn with its draft-guard's version-row lock (#1403). */
+export const createLessonSectionOperations = (db: Database) =>
+  transactionalizeWrites(db, createLessonSectionOperationsUnwrapped, [
+    "createSections",
+    "createLessons",
+    "createLesson",
+    "updateLesson",
+    "deleteLesson",
+    "deleteSection",
+    "archiveSection",
+    "updateSectionOrder",
+    "updateSectionTitle",
+    "updateSectionDescription",
+    "updateLessonOrder",
+    "batchUpdateLessonOrders",
+    "batchUpdateSectionOrders",
+  ]);
 
 export class LessonSectionOperationsService extends Effect.Service<LessonSectionOperationsService>()(
   "LessonSectionOperationsService",

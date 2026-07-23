@@ -1,4 +1,5 @@
 import { Data } from "effect";
+import { VERSION_NOT_DRAFT_MESSAGE } from "./version-not-draft-message";
 
 export class NotFoundError extends Data.TaggedError("NotFoundError")<{
   type: string;
@@ -35,7 +36,13 @@ export class VersionNotDraftError extends Data.TaggedError(
 )<{
   versionId: string;
   commitState: string;
-}> {}
+}> {
+  // Serialized as the 409 body; browsers match on it to treat the failure as
+  // terminal (surface + force reload into the new Draft — issue #1403).
+  override get message() {
+    return VERSION_NOT_DRAFT_MESSAGE;
+  }
+}
 
 /**
  * Promote and Discard act only on a Pending Version — Promote marks it

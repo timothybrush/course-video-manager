@@ -12,18 +12,26 @@ import {
   UnknownDBServiceError,
   VersionNotDraftError,
 } from "@/services/db-service-errors";
+import { withDbTransaction } from "@/services/with-db-transaction.server";
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import type { ClipServiceEvent } from "@/services/clip-service";
 
 /**
- * Write-closure guards for the CourseVersion lifecycle (issue #1348).
+ * Write-closure guards for the CourseVersion lifecycle (issues #1348/#1403).
  *
  * Only a Draft Version (`commitState === "draft"`) accepts section / lesson /
  * video / clip writes; Pending and Published Versions are immutable. Each DB
  * write entry point resolves its target's owning CourseVersion through one of
  * these guards and fails with a typed VersionNotDraftError when the version is
  * not a Draft.
+ *
+ * The commitState read is a `SELECT … FOR UPDATE` on the version row, held
+ * until the enclosing transaction commits — so a guard is only race-safe when
+ * it runs in the SAME transaction as the write it protects (see
+ * transactionalizeWrites / withClipServiceWriteClosure). Submit takes the same
+ * row lock before cloning, so check + write commit atomically on one side of
+ * the Draft → Pending transition, never straddling it.
  *
  * Resolution rules:
  * - A target that does not exist passes through — the write itself no-ops or
@@ -38,31 +46,35 @@ const makeDbCall = <T>(fn: () => Promise<T>) =>
     catch: (cause) => new UnknownDBServiceError({ cause }),
   });
 
-const assertDraft = (
-  version: { id: string; commitState: string } | null | undefined
-) =>
-  version && version.commitState !== "draft"
-    ? Effect.fail(
-        new VersionNotDraftError({
-          versionId: version.id,
-          commitState: version.commitState,
-        })
-      )
-    : Effect.void;
-
-/** Guard a write scoped directly to a CourseVersion id. */
-export const requireDraftVersion = Effect.fn("requireDraftVersion")(function* (
+/**
+ * Lock the version row FOR UPDATE and assert it is a Draft. A missing row
+ * passes through (see resolution rules above).
+ */
+const lockAndAssertDraft = Effect.fn("lockAndAssertDraft")(function* (
   db: Database,
   versionId: string
 ) {
-  const version = yield* makeDbCall(() =>
-    db.query.courseVersions.findFirst({
-      where: eq(courseVersions.id, versionId),
-      columns: { id: true, commitState: true },
-    })
+  const [version] = yield* makeDbCall(() =>
+    db
+      .select({
+        id: courseVersions.id,
+        commitState: courseVersions.commitState,
+      })
+      .from(courseVersions)
+      .where(eq(courseVersions.id, versionId))
+      .for("update")
   );
-  yield* assertDraft(version);
+  if (version && version.commitState !== "draft") {
+    return yield* new VersionNotDraftError({
+      versionId: version.id,
+      commitState: version.commitState,
+    });
+  }
 });
+
+/** Guard a write scoped directly to a CourseVersion id. */
+export const requireDraftVersion = (db: Database, versionId: string) =>
+  lockAndAssertDraft(db, versionId);
 
 /** Guard a write scoped to a Section. */
 export const requireDraftVersionForSection = Effect.fn(
@@ -71,11 +83,11 @@ export const requireDraftVersionForSection = Effect.fn(
   const section = yield* makeDbCall(() =>
     db.query.sections.findFirst({
       where: eq(sections.id, sectionId),
-      columns: { id: true },
-      with: { repoVersion: { columns: { id: true, commitState: true } } },
+      columns: { repoVersionId: true },
     })
   );
-  yield* assertDraft(section?.repoVersion);
+  if (!section) return;
+  yield* lockAndAssertDraft(db, section.repoVersionId);
 });
 
 /** Guard a write scoped to a Lesson. */
@@ -86,15 +98,11 @@ export const requireDraftVersionForLesson = Effect.fn(
     db.query.lessons.findFirst({
       where: eq(lessons.id, lessonId),
       columns: { id: true },
-      with: {
-        section: {
-          columns: { id: true },
-          with: { repoVersion: { columns: { id: true, commitState: true } } },
-        },
-      },
+      with: { section: { columns: { repoVersionId: true } } },
     })
   );
-  yield* assertDraft(lesson?.section?.repoVersion);
+  if (!lesson?.section) return;
+  yield* lockAndAssertDraft(db, lesson.section.repoVersionId);
 });
 
 /** Guard a write scoped to a Video (passes for standalone/pitch videos). */
@@ -108,19 +116,13 @@ export const requireDraftVersionForVideo = Effect.fn(
       with: {
         lesson: {
           columns: { id: true },
-          with: {
-            section: {
-              columns: { id: true },
-              with: {
-                repoVersion: { columns: { id: true, commitState: true } },
-              },
-            },
-          },
+          with: { section: { columns: { repoVersionId: true } } },
         },
       },
     })
   );
-  yield* assertDraft(video?.lesson?.section?.repoVersion);
+  if (!video?.lesson?.section) return;
+  yield* lockAndAssertDraft(db, video.lesson.section.repoVersionId);
 });
 
 /** Guard a write scoped to a Clip. */
@@ -151,6 +153,20 @@ export const requireDraftVersionForChapter = Effect.fn(
   yield* requireDraftVersionForVideo(db, chapter.videoId);
 });
 
+/** Guard a write scoped to a Clip web link. */
+export const requireDraftVersionForClipWebLink = Effect.fn(
+  "requireDraftVersionForClipWebLink"
+)(function* (db: Database, linkId: string) {
+  const link = yield* makeDbCall(() =>
+    db.query.clipWebLinks.findFirst({
+      where: eq(clipWebLinks.id, linkId),
+      columns: { id: true, clipId: true },
+    })
+  );
+  if (!link) return;
+  yield* requireDraftVersionForClip(db, link.clipId);
+});
+
 /**
  * Write-closure for the clip-service handler, which writes to the DB directly
  * instead of going through the guarded ops services: resolve a write event's
@@ -168,6 +184,10 @@ export const requireDraftForClipServiceEvent = Effect.fn(
     case "create-effect-clip-at-position":
     case "regenerate-chapters":
       return yield* requireDraftVersionForVideo(db, event.input.videoId);
+    case "create-video-from-selection":
+      // Copies always join the source video's lesson (and thus its version);
+      // move mode additionally archives the source clips.
+      return yield* requireDraftVersionForVideo(db, event.input.sourceVideoId);
     case "archive-clips":
     case "unarchive-clips":
       // A batch always targets one video; resolve via the first clip.
@@ -196,16 +216,29 @@ export const requireDraftForClipServiceEvent = Effect.fn(
   }
 });
 
-/** Guard a write scoped to a Clip web link. */
-export const requireDraftVersionForClipWebLink = Effect.fn(
-  "requireDraftVersionForClipWebLink"
-)(function* (db: Database, linkId: string) {
-  const link = yield* makeDbCall(() =>
-    db.query.clipWebLinks.findFirst({
-      where: eq(clipWebLinks.id, linkId),
-      columns: { id: true, clipId: true },
-    })
-  );
-  if (!link) return;
-  yield* requireDraftVersionForClip(db, link.clipId);
-});
+/**
+ * Guarded clip-service write events run inside one transaction: guard (with
+ * its version-row lock) + dispatch, committed atomically (issue #1403).
+ * Reads, standalone-video creation, and append-from-obs (which re-guards
+ * around its insert AFTER the slow OBS detection — see appendFromObsImpl)
+ * dispatch outside a transaction.
+ */
+export const withClipServiceWriteClosure = <A, E>(
+  db: Database,
+  event: ClipServiceEvent,
+  run: (db: Database) => Effect.Effect<A, E>
+): Effect.Effect<A, E | VersionNotDraftError | UnknownDBServiceError> => {
+  switch (event.type) {
+    case "create-video":
+    case "get-timeline":
+    case "append-from-obs":
+      return run(db);
+    default:
+      return withDbTransaction(db, (tx) =>
+        Effect.gen(function* () {
+          yield* requireDraftForClipServiceEvent(tx, event);
+          return yield* run(tx);
+        })
+      );
+  }
+};

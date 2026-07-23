@@ -6,6 +6,7 @@ import {
   UnknownDBServiceError,
   VersionNotDraftError,
 } from "@/services/db-service-errors";
+import { requireDraftVersion } from "@/services/draft-guard.server";
 import { withDbTransaction } from "@/services/with-db-transaction.server";
 import { and, eq, sql } from "drizzle-orm";
 import { Effect } from "effect";
@@ -64,6 +65,11 @@ export const freezeAndCloneVersion = <A, E>(
   withDbTransaction(db, (transaction) =>
     Effect.gen(function* () {
       yield* lockCourseForVersionMutation(transaction, input.repoId);
+      // #1403: take the version-row lock that guarded writes contend on
+      // BEFORE cloning. A write committing after this point blocks on the row
+      // and re-reads commitState (→ VersionNotDraftError); one committing
+      // before it is visible to the clone. No clip can straddle the freeze.
+      yield* requireDraftVersion(transaction, input.sourceVersionId);
       const existingPending = yield* makeDbCall(() =>
         transaction.query.courseVersions.findFirst({
           where: and(

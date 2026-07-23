@@ -239,3 +239,24 @@ export const createVideoWriteOps = (db: Database) => {
     updateVideoFormat,
   };
 };
+
+/**
+ * The guarded Video write verbs (from both this file and
+ * db-video-operations.server.ts) that transactionalizeWrites wraps so guard +
+ * write share one transaction (issue #1403). Standalone-only writes
+ * (createStandaloneVideo, unlinkVideoFromPitch, updateVideoArchiveStatus)
+ * touch no CourseVersion and stay unwrapped.
+ */
+export const videoWriteMethods = [
+  "createVideo",
+  "updateVideo",
+  "deleteVideo",
+  "updateVideoTitle",
+  "copyVideo",
+  "updateVideoLesson",
+  "linkVideoToPitch",
+  "moveVideoToLesson",
+  "updateVideoBody",
+  "updateVideoDescription",
+  "updateVideoFormat",
+] as const;

@@ -51,8 +51,7 @@ export type TargetItemType = "clip" | "chapter";
  * Returned by getTimeline, sorted by order.
  */
 export type TimelineItem =
-  | { type: "clip"; data: Clip }
-  | { type: "chapter"; data: Chapter };
+  { type: "clip"; data: Clip } | { type: "chapter"; data: Chapter };
 
 // ============================================================================
 // Direction Types
@@ -572,6 +571,19 @@ export function createHttpClipService(): ClipService {
 
     if (!response.ok) {
       const text = await response.text();
+      // A 409 body is the server error's message (e.g. VersionNotDraftError's
+      // terminal "reload into the new Draft" message, #1403) — surface it
+      // verbatim so the error overlay reads as guidance, not a status dump.
+      if (response.status === 409) {
+        let message = text;
+        try {
+          const parsed = JSON.parse(text);
+          if (typeof parsed === "string") message = parsed;
+        } catch {
+          // keep raw text
+        }
+        throw new Error(message);
+      }
       throw new Error(`ClipService request failed: ${response.status} ${text}`);
     }
 

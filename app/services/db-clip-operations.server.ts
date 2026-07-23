@@ -16,6 +16,7 @@ import {
   requireDraftVersionForClipWebLink,
   requireDraftVersionForVideo,
 } from "./draft-guard.server";
+import { transactionalizeWrites } from "./with-db-transaction.server";
 import { compareOrderStrings } from "@/lib/sort-by-order";
 
 const makeDbCall = <T>(fn: () => Promise<T>) => {
@@ -25,7 +26,7 @@ const makeDbCall = <T>(fn: () => Promise<T>) => {
   });
 };
 
-export const createClipOperations = (db: Database) => {
+const createClipOperationsUnwrapped = (db: Database) => {
   const getClipById = Effect.fn("getClipById")(function* (clipId: string) {
     const clip = yield* makeDbCall(() =>
       db.query.clips.findFirst({
@@ -731,6 +732,23 @@ export const createClipOperations = (db: Database) => {
     deleteClipWebLink,
   };
 };
+
+/** Each write runs in one txn with its draft-guard's version-row lock (#1403). */
+export const createClipOperations = (db: Database) =>
+  transactionalizeWrites(db, createClipOperationsUnwrapped, [
+    "updateClip",
+    "archiveClip",
+    "reorderClip",
+    "createChapter",
+    "createChapterAtInsertionPoint",
+    "createChapterAtPosition",
+    "updateChapter",
+    "archiveChapter",
+    "reorderChapter",
+    "appendClips",
+    "createClipWebLinks",
+    "deleteClipWebLink",
+  ]);
 
 export class ClipOperationsService extends Effect.Service<ClipOperationsService>()(
   "ClipOperationsService",
